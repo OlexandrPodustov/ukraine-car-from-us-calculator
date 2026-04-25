@@ -20,7 +20,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
     rel="stylesheet">
 
-  </noscript>
   <meta name="google-site-verification" content="2gDea9Yj_NmoZQp2nrK1hOsMj4yybDggBHM7wvhKlds" />
   <meta name="facebook-domain-verification" content="owebu66xulcn3g3zt8adog2fihbaxj" />
   <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
@@ -235,6 +234,7 @@
                               <select name="fuel-type" v-model="customs.engineType">
                                 <option value="petrol">Бензин</option>
                                 <option value="diesel">Дизель</option>
+                                <option value="electric">Електро (EV)</option>
                               </select>
                             </div>
                           </div>
@@ -246,9 +246,12 @@
                               <option v-for="opt in customs.engineVolumeOpts" v-bind:value="opt">{{opt}}
                               </option>
                             </select>
+                            <div class="title" v-if="isElectricEngine()">Ємність батареї (кВт·год)</div>
+                            <input v-if="isElectricEngine()" type="number" min="10" max="250"
+                              name="battery-kwh" placeholder="напр. 95"
+                              v-model.number="customs.batteryKwh" />
                           </div>
-                          <div class="t-input-group t-input-group_em" data-input-lid="1495646567135"
-                            v-if="!isElectricEngine()">
+                          <div class="t-input-group t-input-group_em" data-input-lid="1495646567135">
                             <div class="t-input-block t-input-block-ext">
                               <div class="title">Рік випуску</div>
                               <select name="rik-vupysky" v-model="customs.manufactureYear">
@@ -257,13 +260,31 @@
                             </div>
                           </div>
                           <div class="t-input-group t-input-group_nm" data-input-lid="1495646533382">
-                            <div class="t-input-block t-input-group t-input-block-ext">
-                              <div>Місце знаходження авто</div>
-                              <select name="car-location" v-model="autoShipping.location.selected"
-                                v-on:change="onLocationChange">
-                                <option v-for="opt in autoShipping.location.options" v-bind:value="opt.id">{{opt.name}}
-                                </option>
-                              </select>
+                            <div class="t-input-block t-input-group t-input-block-ext" style="position:relative;">
+                              <div>Місцезнаходження авто</div>
+                              <input type="text" name="car-location-search"
+                                v-model="locationSearch"
+                                v-on:focus="locationDropOpen=true"
+                                v-on:blur="onLocationBlur"
+                                placeholder="Пошук... напр. Oregon або CA LOS"
+                                autocomplete="off"
+                                style="margin-bottom:0;" />
+                              <div v-if="locationDropOpen && filteredLocations.length"
+                                style="position:absolute;z-index:999;background:#fff;border:1px solid #000;
+                                       border-radius:5px;width:100%;max-height:220px;overflow-y:auto;
+                                       top:100%;left:0;box-shadow:0 4px 12px rgba(0,0,0,.15);">
+                                <div v-for="opt in filteredLocations"
+                                  v-on:mousedown.prevent="selectLocation(opt)"
+                                  style="padding:6px 12px;cursor:pointer;font-size:15px;border-bottom:1px solid #eee;"
+                                  v-bind:style="opt.id===autoShipping.location.selected ? {background:'#e8f4ff',fontWeight:'bold'} : {}">
+                                  {{opt.name}}
+                                </div>
+                              </div>
+                              <div v-if="locationDropOpen && !filteredLocations.length"
+                                style="position:absolute;z-index:999;background:#fff;border:1px solid #ccc;
+                                       border-radius:5px;width:100%;padding:8px 12px;top:100%;left:0;color:#999;">
+                                Нічого не знайдено
+                              </div>
                             </div>
                           </div>
                           <div class="t-input-group t-input-group_nm" data-input-lid="1495646545078">
@@ -5397,6 +5418,8 @@
                 var calcApp = new Vue({
                   el: "#shippingApp",
                   data: {
+                    eurUsd: 1.10,
+                    oceanFreight: { east: 2500, west: 3000, gulf: 2700 },
                     autoPricing: {
                       autoPrice: 4000,
                       auctions: {
@@ -5404,6 +5427,8 @@
                         options: auctions,
                       },
                     },
+                    locationSearch: '',
+                    locationDropOpen: false,
                     autoShipping: {
                       location: {
                         selected: autoLocation[0].id,
@@ -5420,10 +5445,11 @@
                       engineVolume: "2.0",
                       // always a string value, so convert it for calculations
                       engineVolumeOpts: engineVolumes,
-                      batterySize: 40,
+                      batteryKwh: 77,
                       manufactureYear: currentYear,
                       manYearOptions: manYearOptions,
                       engineType: engineType.Petrol,
+                      batteryKwh: 77,
                     },
                     portExpeditor: 450,
                     portBrokerFee: 400,
@@ -5432,6 +5458,40 @@
                     legalRegistration: 100,
                     toHomeTransport: 250,
                     bankCommission: 50,
+                  },
+                  mounted: function () {
+                    var vm = this;
+                    fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json')
+                      .then(function(resp) { return resp.json(); })
+                      .then(function(data) {
+                        var usd = data.find(function(x) { return x.cc === 'USD'; });
+                        var eur = data.find(function(x) { return x.cc === 'EUR'; });
+                        if (usd && eur && usd.rate > 0) {
+                          vm.eurUsd = parseFloat((eur.rate / usd.rate).toFixed(4));
+                          console.log('[НБУ] EUR/USD =', vm.eurUsd);
+                        }
+                      })
+                      .catch(function(e) {
+                        console.warn('[НБУ] fallback 1.10', e);
+                      });
+                  },
+                  computed: {
+                    filteredLocations: function () {
+                      var q       = (this.locationSearch || '').toLowerCase().trim();
+                      var auction = this.autoPricing.auctions.selected;   // 'copart' | 'iaai'
+
+                      return this.autoShipping.location.options.filter(function(loc) {
+                        var name = loc.name.toLowerCase();
+
+                        // фільтр по аукціону
+                        if (auction === 'copart' && name.indexOf('(iaai)')   !== -1) return false;
+                        if (auction === 'iaai'   && name.indexOf('(copart)') !== -1) return false;
+
+                        // текстовий пошук
+                        if (!q) return true;
+                        return name.indexOf(q) !== -1;
+                      });
+                    },
                   },
                   methods: {
                     auctionFee: function () {
@@ -5503,6 +5563,10 @@
                       );
                     },
 
+                    onLocationBlur: function () {
+                      var vm = this;
+                      setTimeout(function() { vm.locationDropOpen = false; }, 150);
+                    },
                     onLocationChange: function () {
                       var ports = this.shippingAllowedPorts();
                       var location = this.getCurrentLocation();
@@ -5517,6 +5581,12 @@
                       this.autoShipping.shippingPort = optimal.id;
                     },
 
+                    selectLocation: function (opt) {
+                      this.autoShipping.location.selected = opt.id;
+                      this.locationSearch = opt.name;
+                      this.locationDropOpen = false;
+                      this.onLocationChange();
+                    },
                     mreo: function () {
                       //  console.log(this.autoPricing.autoPrice)
                       //  console.log(this.auctionFee())
@@ -5561,12 +5631,16 @@
                       var vtFee =
                         this.autoShipping.vehicleType == vehicleType[1].id ? 0 : this.autoShipping.vehicleType == vehicleType[2].id ? 300 : 0;
 
-                      return dostavka + vtFee;
-                      //  return dostavka + vtFee + 80;
+                      // Океанський фрахт SUV → Одеса (2026)
+                      var locName = (this.getCurrentLocation() ? this.getCurrentLocation().name : '').toUpperCase();
+                      var isWest = /^(CA|WA|OR)\s/.test(locName);
+                      var isGulf = /^(TX|FL|LA|MS|AL)\s/.test(locName);
+                      var oceanKey = isWest ? 'west' : isGulf ? 'gulf' : 'east';
+                      return dostavka + vtFee + this.oceanFreight[oceanKey];
                     },
 
                     isElectricEngine: function () {
-                      return this.customs.engineType == engineType.Electric;
+                      return this.customs.engineType === 'electric';
                     },
 
                     akcis: function () {
@@ -5638,9 +5712,14 @@
                         return Math.round(res);
 
                       } else {
-                        // electric
-                        var result = Math.round(this.customs.batterySize);
-                        return result + 150;
+                        // electric — повна формула (акциз НБУ + ПДВ 20%)
+                        var excisEur = 1.0 * this.customs.batteryKwh * Math.max(age, 1);
+                        var excisUsd = excisEur * this.eurUsd;
+                        var duty = 0;
+                        var customsBase = this.autoPricing.autoPrice + this.auctionFee() + 1000;
+                        var vat = (customsBase + duty + excisUsd) * 0.20;
+                        var pension = customsBase * 0.01;
+                        return Math.round(duty + excisUsd + vat + pension);
                       }
 
                       return 0;
