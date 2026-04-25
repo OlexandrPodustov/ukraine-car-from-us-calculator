@@ -33,20 +33,6 @@
 <body class="t-body" style="margin:0;margin-left:10%;">
   <!--allrecords-->
   <div id="allrecords" class="t-records" data-hook="blocks-collection-content-node">
-    <div id="rec202954688" class="r t-rec t-rec_pt_45 t-rec_pb_30" style="padding-top:45px;padding-bottom:30px; "
-      data-record-type="795">
-      <!-- T795 -->
-      <div class="t795">
-        <div class="t-container t-align_center">
-          <div class="t-col t-col_10 t-prefix_1">
-            <div class="t795__title t-title t-title_xs t-margin_auto" field="title" style="font-size:30px;">
-              <div style="font-size:26px;" data-customstyle="yes">Калькулятор для розрахунку повної вартості авто із США
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     <div id="rec204983579" class="r t-rec" style=" " data-record-type="215"><a name="calculator_usa"
         style="font-size:0;"></a></div>
     <div id="rec193564084" class="r t-rec" style=" " data-animationappear="off" data-record-type="131">
@@ -305,7 +291,7 @@
                     </div>
 
                     <div class="values">
-                      <div class="titlet check">Всі затрати</div>
+                      <div class="titlet check">Всі витрати</div>
                       <div class="valuess">
                         <div class="values_title">Ціна авто</div>
 
@@ -5461,6 +5447,22 @@
                   },
                   mounted: function () {
                     var vm = this;
+                    
+                    // Завантажити збережені дані з localStorage
+                    var savedData = localStorage.getItem('carCalcData');
+                    if (savedData) {
+                      try {
+                        var data = JSON.parse(savedData);
+                        if (data.autoPricing) Object.assign(vm.autoPricing, data.autoPricing);
+                        if (data.autoShipping) Object.assign(vm.autoShipping, data.autoShipping);
+                        if (data.customs) Object.assign(vm.customs, data.customs);
+                        if (data.locationSearch) vm.locationSearch = data.locationSearch;
+                        console.log('[LocalStorage] Дані завантажені успішно');
+                      } catch (e) {
+                        console.warn('[LocalStorage] Помилка при завантаженні даних', e);
+                      }
+                    }
+                    
                     fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json')
                       .then(function(resp) { return resp.json(); })
                       .then(function(data) {
@@ -5493,7 +5495,40 @@
                       });
                     },
                   },
+                  watch: {
+                    autoPricing: {
+                      handler: function(newVal) {
+                        this.saveToLocalStorage();
+                      },
+                      deep: true
+                    },
+                    autoShipping: {
+                      handler: function(newVal) {
+                        this.saveToLocalStorage();
+                      },
+                      deep: true
+                    },
+                    customs: {
+                      handler: function(newVal) {
+                        this.saveToLocalStorage();
+                      },
+                      deep: true
+                    },
+                    locationSearch: function(newVal) {
+                      this.saveToLocalStorage();
+                    }
+                  },
                   methods: {
+                    saveToLocalStorage: function() {
+                      var dataToSave = {
+                        autoPricing: this.autoPricing,
+                        autoShipping: this.autoShipping,
+                        customs: this.customs,
+                        locationSearch: this.locationSearch
+                      };
+                      localStorage.setItem('carCalcData', JSON.stringify(dataToSave));
+                      console.log('[LocalStorage] Дані збережені');
+                    },
                     auctionFee: function () {
                       if (this.autoPricing.auctions.selected === auctions[0].id) {
                         if (this.autoPricing.autoPrice < 2000) {
