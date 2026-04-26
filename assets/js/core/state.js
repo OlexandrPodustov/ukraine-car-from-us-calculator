@@ -34,7 +34,6 @@ function createInitialState() {
                       engineVolume: "2.0",
                       // always a string value, so convert it for calculations
                       engineVolumeOpts: engineVolumes,
-                      batteryKwh: 77,
                       manufactureYear: currentYear,
                       manYearOptions: manYearOptions,
                       engineType: engineType.Petrol,
