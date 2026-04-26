@@ -20,6 +20,12 @@
           if (savedData.customs) Object.assign(vm.customs, savedData.customs);
           if (savedData.locationSearch) vm.locationSearch = savedData.locationSearch;
           if (savedData.auctionUrl) vm.auctionUrl = savedData.auctionUrl;
+          if (savedData.auctionStatus) vm.auctionStatus = savedData.auctionStatus;
+          if (savedData.auctionMsg) vm.auctionMsg = savedData.auctionMsg;
+          if (savedData.marketStatus) vm.marketStatus = savedData.marketStatus;
+          if (savedData.marketMsg) vm.marketMsg = savedData.marketMsg;
+          if (savedData.ukrainianMarketPrice) vm.customs.ukrainianMarketPrice = savedData.ukrainianMarketPrice;
+          if (savedData.marketCategory) vm.customs.marketCategory = savedData.marketCategory;
           if (savedData.acv) vm.acv = savedData.acv;
           if (savedData.repairCost) vm.repairCost = savedData.repairCost;
           if (savedData.buyNowPrice) vm.buyNowPrice = savedData.buyNowPrice;

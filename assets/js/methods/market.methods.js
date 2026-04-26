@@ -7,6 +7,17 @@ function __createAllMethods(){
                         customs: this.customs,
                         locationSearch: this.locationSearch,
                         auctionUrl: this.auctionUrl,
+                        auctionStatus: this.auctionStatus,
+                        auctionMsg: this.auctionMsg,
+                        acv: this.acv,
+                        repairCost: this.repairCost,
+                        buyNowPrice: this.buyNowPrice,
+                        riskCoefficient: this.riskCoefficient,
+                        customs: this.customs,
+                        marketStatus: this.marketStatus,
+                        marketMsg: this.marketMsg,
+                        ukrainianMarketPrice: this.customs.ukrainianMarketPrice,
+                        marketCategory: this.customs.marketCategory,
                       };
                       localStorage.setItem('carCalcData', JSON.stringify(dataToSave));
                       // console.log('[LocalStorage] Дані збережені');
@@ -465,6 +476,9 @@ function __createAllMethods(){
                         }
 
                         var searchUrl = vm.buildAutoriaSearchUrl(target);
+
+                        console.log('aria searchUrl', searchUrl);
+
                         var html = await vm.fetchViaProxy(searchUrl);
                         var listings = vm.extractListingsFromAutoriaHtml(html);
                         if (!listings.length) {

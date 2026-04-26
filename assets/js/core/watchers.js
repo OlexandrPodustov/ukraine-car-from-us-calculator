@@ -27,6 +27,24 @@ function createWatchers() {
                     buyNowPrice:     function() { this.saveToLocalStorage(); },
                     auctionUrl: function(newVal) {
                       this.saveToLocalStorage();
+                    },
+                    auctionStatus: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
+                    auctionMsg: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
+                    marketStatus: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
+                    marketMsg: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
+                    ukrainianMarketPrice: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
+                    marketCategory: function(newVal) {
+                      this.saveToLocalStorage();
                     }
   };
 }
