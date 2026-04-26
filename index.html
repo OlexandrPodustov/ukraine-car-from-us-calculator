@@ -19,10 +19,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
     rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">  <!-- ← сюди -->
 
   <meta name="google-site-verification" content="2gDea9Yj_NmoZQp2nrK1hOsMj4yybDggBHM7wvhKlds" />
   <meta name="facebook-domain-verification" content="owebu66xulcn3g3zt8adog2fihbaxj" />
   <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  <script src="config.js"></script>
   <style>
     body {
       overflow-x: hidden;
@@ -197,15 +199,38 @@
                       <form onsubmit="return false;">
                         <div>
                           <div class="titlet">Дані для розрахунку</div>
-                          <div data-input-lid="1495646533382">
-                            <div>
+                        <div data-input-lid="1495646533382">
+                                                  
+                          <!-- ── Auction URL parser ── -->
+                          <!-- <div style="border:1px solid #d0d0d0;border-radius:8px;padding:14px 14px 6px;margin-bottom:22px;background:#f7f8fa;"> -->
+                            <!-- <div class="title" style="font-weight:600;margin-bottom:10px;">🔗 Посилання на лот аукціону</div> -->
+                            <div style="display:flex;gap:8px;align-items:center;">
+                              <input type="url" v-model="auctionUrl"
+                                placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
+                                autocomplete="off"
+                                v-on:paste="$nextTick(parseAuctionLot)"
+                                style="margin-bottom:0;flex:1;min-width:0;" />
+                              <button type="button" v-on:click="parseAuctionLot"
+                                v-bind:disabled="auctionStatus==='loading'"
+                                style="height:30px;padding:0 13px;margin-bottom:0;background:#111;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;">
+                                <span v-if="auctionStatus!=='loading'">↓ аповнити</span>
+                                <span v-else>⏳…</span>
+                              </button>
+                            </div>
+                            <div v-if="auctionMsg" style="font-size:13px;margin-top:6px;margin-bottom:4px;line-height:1.4;"
+                              v-bind:style="auctionStatus==='ok'?{color:'#1a7a1a'}:auctionStatus==='error'?{color:'#c00000'}:auctionStatus==='warn'?{color:'#a06000'}:{color:'#555'}">
+                              {{auctionMsg}}
+                            <!-- </div> -->
+                          </div>
+                          <!-- ──────────────────────── -->
+                            <div class="field-row">
                               <div class="title">Ціна авто</div>
                               <input max="2000000" min="1000" name="car-price" type="number"
                                 v-model.number="autoPricing.autoPrice" />
                             </div>
                           </div>
                           <div class="t-input-group t-input-group_nm" data-input-lid="1495646545048">
-                            <div class="t-input-block t-input-block-ext">
+                            <div class="field-row t-input-block t-input-block-ext">
                               <div class="title">Назва Аукціона</div>
                               <select name="auction-type" v-model="autoPricing.auctions.selected">
                                 <option v-for="opt in autoPricing.auctions.options" v-bind:value="opt.id">{{opt.name}}
@@ -213,7 +238,7 @@
                               </select>
                             </div>
                           </div>
-                          <div class="t-input-group t-input-group_ph" data-input-lid="1549140702557">
+                          <div class="field-row t-input-group t-input-group_ph" data-input-lid="1549140702557">
                             <div class="title">Тип палива</div>
                             <div class="t-input-block t-input-group t-input-block-ext">
 
@@ -224,7 +249,7 @@
                               </select>
                             </div>
                           </div>
-                          <div class="t-input-block t-input-group t-input-block-ext">
+                          <div class="field-row t-input-block t-input-group t-input-block-ext">
                             <div class="title" v-if="!isElectricEngine()">
                               Об'єм двигуна в літрах
                             </div>
@@ -237,7 +262,7 @@
                               name="battery-kwh" placeholder="напр. 95"
                               v-model.number="customs.batteryKwh" />
                           </div>
-                          <div class="t-input-group t-input-group_em" data-input-lid="1495646567135">
+                          <div class="field-row t-input-group t-input-group_em" data-input-lid="1495646567135">
                             <div class="t-input-block t-input-block-ext">
                               <div class="title">Рік випуску</div>
                               <select name="rik-vupysky" v-model="customs.manufactureYear">
@@ -245,14 +270,14 @@
                               </select>
                             </div>
                           </div>
-                          <div class="t-input-group t-input-group_nm" data-input-lid="1495646533382">
+                          <div class="field-row t-input-group t-input-group_nm" data-input-lid="1495646533382">
                             <div class="t-input-block t-input-group t-input-block-ext" style="position:relative;">
                               <div>Місцезнаходження авто</div>
                               <input type="text" name="car-location-search"
                                 v-model="locationSearch"
                                 v-on:focus="locationDropOpen=true"
                                 v-on:blur="onLocationBlur"
-                                placeholder="Пошук... напр. Oregon або CA LOS"
+                                placeholder="Пошук... напр. Oregon"
                                 autocomplete="off"
                                 style="margin-bottom:0;" />
                               <div v-if="locationDropOpen && filteredLocations.length"
@@ -273,7 +298,7 @@
                               </div>
                             </div>
                           </div>
-                          <div class="t-input-group t-input-group_nm" data-input-lid="1495646545078">
+                          <div class="field-row t-input-group t-input-group_nm" data-input-lid="1495646545078">
                             <div class="t-input-block t-input-group t-input-block-ext">
                               <div class="title">Тип авто</div>
                               <select name="vehicle_type" v-model="autoShipping.vehicleType">
@@ -5413,6 +5438,9 @@
                         options: auctions,
                       },
                     },
+                    auctionUrl: '',
+                    auctionStatus: '',   // '', 'loading', 'ok', 'warn', 'error'
+                    auctionMsg: '',
                     locationSearch: '',
                     locationDropOpen: false,
                     autoShipping: {
@@ -5457,25 +5485,55 @@
                         if (data.autoShipping) Object.assign(vm.autoShipping, data.autoShipping);
                         if (data.customs) Object.assign(vm.customs, data.customs);
                         if (data.locationSearch) vm.locationSearch = data.locationSearch;
+                        if (data.auctionUrl) vm.auctionUrl = data.auctionUrl;
                         console.log('[LocalStorage] Дані завантажені успішно');
                       } catch (e) {
                         console.warn('[LocalStorage] Помилка при завантаженні даних', e);
                       }
                     }
                     
-                    fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json')
-                      .then(function(resp) { return resp.json(); })
-                      .then(function(data) {
-                        var usd = data.find(function(x) { return x.cc === 'USD'; });
-                        var eur = data.find(function(x) { return x.cc === 'EUR'; });
-                        if (usd && eur && usd.rate > 0) {
-                          vm.eurUsd = parseFloat((eur.rate / usd.rate).toFixed(4));
-                          console.log('[НБУ] EUR/USD =', vm.eurUsd);
+                    // ── NBU rate: кеш на 24 години ─────────────────────────
+                    var NBU_KEY = 'nbu_eurusd_cache';
+                    var NBU_TTL = 24 * 60 * 60 * 1000; // 24h в мс
+
+                    function loadCachedRate() {
+                      try {
+                        var c = JSON.parse(localStorage.getItem(NBU_KEY));
+                        if (c && c.rate && (Date.now() - c.ts) < NBU_TTL) {
+                          return c.rate;
                         }
-                      })
-                      .catch(function(e) {
-                        console.warn('[НБУ] fallback 1.10', e);
-                      });
+                      } catch(e) {}
+                      return null;
+                    }
+
+                    function saveCachedRate(rate) {
+                      try {
+                        localStorage.setItem(NBU_KEY, JSON.stringify({ rate: rate, ts: Date.now() }));
+                      } catch(e) {}
+                    }
+
+                    var cached = loadCachedRate();
+                    if (cached) {
+                      vm.eurUsd = cached;
+                      console.log('[НБУ] з кешу EUR/USD =', cached);
+                    } else {
+                      fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json')
+                        .then(function(resp) { return resp.json(); })
+                        .then(function(data) {
+                          var usd = data.find(function(x) { return x.cc === 'USD'; });
+                          var eur = data.find(function(x) { return x.cc === 'EUR'; });
+                          if (usd && eur && usd.rate > 0) {
+                            vm.eurUsd = parseFloat((eur.rate / usd.rate).toFixed(4));
+                            saveCachedRate(vm.eurUsd);
+                            console.log('[НБУ] оновлено EUR/USD =', vm.eurUsd);
+                          }
+                        })
+                        .catch(function(e) {
+                          console.warn('[НБУ] fallback 1.10', e);
+                        });
+                    }
+                    // ────────────────────────────────────────────────────────
+
                   },
                   computed: {
                     filteredLocations: function () {
@@ -5516,7 +5574,10 @@
                     },
                     locationSearch: function(newVal) {
                       this.saveToLocalStorage();
-                    }
+                    },
+                    auctionUrl: function(newVal) {
+                      this.saveToLocalStorage();
+                    },
                   },
                   methods: {
                     saveToLocalStorage: function() {
@@ -5524,10 +5585,262 @@
                         autoPricing: this.autoPricing,
                         autoShipping: this.autoShipping,
                         customs: this.customs,
-                        locationSearch: this.locationSearch
+                        locationSearch: this.locationSearch,
+                        auctionUrl: this.auctionUrl,
                       };
                       localStorage.setItem('carCalcData', JSON.stringify(dataToSave));
-                      console.log('[LocalStorage] Дані збережені');
+                      // console.log('[LocalStorage] Дані збережені');
+                    },
+                    parseAuctionLot: async function () {
+                      var vm = this;
+                      var url = (vm.auctionUrl || '').trim();
+                      if (!url) return;
+
+                      var isIaai   = /iaai\.com/i.test(url);
+                      var isCopart = /copart\.com/i.test(url);
+                      if (!isIaai && !isCopart) {
+                        vm.auctionStatus = 'error';
+                        vm.auctionMsg = '⚠ Підтримується лише iaai.com та copart.com';
+                        return;
+                      }
+                      vm.auctionStatus = 'loading';
+                      vm.auctionMsg = '⏳ Завантаження сторінки лоту…';
+                      vm.autoPricing.auctions.selected = isIaai ? 'iaai' : 'copart';
+
+                      // ── Fetch page HTML via CORS proxy ──────────────────────
+                      var html = '';
+
+                      var proxies = [
+                        (typeof CONFIG !== 'undefined' ? CONFIG.proxyUrl : null),
+                        'https://api.allorigins.win/raw?url=',
+                        'https://corsproxy.io/?',
+                      ].filter(Boolean); // прибирає null якщо config.js відсутній
+
+                      for (var pi = 0; pi < proxies.length && !html; pi++) {
+                        try {
+                          var ctrl = new AbortController();
+                          var tid = setTimeout(function () { ctrl.abort(); }, 13000);
+                          var resp = await fetch(proxies[pi] + encodeURIComponent(url), { signal: ctrl.signal });
+                          clearTimeout(tid);
+
+                          console.log('[proxy] #' + pi + ' status:', resp.status, resp.statusText);
+
+                          if (resp.ok) {
+                            var txt = await resp.text();
+                            console.log('[proxy] #' + pi + ' body length:', txt.length);
+
+                            var isCfBlocked = /just a moment|enable js|cloudflare/i.test(txt.slice(0, 3000));
+                            console.log('[proxy] #' + pi + ' cloudflare blocked:', isCfBlocked);
+
+                            if (txt && txt.length > 2000 && !isCfBlocked) {
+                              html = txt;
+                              console.log('[proxy] #' + pi + ' ✅ accepted');
+                            } else {
+                              console.warn('[proxy] #' + pi + ' ❌ rejected — length:', txt.length, '| cf blocked:', isCfBlocked);
+                            }
+                          } else {
+                            console.warn('[proxy] #' + pi + ' ❌ HTTP error:', resp.status);
+                          }
+                        } catch (e) {
+                          console.warn('[proxy] #' + pi + ' ❌ exception:', e.message);
+                        }
+                      }
+
+                      var filled = [];
+
+                      // ── Copart: extract year from URL slug ──────────────────
+                      if (isCopart) {
+                        var slugM = url.match(/\/lot\/\d+\/[^?#]*/);
+                        if (slugM) {
+                          var yrM = slugM[0].match(/\b(199\d|20[0-2]\d)\b/);
+                          if (yrM && manYearOptions.indexOf(+yrM[1]) !== -1) {
+                            vm.customs.manufactureYear = +yrM[1];
+                            filled.push('рік ' + yrM[1]);
+                          }
+                          // state code from trailing "-XX-cityname"
+                          var stSlug = slugM[0].match(/-([A-Za-z]{2})-[a-z]+$/i);
+                          if (stSlug) {
+                            var stCode = stSlug[1].toUpperCase();
+                            var locCand = autoLocation.filter(function (l) {
+                              return l.name.startsWith(stCode + ' ') && l.name.toUpperCase().indexOf('COPART') !== -1;
+                            })[0];
+                            if (locCand) {
+                              vm.autoShipping.location.selected = locCand.id;
+                              vm.locationSearch = locCand.name;
+                              vm.$nextTick(function () { vm.onLocationChange(); });
+                              filled.push('штат ' + stCode);
+                            }
+                          }
+                        }
+                      }
+
+                      // ── Parse HTML ──────────────────────────────────────────
+                      var vin = null;
+                      if (html) {
+                        // VIN: 17 chars [A-HJ-NPR-Z0-9], starts with letter
+                        var vinAll = html.match(/\b([A-HJ-NPR-Z][A-HJ-NPR-Z0-9]{16})\b/g) || [];
+                        for (var vi = 0; vi < vinAll.length; vi++) {
+                          if (/^[1-5JWK]/.test(vinAll[vi])) { vin = vinAll[vi]; break; }
+                        }
+                        if (!vin && vinAll.length) vin = vinAll[0];
+
+                        // Price
+                        var pricePats = [
+                          /"currentBid"\s*:\s*(\d+)/i,
+                          /"salePrice"\s*:\s*(\d+)/i,
+                          /"buyNowPrice"\s*:\s*(\d+)/i,
+                          /"lotActualValue"\s*:\s*(\d+)/i,
+                          /current\s*bid[^$\d]*\$?\s*([\d,]+)/i,
+                          /buy[\s-]?now[^$\d]*\$?\s*([\d,]+)/i,
+                        ];
+                        for (var pp = 0; pp < pricePats.length; pp++) {
+                          var pm = html.match(pricePats[pp]);
+                          if (pm) {
+                            var p = parseInt(pm[1].replace(/,/g,''));
+                            if (p >= 100 && p <= 300000) {
+                              vm.autoPricing.autoPrice = p;
+                              filled.push('ціна $' + p);
+                              break;
+                            }
+                          }
+                        }
+
+                        // Location
+                        var locPats = [
+                          /"locationName"\s*:\s*"([^"]+)"/i,
+                          /"branchName"\s*:\s*"([^"]+)"/i,
+                          /"auctionLocation"\s*:\s*"([^"]+)"/i,
+                          /"storageLocation"\s*:\s*"([^"]+)"/i,
+                        ];
+                        if (filled.indexOf('штат ' + (filled[1] || '')) === -1) {
+                          for (var lp = 0; lp < locPats.length; lp++) {
+                            var lm = html.match(locPats[lp]);
+                            if (lm) {
+                              var ls = lm[1].trim().toUpperCase();
+                              var auctionKey = vm.autoPricing.auctions.selected.toUpperCase();
+                              var locFound = autoLocation.filter(function (l) {
+                                return l.name.toUpperCase().indexOf(ls.split(',')[0].trim()) !== -1;
+                              })[0];
+                              if (!locFound) {
+                                var stM2 = ls.match(/\b([A-Z]{2})\b/);
+                                if (stM2) locFound = autoLocation.filter(function (l) {
+                                  return l.name.startsWith(stM2[1] + ' ') && l.name.toUpperCase().indexOf(auctionKey) !== -1;
+                                })[0];
+                              }
+                              if (locFound) {
+                                vm.autoShipping.location.selected = locFound.id;
+                                vm.locationSearch = locFound.name;
+                                vm.$nextTick(function () { vm.onLocationChange(); });
+                                filled.push('локація');
+                                break;
+                              }
+                            }
+                          }
+                        }
+
+                        // Fuel from HTML (lower priority than NHTSA — will be overwritten below)
+                        var fuelHtml = null;
+                        if (/\b(gasoline|gas)\b/i.test(html))      fuelHtml = 'petrol';
+                        else if (/\bdiesel\b/i.test(html))          fuelHtml = 'diesel';
+                        else if (/\belectric\b/i.test(html))        fuelHtml = 'electric';
+                        if (fuelHtml) vm.customs.engineType = fuelHtml;
+
+                        // Engine volume from HTML
+                        var engM = html.match(/"engineDisplacement"\s*:\s*"?([0-9.]+)/i)
+                                || html.match(/([1-9]\.[0-9])\s*L\b/i);
+                        if (engM && !vm.isElectricEngine()) {
+                          var ev = parseFloat(engM[1]);
+                          if (ev >= 0.6 && ev <= 6.6) {
+                            var evR = Math.round(ev * 10) / 10;
+                            var evC = vm.customs.engineVolumeOpts.reduce(function (a, b) {
+                              return Math.abs(+b - evR) < Math.abs(+a - evR) ? b : a;
+                            });
+                            vm.customs.engineVolume = evC;
+                          }
+                        }
+                      }
+
+                      // ── NHTSA VIN decode (free, no CORS) ───────────────────
+                      if (vin) {
+                        vm.auctionMsg = '🔍 VIN ' + vin + ' — декодування через NHTSA…';
+                        try {
+                          var nr = await fetch('https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/' + vin + '?format=json');
+                          var nd = await nr.json();
+                          var nv = {};
+                          (nd.Results || []).forEach(function (x) { nv[x.Variable] = x.Value; });
+
+                          // Year
+                          if (nv['Model Year'] && nv['Model Year'] !== 'null') {
+                            var ny = +nv['Model Year'];
+                            if (manYearOptions.indexOf(ny) !== -1) {
+                              vm.customs.manufactureYear = ny;
+                              if (!filled.some(function(f){return f.startsWith('рік');})) filled.push('рік ' + ny);
+                            }
+                          }
+                          // Fuel type
+                          var fuelNH = (nv['Fuel Type - Primary'] || '').toLowerCase();
+                          if (/gasoline|gas/.test(fuelNH)) {
+                            vm.customs.engineType = 'petrol';
+                            if (!filled.some(function(f){return f.includes('бензин');})) filled.push('бензин');
+                          } else if (/diesel/.test(fuelNH)) {
+                            vm.customs.engineType = 'diesel';
+                            if (!filled.some(function(f){return f.includes('дизель');})) filled.push('дизель');
+                          } else if (/electric/.test(fuelNH)) {
+                            vm.customs.engineType = 'electric';
+                            if (!filled.some(function(f){return f.includes('електро');})) filled.push('електро');
+                          }
+                          // Displacement
+                          var dispStr = nv['Displacement (L)'];
+                          if (dispStr && dispStr !== 'null' && !vm.isElectricEngine()) {
+                            var dv = parseFloat(dispStr);
+                            if (dv >= 0.6 && dv <= 6.6) {
+                              var dr = Math.round(dv * 10) / 10;
+                              var dc = vm.customs.engineVolumeOpts.reduce(function (a, b) {
+                                return Math.abs(+b - dr) < Math.abs(+a - dr) ? b : a;
+                              });
+                              vm.customs.engineVolume = dc;
+                              if (!filled.some(function(f){return f.includes('л');})) filled.push(dc + 'л');
+                            }
+                          }
+                          // Body class → vehicle type
+                          var bc = (nv['Body Class'] || '').toLowerCase();
+                          if (/pickup/.test(bc)) {
+                            vm.autoShipping.vehicleType = 'pikap';
+                            filled.push('пікап');
+                          } else if (/sport utility|suv|multi.purpose/.test(bc)) {
+                            vm.autoShipping.vehicleType = 'suv';
+                            filled.push('кросовер');
+                          } else if (bc && bc !== 'null') {
+                            vm.autoShipping.vehicleType = 'sedan';
+                            filled.push('седан');
+                          }
+                          // Make/Model label
+                          var carLabel = [nv['Make'], nv['Model']].filter(function(x){return x && x!=='null';}).join(' ');
+                          if (carLabel) filled.push(carLabel);
+
+                          // kWh for EV
+                          if (vm.isElectricEngine()) {
+                            var batStr = nv['Battery Energy (kWh) From'] || nv['Battery Info'] || '';
+                            var bkM = batStr.match(/(\d+\.?\d*)/);
+                            if (bkM) {
+                              vm.customs.batteryKwh = parseFloat(bkM[1]);
+                              filled.push(bkM[1] + ' кВт·год');
+                            }
+                          }
+                        } catch (ne) { filled.push('(NHTSA недоступний)'); }
+                      }
+
+                      // ── Final status message ────────────────────────────────
+                      if (filled.length) {
+                        vm.auctionStatus = 'ok';
+                        vm.auctionMsg = '✅ Заповнено: ' + filled.join(' · ') + (vin ? ' (VIN: ' + vin + ')' : '') + '. Перевірте та вкажіть ціну авто.';
+                      } else if (html) {
+                        vm.auctionStatus = 'warn';
+                        vm.auctionMsg = '⚠ Сторінку завантажено, але дані не розпізнано. Заповніть вручну.';
+                      } else {
+                        vm.auctionStatus = 'error';
+                        vm.auctionMsg = '❌ Сторінку не вдалося завантажити (Cloudflare/бот-захист). Заповніть дані вручну.';
+                      }
                     },
                     auctionFee: function () {
                       if (this.autoPricing.auctions.selected === auctions[0].id) {
@@ -5784,7 +6097,7 @@
                     total: function () {
                       let inPortParking = 44
                       //calc
-                      console.log(`${this.autoPricing.autoPrice} + ${this.auctionFee()} + ${this.commissionBank()} + ${this.strahovka()} + ${this.totalShippingFee()} + ${this.totalCustomsFee()} + ${550} + ${inPortParking} + ${250} + ${250} + ${this.mreo()} + ${this.anzFee()}`)
+                      console.log(`total ${this.autoPricing.autoPrice} + ${this.auctionFee()} + ${this.commissionBank()} + ${this.strahovka()} + ${this.totalShippingFee()} + ${this.totalCustomsFee()} + ${550} + ${inPortParking} + ${250} + ${250} + ${this.mreo()} + ${this.anzFee()}`)
                       return Math.floor(
                         this.autoPricing.autoPrice +
                         this.auctionFee() +

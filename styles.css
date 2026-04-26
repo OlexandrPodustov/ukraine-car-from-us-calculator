@@ -1,0 +1,16 @@
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.field-row .title {
+  width: 160px;
+  min-width: 160px;
+  margin-bottom: 0;
+}
+.field-row input,
+.field-row select {
+  margin-bottom: 0;
+  flex: 1;
+}
