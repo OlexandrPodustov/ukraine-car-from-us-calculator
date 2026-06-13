@@ -42,6 +42,10 @@ window.__createAllMethods = function () {
       vm.auctionMsg = "⏳ Завантаження сторінки лоту…";
       vm.autoPricing.auctions.selected = isIaai ? "iaai" : "copart";
 
+      // Скидаємо всі дані попереднього лоту — щоб поля, яких нема на новій
+      // сторінці, не «прилипали» від попереднього авто.
+      vm.resetLotData();
+
       // ── Fetch HTML ─────────────────────────────────────────────
       var html = "";
       var proxies = [
@@ -499,6 +503,26 @@ window.__createAllMethods = function () {
         }
       }
       return best;
+    },
+    // Скидає всі поля, що заповнюються з лоту, до чистих значень за
+    // замовчуванням. Викликається на початку parseAuctionLot, щоб дані одного
+    // лоту ніколи не переносились на інший.
+    resetLotData: function () {
+      this.acv = 0;
+      this.repairCost = 0;
+      this.buyNowPrice = 0;
+      this.autoPricing.autoPrice = 0;
+      this.customs.manufactureYear = window.currentYear;
+      this.customs.engineType = window.engineType.Petrol;
+      this.customs.engineVolume = "2.0";
+      this.autoShipping.vehicleType = window.vehicleType[0].id;
+      this.autoShipping.location.selected = window.autoLocation[0].id;
+      this.locationSearch = "";
+      this.customs.carrierInfo.make = "";
+      this.customs.carrierInfo.model = "";
+      this.customs.carrierInfo.color = "";
+      this.customs.carrierInfo.transmission = "";
+      this.customs.carrierInfo.mileage = 0;
     },
     applyMarketResult: function (price, category) {
       this.customs.ukrainianMarketPrice = price;
@@ -998,6 +1022,7 @@ export function createMarketMethods() {
     "getRiaModels",
     "normalizeName",
     "matchByName",
+    "resetLotData",
     "applyMarketResult",
     "logSearch",
     "lookupUkrainianPrice",
