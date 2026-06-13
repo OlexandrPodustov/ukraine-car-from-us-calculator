@@ -315,6 +315,9 @@ window.__createAllMethods = function () {
         vm.auctionMsg = filled.length
           ? "✅ " + filled.join(" · ")
           : "⚠ Дані з JSON не розпізнано. Заповніть вручну.";
+
+        // Зберігаємо ВЕСЬ лот (включно з HD-фото/відео) у локальну БД
+        vm.logLot(vm.collectLotData(nd, attrs, saleValues));
       } catch (parseErr) {
         console.error("[parse] error:", parseErr);
         vm.auctionStatus = "error";
@@ -535,7 +538,7 @@ window.__createAllMethods = function () {
     // Fire-and-forget: якщо сервера нема (статика/python) — тихо ігнорується.
     logSearch: function (payload) {
       try {
-        fetch("/api/searches", {
+        fetch(this.apiBase() + "/api/searches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -543,6 +546,106 @@ window.__createAllMethods = function () {
       } catch (e) {
         /* ignore */
       }
+    },
+    // База API: node-сервер на :5500. Якщо сторінку відкрито з іншого порту
+    // (Live Server) — пишемо в :5500 напряму (на сервері дозволено CORS).
+    apiBase: function () {
+      return location.port === "5500" ? "" : "http://localhost:5500";
+    },
+    // Лог повного лота (всі поля + HD-фото/відео + сирий JSON) у SQLite.
+    logLot: function (payload) {
+      try {
+        fetch(this.apiBase() + "/api/lots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch(function () {});
+      } catch (e) {
+        /* ignore */
+      }
+    },
+    // Витягує HD-фото, 360° та відео з JSON лота (IAAI; Copart — best-effort).
+    collectLotMedia: function (nd) {
+      var images = [],
+        videos = [],
+        image360 = "";
+      var iv = nd.inventoryView || {};
+      var id = iv.imageDimensions || {};
+      var keys = (id.keys && id.keys["$values"]) || [];
+      keys.forEach(function (o) {
+        if (!o || !o.k) return;
+        var base = "https://vis.iaai.com/resizer?imageKeys=" + o.k;
+        images.push({
+          hd: base + "&width=" + (o.w || 1280) + "&height=" + (o.h || 960),
+          thumb: base + "&width=" + (o.tw || 188) + "&height=" + (o.th || 141),
+          w: o.w || 0,
+          h: o.h || 0,
+        });
+      });
+      if (id.image360Ind && id.image360Url) image360 = id.image360Url;
+      if (id.vrdUrl) videos.push({ type: "engine", url: id.vrdUrl });
+      // Copart / generic fallback: масиви готових посилань
+      var inv = nd.inventory || {};
+      var hd = inv.hdImageLinks && (inv.hdImageLinks["$values"] || inv.hdImageLinks);
+      if (Array.isArray(hd)) {
+        hd.forEach(function (u) {
+          if (typeof u === "string")
+            images.push({ hd: u, thumb: u, w: 0, h: 0 });
+        });
+      }
+      return { images: images, image360: image360, videos: videos };
+    },
+    // Збирає повний набір даних про лот для збереження в БД.
+    collectLotData: function (nd, attrs, saleValues) {
+      var vm = this;
+      var inv = nd.inventory || {};
+      var a = attrs || {};
+      var media = vm.collectLotMedia(nd);
+      function sv(key) {
+        return vm.getVal(saleValues, key);
+      }
+      function s(v) {
+        return (v == null ? "" : v).toString().trim();
+      }
+      return {
+        url: vm.auctionUrl,
+        auction: vm.autoPricing.auctions.selected,
+        lotNumber: s(
+          a.StockNo || (nd.inventoryView || {}).itemId || inv.salvageId || "",
+        ),
+        vin: s(a.VIN || inv.vin),
+        year: parseInt(a.Year || inv.year || 0) || null,
+        make: s(a.Make || inv.make),
+        model: s(a.Model || inv.model),
+        series: s(a.Series || inv.series),
+        bodyStyle: s(a.BodyStyleName || inv.bodyStyleName || a.Segment),
+        fuel: s(a.FuelTypeDesc || a.FuelTypeCode || inv.fuelTypeDesc),
+        engine: s(a.EngineSize || inv.engineSize || a.DisplLiters),
+        cylinders: s(a.Cylinders || inv.cylindersDesc),
+        drive: s(a.DriveLineType || inv.driveLineTypeDesc),
+        transmission: s(a.Transmission || inv.transmissionDesc),
+        color: s(a.Color || inv.colorDesc),
+        odometer:
+          parseInt((a.Odometer || "").toString().replace(/[^0-9]/g, "")) || null,
+        primaryDamage: s(a.PrimaryDamage || inv.primaryDamageDesc),
+        secondaryDamage: s(a.SecondaryDamage || inv.secondaryDamageDesc),
+        titleBrand: s(a.TitleBrand || inv.titleBrand),
+        titleState: s(a.TitleState || inv.certState),
+        acv: vm.parseDollars(sv("ActualCashValue")) || null,
+        repairCost: vm.parseDollars(sv("EstimatedRepairCost")) || null,
+        buyNowPrice:
+          vm.parseDollars(sv("BuyNowPrice")) ||
+          parseInt(a.BuyNowAmount || 0) ||
+          null,
+        minBid: parseInt(a.MinimumBidAmount || 0) || null,
+        sellingBranch: s(sv("SellingBranch") || a.BranchName),
+        branchState: s(a.BranchState),
+        saleDate: s(sv("AuctionDateTime")),
+        images: media.images,
+        image360: media.image360,
+        videos: media.videos,
+        raw: nd,
+      };
     },
     lookupUkrainianPrice: async function () {
       var vm = this;
@@ -672,6 +775,7 @@ window.__createAllMethods = function () {
           category: category,
           prices: Array.isArray(data.prices) ? data.prices : [],
           percentiles: data.percentiles || null,
+          classifieds: Array.isArray(data.classifieds) ? data.classifieds : [],
         });
       } catch (err) {
         vm.marketStatus = "error";
@@ -1025,6 +1129,10 @@ export function createMarketMethods() {
     "resetLotData",
     "applyMarketResult",
     "logSearch",
+    "apiBase",
+    "logLot",
+    "collectLotMedia",
+    "collectLotData",
     "lookupUkrainianPrice",
   ];
   var out = {};

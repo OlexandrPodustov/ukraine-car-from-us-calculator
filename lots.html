@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Лоти — Авто із США</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <style>
+      .page {
+        font-family: Roboto, system-ui, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px;
+        color: #1f2937;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 8px 0 16px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 14px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+        cursor: pointer;
+        background: #fff;
+        transition: box-shadow 0.15s;
+      }
+      .card:hover {
+        box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+      }
+      .card .thumb {
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+        background: #f3f4f6;
+        display: block;
+      }
+      .card .noimg {
+        width: 100%;
+        height: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f3f4f6;
+        color: #9ca3af;
+        font-size: 13px;
+      }
+      .card .body {
+        padding: 10px 12px;
+      }
+      .card .title {
+        font-weight: 700;
+        font-size: 15px;
+      }
+      .card .sub {
+        color: #6b7280;
+        font-size: 12px;
+        margin: 2px 0 6px;
+      }
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        font-size: 12px;
+        color: #374151;
+      }
+      .pill {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-size: 11px;
+        margin-top: 6px;
+      }
+      .empty {
+        padding: 40px;
+        text-align: center;
+        color: #6b7280;
+      }
+
+      /* overlay */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgb(0 0 0 / 60%);
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        z-index: 20000;
+        overflow: auto;
+        padding: 24px;
+      }
+      .overlay.open {
+        display: flex;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 14px;
+        max-width: 1000px;
+        width: 100%;
+        overflow: hidden;
+      }
+      .modal-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .modal-head h2 {
+        font-size: 18px;
+        margin: 0;
+      }
+      .close {
+        border: none;
+        background: #f3f4f6;
+        border-radius: 8px;
+        font-size: 18px;
+        padding: 4px 12px;
+        cursor: pointer;
+      }
+      .modal-body {
+        padding: 16px;
+      }
+      .main-img {
+        width: 100%;
+        max-height: 540px;
+        object-fit: contain;
+        background: #111827;
+        border-radius: 10px;
+      }
+      .thumbs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding: 8px 0;
+      }
+      .thumbs img {
+        height: 56px;
+        width: 76px;
+        object-fit: cover;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 2px solid transparent;
+      }
+      .thumbs img.sel {
+        border-color: #2563eb;
+      }
+      .media-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 10px 0;
+      }
+      .btn {
+        text-decoration: none;
+        background: #2563eb;
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .btn.alt {
+        background: #374151;
+      }
+      video {
+        width: 100%;
+        border-radius: 10px;
+        margin-top: 8px;
+        background: #000;
+      }
+      .main-img {
+        cursor: zoom-in;
+      }
+
+      /* fullscreen lightbox */
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 30000;
+        user-select: none;
+      }
+      .lightbox.open {
+        display: flex;
+      }
+      .lightbox img {
+        max-width: 100vw;
+        max-height: 100vh;
+        object-fit: contain;
+      }
+      .lb-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgb(255 255 255 / 15%);
+        color: #fff;
+        border: none;
+        font-size: 44px;
+        line-height: 1;
+        width: 66px;
+        height: 90px;
+        cursor: pointer;
+        border-radius: 10px;
+      }
+      .lb-btn:hover,
+      .lb-close:hover {
+        background: rgb(255 255 255 / 32%);
+      }
+      .lb-prev {
+        left: 18px;
+      }
+      .lb-next {
+        right: 18px;
+      }
+      .lb-close {
+        position: absolute;
+        top: 18px;
+        right: 20px;
+        background: rgb(255 255 255 / 15%);
+        color: #fff;
+        border: none;
+        font-size: 22px;
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
+        cursor: pointer;
+      }
+      .lb-counter {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #fff;
+        background: rgb(0 0 0 / 55%);
+        padding: 5px 14px;
+        border-radius: 999px;
+        font-size: 14px;
+      }
+      table.info {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin-top: 14px;
+      }
+      table.info td {
+        padding: 6px 10px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      table.info td:first-child {
+        color: #6b7280;
+        width: 180px;
+      }
+    </style>
+  </head>
+  <body style="margin: 0">
+    <nav class="app-nav">
+      <a href="/index.html">🧮 Калькулятор</a>
+      <a href="/lots.html" class="active">🚗 Лоти</a>
+      <a href="/searches.html">🔎 Пошуки</a>
+      <a href="/stats.html">📊 Статистика</a>
+    </nav>
+    <div class="app-nav-spacer"></div>
+
+    <div class="page">
+      <h1>Збережені лоти з аукціонів</h1>
+      <p class="muted">
+        Кожне зчитування лоту на калькуляторі зберігає сюди повну інформацію +
+        HD-фото та відео. Клікни картку для деталей.
+      </p>
+      <div id="grid"><p class="muted">Завантаження…</p></div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <div class="modal" id="modal"></div>
+    </div>
+
+    <div class="lightbox" id="lightbox">
+      <button class="lb-close" id="lbClose" title="Закрити (Esc)">✕</button>
+      <button class="lb-btn lb-prev" id="lbPrev" title="Назад (←)">‹</button>
+      <img
+        id="lbImg"
+        src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+        alt=""
+      />
+      <button class="lb-btn lb-next" id="lbNext" title="Далі (→)">›</button>
+      <div class="lb-counter" id="lbCounter"></div>
+    </div>
+
+    <script>
+      // API на node-сервері (:5500). Якщо сторінку відкрито з іншого порту
+      // (Live Server :5501) чи з файлу — б'ємо в :5500 напряму (CORS дозволено).
+      var API = location.port === "5500" ? "" : "http://localhost:5500";
+      // Поточна галерея відкритого лота: список фото + активний індекс.
+      var LB = { images: [], index: 0 };
+      function $(id) {
+        return document.getElementById(id);
+      }
+      function fmt(n) {
+        if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
+        return "$" + Math.round(Number(n)).toLocaleString("en-US");
+      }
+      function esc(s) {
+        return (s == null ? "" : String(s)).replace(/[<>&"]/g, function (c) {
+          return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
+        });
+      }
+      function dt(iso) {
+        try {
+          return new Date(iso).toLocaleString("uk-UA", {
+            dateStyle: "short",
+            timeStyle: "short",
+          });
+        } catch (e) {
+          return iso;
+        }
+      }
+
+      // ── Список карток ────────────────────────────────────────────
+      fetch(API + "/api/lots")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (rows) {
+          var g = $("grid");
+          if (!rows || !rows.length) {
+            g.innerHTML =
+              '<div class="empty">Немає збережених лотів. Зчитай лот на ' +
+              '<a href="/index.html">калькуляторі</a> (Copart/IAAI).</div>';
+            return;
+          }
+          g.className = "grid";
+          g.innerHTML = rows
+            .map(function (r) {
+              var title =
+                [r.year, r.make, r.model].filter(Boolean).join(" ") || "Лот";
+              var thumb = r.primary_thumb
+                ? '<img class="thumb" loading="lazy" src="' +
+                  esc(r.primary_thumb) +
+                  '" alt="">'
+                : '<div class="noimg">без фото</div>';
+              var facts = [
+                r.odometer ? r.odometer.toLocaleString("en-US") + " mi" : "",
+                r.fuel || "",
+                r.primary_damage ? "пошк.: " + r.primary_damage : "",
+                r.selling_branch || r.branch_state || "",
+              ]
+                .filter(Boolean)
+                .map(function (x) {
+                  return "<span>" + esc(x) + "</span>";
+                })
+                .join("");
+              var price = r.acv
+                ? "ACV " + fmt(r.acv)
+                : r.buy_now_price
+                  ? "BuyNow " + fmt(r.buy_now_price)
+                  : r.min_bid
+                    ? "мін.ставка " + fmt(r.min_bid)
+                    : "ціна —";
+              return (
+                '<div class="card" data-id="' +
+                r.id +
+                '">' +
+                thumb +
+                '<div class="body"><div class="title">' +
+                esc(title) +
+                '</div><div class="sub">' +
+                esc(r.auction ? r.auction.toUpperCase() : "") +
+                " · лот " +
+                esc(r.lot_number || "—") +
+                " · " +
+                (r.image_count || 0) +
+                ' фото</div><div class="facts">' +
+                facts +
+                '</div><span class="pill">' +
+                esc(price) +
+                "</span></div></div>"
+              );
+            })
+            .join("");
+          Array.prototype.forEach.call(
+            g.querySelectorAll(".card"),
+            function (c) {
+              c.addEventListener("click", function () {
+                openLot(c.getAttribute("data-id"));
+              });
+            },
+          );
+        })
+        .catch(function (e) {
+          $("grid").innerHTML =
+            '<div class="empty">Помилка: ' +
+            e.message +
+            " (сервер запущено?)</div>";
+        });
+
+      // ── Деталі лота ──────────────────────────────────────────────
+      function openLot(id) {
+        fetch(API + "/api/lots/" + id)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(renderModal)
+          .catch(function (e) {
+            alert("Помилка: " + e.message);
+          });
+      }
+
+      function row(label, val) {
+        if (val === null || val === undefined || val === "") return "";
+        return "<tr><td>" + label + "</td><td>" + esc(val) + "</td></tr>";
+      }
+
+      function renderModal(d) {
+        var images = d.images || [];
+        LB.images = images;
+        LB.index = 0;
+        var title = [d.year, d.make, d.model].filter(Boolean).join(" ") || "Лот";
+        var main = images.length
+          ? '<img class="main-img" id="mainImg" title="Відкрити на весь екран" src="' +
+            esc(images[0].hd) +
+            '" alt="">'
+          : '<div class="noimg" style="height:300px">без фото</div>';
+        var thumbs = images
+          .map(function (im, i) {
+            return (
+              '<img data-idx="' +
+              i +
+              '" class="' +
+              (i === 0 ? "sel" : "") +
+              '" src="' +
+              esc(im.thumb) +
+              '" alt="">'
+            );
+          })
+          .join("");
+
+        var actions = "";
+        if (d.image360_url)
+          actions +=
+            '<a class="btn alt" target="_blank" rel="noopener" href="' +
+            esc(d.image360_url) +
+            '">🔄 360° огляд</a>';
+        if (d.url)
+          actions +=
+            '<a class="btn alt" target="_blank" rel="noopener" href="' +
+            esc(d.url) +
+            '">↗ Сторінка лоту</a>';
+
+        var video = (d.videos || [])
+          .map(function (v) {
+            return (
+              '<video controls preload="none" src="' + esc(v.url) + '"></video>'
+            );
+          })
+          .join("");
+
+        var info =
+          '<table class="info">' +
+          row("Збережено", dt(d.ts)) +
+          row("Аукціон", (d.auction || "").toUpperCase()) +
+          row("Лот №", d.lot_number) +
+          row("VIN", d.vin) +
+          row("Пробіг", d.odometer ? d.odometer.toLocaleString("en-US") + " mi" : "") +
+          row("Кузов", d.body_style) +
+          row("Двигун", d.engine) +
+          row("Паливо", d.fuel) +
+          row("Привід", d.drive) +
+          row("КПП", d.transmission) +
+          row("Колір", d.color) +
+          row("Пошкодження", d.primary_damage) +
+          row("Втор. пошкодження", d.secondary_damage) +
+          row("Тайтл", d.title_brand) +
+          row("ACV", d.acv ? fmt(d.acv) : "") +
+          row("Оцінка ремонту", d.repair_cost ? fmt(d.repair_cost) : "") +
+          row("Buy Now", d.buy_now_price ? fmt(d.buy_now_price) : "") +
+          row("Мін. ставка", d.min_bid ? fmt(d.min_bid) : "") +
+          row("Філія", d.selling_branch) +
+          row("Дата торгів", d.sale_date) +
+          "</table>";
+
+        $("modal").innerHTML =
+          '<div class="modal-head"><h2>' +
+          esc(title) +
+          '</h2><button class="close" id="closeBtn">✕</button></div>' +
+          '<div class="modal-body">' +
+          main +
+          '<div class="thumbs" id="thumbs">' +
+          thumbs +
+          "</div>" +
+          (actions ? '<div class="media-actions">' + actions + "</div>" : "") +
+          video +
+          info +
+          "</div>";
+
+        $("overlay").classList.add("open");
+        $("closeBtn").addEventListener("click", closeModal);
+        var tdiv = $("thumbs");
+        if (tdiv) {
+          tdiv.addEventListener("click", function (e) {
+            if (e.target.tagName === "IMG") {
+              setMain(parseInt(e.target.getAttribute("data-idx"), 10));
+            }
+          });
+        }
+        var mi = $("mainImg");
+        if (mi)
+          mi.addEventListener("click", function () {
+            openLightbox(LB.index);
+          });
+      }
+
+      // Встановити активне фото в модалці (за індексом).
+      function setMain(idx) {
+        if (!LB.images[idx]) return;
+        LB.index = idx;
+        var mi = $("mainImg");
+        if (mi) mi.src = LB.images[idx].hd;
+        var tdiv = $("thumbs");
+        if (tdiv)
+          Array.prototype.forEach.call(tdiv.children, function (c, i) {
+            c.classList.toggle("sel", i === idx);
+          });
+      }
+
+      function closeModal() {
+        $("overlay").classList.remove("open");
+        $("modal").innerHTML = "";
+      }
+      $("overlay").addEventListener("click", function (e) {
+        if (e.target === $("overlay")) closeModal();
+      });
+
+      // ── Повноекранний перегляд фото (lightbox) ───────────────────
+      function openLightbox(idx) {
+        if (!LB.images.length) return;
+        LB.index = idx || 0;
+        $("lightbox").classList.add("open");
+        lbShow();
+        var el = $("lightbox");
+        if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+      }
+      function lbShow() {
+        var im = LB.images[LB.index];
+        if (!im) return;
+        $("lbImg").src = im.hd;
+        $("lbCounter").textContent = LB.index + 1 + " / " + LB.images.length;
+        // Прелоад сусідніх — щоб гортання (у т.ч. затиснутою стрілкою) було плавним.
+        [LB.index - 1, LB.index + 1].forEach(function (i) {
+          var n = (i + LB.images.length) % LB.images.length;
+          if (LB.images[n]) new Image().src = LB.images[n].hd;
+        });
+      }
+      function lbNav(step) {
+        if (!LB.images.length) return;
+        LB.index =
+          (LB.index + step + LB.images.length) % LB.images.length;
+        lbShow();
+        setMain(LB.index); // синхронізуємо вибір у модалці
+      }
+      function closeLightbox() {
+        $("lightbox").classList.remove("open");
+        if (document.fullscreenElement && document.exitFullscreen)
+          document.exitFullscreen().catch(function () {});
+      }
+      $("lbNext").addEventListener("click", function () {
+        lbNav(1);
+      });
+      $("lbPrev").addEventListener("click", function () {
+        lbNav(-1);
+      });
+      $("lbClose").addEventListener("click", closeLightbox);
+      // Esc у нативному fullscreen виходить із нього напряму — синхронізуємо overlay.
+      document.addEventListener("fullscreenchange", function () {
+        if (
+          !document.fullscreenElement &&
+          $("lightbox").classList.contains("open")
+        )
+          $("lightbox").classList.remove("open");
+      });
+
+      document.addEventListener("keydown", function (e) {
+        if ($("lightbox").classList.contains("open")) {
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            lbNav(1);
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            lbNav(-1);
+          } else if (e.key === "Escape") {
+            closeLightbox();
+          }
+          return;
+        }
+        if (e.key === "Escape") closeModal();
+      });
+    </script>
+  </body>
+</html>
