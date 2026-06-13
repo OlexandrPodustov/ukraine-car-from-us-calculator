@@ -1,5 +1,42 @@
 body {
   overflow-x: hidden;
+  font-family: sans-serif;
+  font-size: 18px;
+}
+
+input {
+  color: #000;
+  border: 1px solid #000;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  height: 30px;
+  padding: 0 8px 0 7px;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  font-size: 18px;
+}
+
+select {
+  color: #000;
+  border: 1px solid #000;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  height: 30px;
+  padding: 0 45px 0 20px;
+  font-family: Roboto, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.33;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e")
+    no-repeat right 0.75rem center/16px 12px;
+  appearance: none;
+}
+
+.title {
+  margin-bottom: 15px;
 }
 
 .field-row {
@@ -21,28 +58,8 @@ body {
   flex: 1;
 }
 
-.values_title {
+.values-title {
   width: 300px;
-}
-
-body {
-  font-family: sans-serif;
-  font-size: 18px;
-}
-
-input {
-  width: 200px;
-  color: #000000;
-  border: 1px solid #000000;
-  width: 100%;
-  box-sizing: border-box;
-  cursor: pointer;
-  height: 30px;
-  padding: 0px 8px 0 7px;
-  margin-bottom: 20px;
-  border-radius: 5px;
-  font-size: 18px;
-
 }
 
 .total {
@@ -51,7 +68,6 @@ input {
   padding-top: 14px;
 }
 
-
 .check {
   position: relative;
   top: -42px;
@@ -59,30 +75,11 @@ input {
 
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
-
-  -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
-select {
-  color: #000000;
-  border: 1px solid #000000;
-  width: 100%;
-  box-sizing: border-box;
-  cursor: pointer;
-  height: 30px;
-  padding: 0 45px 0 20px;
-  font-family: 'Roboto', Arial, sans-serif;
-  font-size: 16px;
-  line-height: 1.33;
-  outline: 0;
-  border-radius: 0;
-  background: transparent;
-  border-radius: 5px;
-  padding-top: 5px;
-}
-
-.t-input__vis-ph {
+.t-input-vis-ph {
   font-size: 18px;
   height: 17px;
   padding-bottom: 10px;
@@ -104,16 +101,16 @@ select {
   margin-bottom: 25px;
 }
 
-.summary_expenses {
+.summary-expenses {
   margin-top: 20px;
   text-align: left;
 }
 
-.summary_expenses p {
+.summary-expenses p {
   font-weight: 700;
 }
 
-@media only screen and (min-width: 768px) {
+@media only screen and (width >= 768px) {
   .container {
     width: 100%;
     justify-content: space-between;
@@ -126,7 +123,7 @@ select {
   }
 }
 
-@media only screen and (min-width: 992px) {
+@media only screen and (width >= 992px) {
   .container {
     display: flex;
     width: 800px;
@@ -140,16 +137,10 @@ select {
   }
 }
 
-
-
 .valuess {
   display: flex;
   justify-content: space-between;
   padding-bottom: 20px;
-}
-
-.title {
-  margin-bottom: 15px;
 }
 
 .titlet {
@@ -158,9 +149,9 @@ select {
   font-size: 20px;
   text-align: center;
   margin-top: 40px;
-
 }
 
+/* stylelint-disable no-duplicate-selectors */
 .price {
   display: flex;
   justify-content: space-between;

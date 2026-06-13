@@ -1,390 +1,701 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--metatextblock-->
+    <title>Авто із США</title>
+    <meta name="description" content="Доставка авто із США в Україну" />
+    <meta property="og:title" content="Авто із США" />
+    <meta property="og:description" content="Доставка авто із США в Україну" />
+    <meta property="og:type" content="website" />
 
-<head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <!--metatextblock-->
-  <title>Авто із США</title>
-  <meta name="description" content="Доставка авто из США в Украину" />
-  <meta property="og:title" content="Авто із США" />
-  <meta property="og:description" content="Доставка авто из США в Украину" />
-  <meta property="og:type" content="website" />
+    <meta property="fb:app_id" content="257953674358265" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta http-equiv="x-dns-prefetch-control" content="on" />
 
-  <meta property="fb:app_id" content="257953674358265" />
-  <meta name="format-detection" content="telephone=no" />
-  <meta http-equiv="x-dns-prefetch-control" content="on">
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
 
-  <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
-    rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/app.css">
+    <meta
+      name="google-site-verification"
+      content="2gDea9Yj_NmoZQp2nrK1hOsMj4yybDggBHM7wvhKlds"
+    />
+    <meta
+      name="facebook-domain-verification"
+      content="owebu66xulcn3g3zt8adog2fihbaxj"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+  </head>
 
-  <meta name="google-site-verification" content="2gDea9Yj_NmoZQp2nrK1hOsMj4yybDggBHM7wvhKlds" />
-  <meta name="facebook-domain-verification" content="owebu66xulcn3g3zt8adog2fihbaxj" />
-  <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-  <script src="config.js"></script>
-</head>
-
-<body class="t-body" style="margin:0;margin-left:10%;">
-  <!--allrecords-->
-  <div id="allrecords" class="t-records" data-hook="blocks-collection-content-node">
-    <div id="rec204983579" class="r t-rec" style=" " data-record-type="215"><a name="calculator_usa"
-        style="font-size:0;"></a></div>
-    <div id="rec193564084" class="r t-rec" style=" " data-animationappear="off" data-record-type="131">
-      <!-- T123 -->
-      <div class="t123">
-        <div class="t-container_100 ">
-          <div class="t-width t-width_100 t-prefix_2">
-            <section>
-              <div class="t-container" id="shippingApp">
-                <div>
-                  <!-- auto prices, auction -->
-                  <div class="container">
-                    <div>
-                      <form onsubmit="return false;">
-                        <div>
-                          <div class="titlet">Дані для розрахунку</div>
-                        <div data-input-lid="1495646533382">
-                                                  
-                          <!-- ── Auction URL parser ── -->
-                          <!-- <div style="border:1px solid #d0d0d0;border-radius:8px;padding:14px 14px 6px;margin-bottom:22px;background:#f7f8fa;"> -->
-                            <!-- <div class="title" style="font-weight:600;margin-bottom:10px;">🔗 Посилання на лот аукціону</div> -->
-                            <div style="display:flex;gap:8px;align-items:center;">
-                              <input type="url" v-model="auctionUrl"
-                                placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
-                                autocomplete="off"
-                                v-on:paste="$nextTick(parseAuctionLot)"
-                                style="margin-bottom:0;flex:1;min-width:0;" />
-                              <button type="button" v-on:click="parseAuctionLot"
-                                v-bind:disabled="auctionStatus==='loading'"
-                                style="height:30px;padding:0 13px;margin-bottom:0;background:#111;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;">
-                                <span v-if="auctionStatus!=='loading'">↓ Заповнити</span>
-                                <span v-else>⏳…</span>
-                              </button>
+  <body class="t-body" style="margin: 0; margin-left: 10%">
+    <!--allrecords-->
+    <div
+      id="allrecords"
+      class="t-records"
+      data-hook="blocks-collection-content-node"
+    >
+      <div id="rec204983579" class="r t-rec" style="" data-record-type="215">
+        <a name="calculator_usa" style="font-size: 0"></a>
+      </div>
+      <div
+        id="rec193564084"
+        class="r t-rec"
+        style=""
+        data-animationappear="off"
+        data-record-type="131"
+      >
+        <!-- T123 -->
+        <div class="t123">
+          <div class="t-container_100">
+            <div class="t-width t-width_100 t-prefix_2">
+              <section>
+                <div class="t-container" id="shippingApp">
+                  <div>
+                    <!-- auto prices, auction -->
+                    <div class="container">
+                      <div>
+                        <form onsubmit="return false;">
+                          <div id="section-input">
+                            <div class="titlet">Дані для розрахунку</div>
+                            <div data-input-lid="1495646533382">
+                              <!-- ── Auction URL parser ── -->
+                              <!-- <div style="border:1px solid #d0d0d0;border-radius:8px;padding:14px 14px 6px;margin-bottom:22px;background:#f7f8fa;"> -->
+                              <!-- <div class="title" style="font-weight:600;margin-bottom:10px;">🔗 Посилання на лот аукціону</div> -->
+                              <div
+                                style="
+                                  display: flex;
+                                  gap: 8px;
+                                  align-items: center;
+                                "
+                              >
+                                <input
+                                  type="url"
+                                  v-model="auctionUrl"
+                                  placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
+                                  autocomplete="off"
+                                  v-on:paste="$nextTick(parseAuctionLot)"
+                                  style="
+                                    margin-bottom: 0;
+                                    flex: 1;
+                                    min-width: 0;
+                                  "
+                                />
+                                <button
+                                  type="button"
+                                  v-on:click="parseAuctionLot"
+                                  v-bind:disabled="auctionStatus==='loading'"
+                                  style="
+                                    height: 30px;
+                                    padding: 0 13px;
+                                    margin-bottom: 0;
+                                    background: #111;
+                                    color: #fff;
+                                    border: none;
+                                    border-radius: 5px;
+                                    cursor: pointer;
+                                    font-size: 14px;
+                                    white-space: nowrap;
+                                    flex-shrink: 0;
+                                  "
+                                >
+                                  <span v-if="auctionStatus!=='loading'"
+                                    >↓ Заповнити</span
+                                  >
+                                  <span v-else>⏳…</span>
+                                </button>
+                              </div>
+                              <div
+                                v-if="auctionMsg"
+                                style="
+                                  font-size: 13px;
+                                  margin-top: 6px;
+                                  margin-bottom: 4px;
+                                  line-height: 1.4;
+                                "
+                                v-bind:style="auctionStatus==='ok'?{color:'#1a7a1a'}:auctionStatus==='error'?{color:'#c00000'}:auctionStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
+                              >
+                                {{auctionMsg}}
+                                <!-- </div> -->
+                              </div>
+                              <!-- ──────────────────────── -->
+                              <div class="field-row">
+                                <div class="title">Ціна авто</div>
+                                <input
+                                  max="2000000"
+                                  min="1000"
+                                  name="car-price"
+                                  type="number"
+                                  v-model.number="autoPricing.autoPrice"
+                                />
+                              </div>
                             </div>
-                            <div v-if="auctionMsg" style="font-size:13px;margin-top:6px;margin-bottom:4px;line-height:1.4;"
-                              v-bind:style="auctionStatus==='ok'?{color:'#1a7a1a'}:auctionStatus==='error'?{color:'#c00000'}:auctionStatus==='warn'?{color:'#a06000'}:{color:'#555'}">
-                              {{auctionMsg}}
-                            <!-- </div> -->
-                          </div>
-                          <!-- ──────────────────────── -->
-                            <div class="field-row">
-                              <div class="title">Ціна авто</div>
-                              <input max="2000000" min="1000" name="car-price" type="number"
-                                v-model.number="autoPricing.autoPrice" />
+                            <div
+                              class="t-input-group t-input-group_nm"
+                              data-input-lid="1495646545048"
+                            >
+                              <div
+                                class="field-row t-input-block t-input-block-ext"
+                              >
+                                <div class="title">Назва Аукціона</div>
+                                <select
+                                  name="auction-type"
+                                  v-model="autoPricing.auctions.selected"
+                                >
+                                  <option
+                                    v-for="opt in autoPricing.auctions.options"
+                                    v-bind:value="opt.id"
+                                  >
+                                    {{opt.name}}
+                                  </option>
+                                </select>
+                              </div>
                             </div>
-                          </div>
-                          <div class="t-input-group t-input-group_nm" data-input-lid="1495646545048">
-                            <div class="field-row t-input-block t-input-block-ext">
-                              <div class="title">Назва Аукціона</div>
-                              <select name="auction-type" v-model="autoPricing.auctions.selected">
-                                <option v-for="opt in autoPricing.auctions.options" v-bind:value="opt.id">{{opt.name}}
+                            <div
+                              class="field-row t-input-group t-input-group_ph"
+                              data-input-lid="1549140702557"
+                            >
+                              <div class="title">Тип палива</div>
+                              <div
+                                class="t-input-block t-input-group t-input-block-ext"
+                              >
+                                <select
+                                  name="fuel-type"
+                                  v-model="customs.engineType"
+                                >
+                                  <option value="petrol">Бензин</option>
+                                  <option value="diesel">Дизель</option>
+                                  <option value="electric">Електро (EV)</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div
+                              class="field-row t-input-block t-input-group t-input-block-ext"
+                            >
+                              <div class="title" v-if="!isElectricEngine()">
+                                Об'єм двигуна в літрах
+                              </div>
+                              <select
+                                name="engine-volume"
+                                v-if="!isElectricEngine()"
+                                v-model="customs.engineVolume"
+                              >
+                                <option
+                                  v-for="opt in customs.engineVolumeOpts"
+                                  v-bind:value="opt"
+                                >
+                                  {{opt}}
                                 </option>
                               </select>
+                              <div class="title" v-if="isElectricEngine()">
+                                Ємність батареї (кВт·год)
+                              </div>
+                              <input
+                                v-if="isElectricEngine()"
+                                type="number"
+                                min="10"
+                                max="250"
+                                name="battery-kwh"
+                                placeholder="напр. 95"
+                                v-model.number="customs.batteryKwh"
+                              />
                             </div>
-                          </div>
-                          <div class="field-row t-input-group t-input-group_ph" data-input-lid="1549140702557">
-                            <div class="title">Тип палива</div>
-                            <div class="t-input-block t-input-group t-input-block-ext">
-
-                              <select name="fuel-type" v-model="customs.engineType">
-                                <option value="petrol">Бензин</option>
-                                <option value="diesel">Дизель</option>
-                                <option value="electric">Електро (EV)</option>
-                              </select>
+                            <div
+                              class="field-row t-input-group t-input-group_em"
+                              data-input-lid="1495646567135"
+                            >
+                              <div class="t-input-block t-input-block-ext">
+                                <div class="title">Рік випуску</div>
+                                <select
+                                  name="rik-vupysky"
+                                  v-model="customs.manufactureYear"
+                                >
+                                  <option
+                                    v-for="opt in customs.manYearOptions"
+                                    v-bind:value="opt"
+                                  >
+                                    {{opt}}
+                                  </option>
+                                </select>
+                              </div>
                             </div>
-                          </div>
-                          <div class="field-row t-input-block t-input-group t-input-block-ext">
-                            <div class="title" v-if="!isElectricEngine()">
-                              Об'єм двигуна в літрах
-                            </div>
-                            <select name="engine-volume" v-if="!isElectricEngine()" v-model="customs.engineVolume">
-                              <option v-for="opt in customs.engineVolumeOpts" v-bind:value="opt">{{opt}}
-                              </option>
-                            </select>
-                            <div class="title" v-if="isElectricEngine()">Ємність батареї (кВт·год)</div>
-                            <input v-if="isElectricEngine()" type="number" min="10" max="250"
-                              name="battery-kwh" placeholder="напр. 95"
-                              v-model.number="customs.batteryKwh" />
-                          </div>
-                          <div class="field-row t-input-group t-input-group_em" data-input-lid="1495646567135">
-                            <div class="t-input-block t-input-block-ext">
-                              <div class="title">Рік випуску</div>
-                              <select name="rik-vupysky" v-model="customs.manufactureYear">
-                                <option v-for="opt in customs.manYearOptions" v-bind:value="opt">{{opt}}</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div class="field-row t-input-group t-input-group_nm" data-input-lid="1495646533382">
-                            <div class="t-input-block t-input-group t-input-block-ext" style="position:relative;">
-                              <div>Місцезнаходження авто</div>
-                              <input type="text" name="car-location-search"
-                                v-model="locationSearch"
-                                v-on:focus="locationDropOpen=true"
-                                v-on:blur="onLocationBlur"
-                                placeholder="Пошук... напр. Oregon"
-                                autocomplete="off"
-                                style="margin-bottom:0;" />
-                              <div v-if="locationDropOpen && filteredLocations.length"
-                                style="position:absolute;z-index:999;background:#fff;border:1px solid #000;
-                                       border-radius:5px;width:100%;max-height:220px;overflow-y:auto;
-                                       top:100%;left:0;box-shadow:0 4px 12px rgba(0,0,0,.15);">
-                                <div v-for="opt in filteredLocations"
-                                  v-on:mousedown.prevent="selectLocation(opt)"
-                                  style="padding:6px 12px;cursor:pointer;font-size:15px;border-bottom:1px solid #eee;"
-                                  v-bind:style="opt.id===autoShipping.location.selected ? {background:'#e8f4ff',fontWeight:'bold'} : {}">
-                                  {{opt.name}}
+                            <div
+                              class="field-row t-input-group t-input-group_nm"
+                              data-input-lid="1495646533382"
+                            >
+                              <div
+                                class="t-input-block t-input-group t-input-block-ext"
+                                style="position: relative"
+                              >
+                                <div>Місцезнаходження авто</div>
+                                <input
+                                  type="text"
+                                  name="car-location-search"
+                                  v-model="locationSearch"
+                                  v-on:focus="locationDropOpen=true"
+                                  v-on:blur="onLocationBlur"
+                                  placeholder="Пошук... напр. Oregon"
+                                  autocomplete="off"
+                                  style="margin-bottom: 0"
+                                />
+                                <div
+                                  v-if="locationDropOpen && filteredLocations.length"
+                                  style="
+                                    position: absolute;
+                                    z-index: 999;
+                                    background: #fff;
+                                    border: 1px solid #000;
+                                    border-radius: 5px;
+                                    width: 100%;
+                                    max-height: 220px;
+                                    overflow-y: auto;
+                                    top: 100%;
+                                    left: 0;
+                                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+                                  "
+                                >
+                                  <div
+                                    v-for="opt in filteredLocations"
+                                    v-on:mousedown.prevent="selectLocation(opt)"
+                                    style="
+                                      padding: 6px 12px;
+                                      cursor: pointer;
+                                      font-size: 15px;
+                                      border-bottom: 1px solid #eee;
+                                    "
+                                    v-bind:style="opt.id===autoShipping.location.selected ? {background:'#e8f4ff',fontWeight:'bold'} : {}"
+                                  >
+                                    {{opt.name}}
+                                  </div>
+                                </div>
+                                <div
+                                  v-if="locationDropOpen && !filteredLocations.length"
+                                  style="
+                                    position: absolute;
+                                    z-index: 999;
+                                    background: #fff;
+                                    border: 1px solid #ccc;
+                                    border-radius: 5px;
+                                    width: 100%;
+                                    padding: 8px 12px;
+                                    top: 100%;
+                                    left: 0;
+                                    color: #999;
+                                  "
+                                >
+                                  Нічого не знайдено
                                 </div>
                               </div>
-                              <div v-if="locationDropOpen && !filteredLocations.length"
-                                style="position:absolute;z-index:999;background:#fff;border:1px solid #ccc;
-                                       border-radius:5px;width:100%;padding:8px 12px;top:100%;left:0;color:#999;">
-                                Нічого не знайдено
+                            </div>
+                            <div
+                              class="field-row t-input-group t-input-group_nm"
+                              data-input-lid="1495646545078"
+                            >
+                              <div
+                                class="t-input-block t-input-group t-input-block-ext"
+                              >
+                                <div class="title">Тип авто</div>
+                                <select
+                                  name="vehicle_type"
+                                  v-model="autoShipping.vehicleType"
+                                >
+                                  <option value="sedan" selected>Седан</option>
+                                  <option value="suv">Кросовер</option>
+                                  <option value="pikap">
+                                    Пікап або вантажівка
+                                  </option>
+                                </select>
                               </div>
                             </div>
+                            <div
+                              class="t-input-group t-input-group_em"
+                              data-input-lid="1495646567135"
+                            ></div>
                           </div>
-                          <div class="field-row t-input-group t-input-group_nm" data-input-lid="1495646545078">
-                            <div class="t-input-block t-input-group t-input-block-ext">
-                              <div class="title">Тип авто</div>
-                              <select name="vehicle_type" v-model="autoShipping.vehicleType">
-                                <option value="sedan" selected>Седан</option>
-                                <option value="suv">Кросовер</option>
-                                <option value="pikap">Пікап або вантажівка</option>
-                              </select>
+                        </form>
+                      </div>
+
+                      <div class="values" id="section-costs">
+                        <div class="titlet check">Всі витрати</div>
+                        <div class="valuess">
+                          <div class="values_title">Ціна авто</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{autoPricing.autoPrice}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Аукціонний збір</div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{auctionFee()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">
+                            Комісія за SWIFT платіж
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{commissionBank()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Страховка</div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{strahovka()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">
+                            Доставка по США та до Одеси
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{totalShippingFee()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Митні платежі</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{totalCustomsFee()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Брокер/експедитор</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>550</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Парковка в порту</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>44</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Доставка по україні</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>250</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Сертифікація</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>250</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">СЦ МВС</div>
+
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{mreo()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess">
+                          <div class="values_title">Плата за послугу</div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{anzFee()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess total">
+                          <div class="values_title">
+                            Фінальна ціна авто на українських номерах
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{total()}}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      id="section-analysis"
+                      class="valuess"
+                      style="
+                        border-top: 2px solid #333;
+                        margin-top: 14px;
+                        padding-top: 14px;
+                      "
+                    >
+                      <div class="values_title" style="font-weight: 700">
+                        Аналіз угоди
+                      </div>
+                      <div></div>
+                    </div>
+                    <div
+                      style="
+                        border: 1px solid #c8dff5;
+                        border-radius: 8px;
+                        padding: 14px 14px 6px;
+                        margin-bottom: 22px;
+                        background: #f0f7ff;
+                      "
+                    >
+                      <div
+                        class="title"
+                        style="font-weight: 600; margin-bottom: 10px"
+                      >
+                        Дані для аналізу
+                      </div>
+                      <div class="field-row">
+                        <div class="title">ACV (ринкова ціна)</div>
+                        <input
+                          type="number"
+                          v-model.number="acv"
+                          style="margin-bottom: 0; flex: 1"
+                        /><span style="margin-left: 4px; line-height: 30px"
+                          >$</span
+                        >
+                      </div>
+                      <div class="field-row">
+                        <div class="title">Buy Now Price</div>
+                        <input
+                          type="number"
+                          v-model.number="buyNowPrice"
+                          style="margin-bottom: 0; flex: 1"
+                        /><span style="margin-left: 4px; line-height: 30px"
+                          >$</span
+                        >
+                      </div>
+                      <div class="field-row">
+                        <div class="title">Вартість ремонту</div>
+                        <input
+                          type="number"
+                          v-model.number="repairCost"
+                          style="margin-bottom: 0; flex: 1"
+                        /><span style="margin-left: 4px; line-height: 30px"
+                          >$</span
+                        >
+                      </div>
+                      <div class="field-row">
+                        <div class="title">Коефіцієнт ризику</div>
+                        <input
+                          type="number"
+                          min="0.5"
+                          max="1.0"
+                          step="0.05"
+                          v-model.number="riskCoefficient"
+                          style="margin-bottom: 0; flex: 1"
+                        />
+                        <span
+                          style="
+                            margin-left: 6px;
+                            font-size: 13px;
+                            color: #666;
+                            line-height: 30px;
+                          "
+                          >(0.5–1.0)</span
+                        >
+                      </div>
+                    </div>
+                    <div class="valuess">
+                      <div class="values_title">ACV − ремонт</div>
+                      <div class="price">
+                        <div>$</div>
+                        <div>{{cleanValue()}}</div>
+                      </div>
+                    </div>
+                    <div class="valuess" v-if="buyNowPrice > 0">
+                      <div class="values_title">Buy Now Price</div>
+                      <div class="price">
+                        <div>$</div>
+                        <div>{{buyNowPrice}}</div>
+                      </div>
+                    </div>
+                    <div
+                      class="valuess total"
+                      v-bind:style="benefit()>=0?{color:'#1a7a1a'}:{color:'#c00000'}"
+                    >
+                      <div class="values_title">
+                        Вигода угоди
+                        <span style="font-size: 12px; font-weight: 400"
+                          >(ACV−ремонт − підсумок)</span
+                        >
+                      </div>
+                      <div class="price">
+                        <div>{{benefit()&gt;=0?'+':''}}$</div>
+                        <div>{{benefit()}}</div>
+                      </div>
+                    </div>
+                    <div
+                      class="valuess total"
+                      style="
+                        background: #fffbe6;
+                        padding: 8px 4px;
+                        border-radius: 6px;
+                        margin-top: 6px;
+                      "
+                    >
+                      <div class="values_title">
+                        Макс. ставка
+                        <div style="font-size: 12px; font-weight: 400">
+                          (ACV − ремонт) × {{riskCoefficient}} − інші витрати
+                        </div>
+                      </div>
+                      <div class="price">
+                        <div>$</div>
+                        <div>{{maxBid()}}</div>
+                      </div>
+                    </div>
+                    <!-- Ukrainian Market Price Section -->
+                    <div
+                      id="section-market"
+                      style="
+                        border-top: 2px solid #ccc;
+                        margin-top: 20px;
+                        padding-top: 14px;
+                      "
+                    >
+                      <div
+                        class="valuess"
+                        style="
+                          border-bottom: 1px solid #ddd;
+                          padding-bottom: 10px;
+                        "
+                      >
+                        <div class="values_title" style="font-weight: 700">
+                          Ціна на українському ринку
+                        </div>
+                        <button
+                          type="button"
+                          v-on:click="lookupUkrainianPrice()"
+                          v-bind:disabled="marketStatus==='loading' || !autoPricing.autoPrice"
+                          style="
+                            height: 30px;
+                            padding: 0 13px;
+                            background: #0066cc;
+                            color: #fff;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            white-space: nowrap;
+                            flex-shrink: 0;
+                          "
+                        >
+                          <span v-if="marketStatus!=='loading'">🔍 Шукати</span>
+                          <span v-else>⏳…</span>
+                        </button>
+                      </div>
+                      <div
+                        v-if="marketMsg"
+                        style="
+                          font-size: 13px;
+                          margin: 8px 0 4px 0;
+                          line-height: 1.4;
+                        "
+                        v-bind:style="marketStatus==='ok'?{color:'#1a7a1a'}:marketStatus==='error'?{color:'#c00000'}:marketStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
+                      >
+                        {{marketMsg}}
+                      </div>
+                      <div
+                        v-if="customs.ukrainianMarketPrice > 0"
+                        style="margin-top: 12px"
+                      >
+                        <div class="valuess">
+                          <div class="values_title">
+                            Ціна на укр. ринку (медіана)
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{customs.ukrainianMarketPrice}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess" v-if="customs.marketCategory">
+                          <div class="values_title">Категорія угоди</div>
+                          <div
+                            class="price"
+                            v-bind:style="customs.marketCategory==='underpriced'?{color:'#1a7a1a',fontWeight:'bold'}:customs.marketCategory==='overpriced'?{color:'#c00000',fontWeight:'bold'}:{color:'#a06000',fontWeight:'bold'}"
+                          >
+                            <div v-if="customs.marketCategory==='underpriced'">
+                              ✅ Вигідна
                             </div>
+                            <div
+                              v-else-if="customs.marketCategory==='overpriced'"
+                            >
+                              ❌ Невигідна
+                            </div>
+                            <div v-else>⚠️ Нейтральна</div>
                           </div>
-                          <div class="t-input-group t-input-group_em" data-input-lid="1495646567135">
-
+                        </div>
+                        <div
+                          class="valuess total"
+                          v-bind:style="marketPriceDifference()>=0?{color:'#1a7a1a',background:'#e8f5e9'}:{color:'#c00000',background:'#ffebee'}"
+                          style="
+                            padding: 8px 4px;
+                            border-radius: 6px;
+                            margin-top: 6px;
+                          "
+                        >
+                          <div class="values_title" style="font-size: 13px">
+                            Різниця (укр. ринок − фінальна ціна)
+                          </div>
+                          <div class="price">
+                            <div>{{marketPriceDifference()&gt;=0?'+':''}}$</div>
+                            <div>{{marketPriceDifference()}}</div>
                           </div>
                         </div>
-                      </form>
-                    </div>
-
-                    <div class="values">
-                      <div class="titlet check">Всі витрати</div>
-                      <div class="valuess">
-                        <div class="values_title">Ціна авто</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{autoPricing.autoPrice}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Аукціонний збір</div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{auctionFee()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Комісія за SWIFT платіж</div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{commissionBank()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Страховка</div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{strahovka()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Доставка по США та до Одеси
-                        </div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{totalShippingFee()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Митні платежі
-                        </div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{totalCustomsFee()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Брокер/експедитор</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>550</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Парковка в порту</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>44</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Доставка по україні</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>250</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Сертифікація</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>250</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">СЦ МВС</div>
-
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{mreo()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess">
-                        <div class="values_title">Плата за послугу</div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{anzFee()}}</div>
-                        </div>
-                      </div>
-                      <div class="valuess total">
-                        <div class="values_title">Фінальна ціна авто на українських номерах</div>
-                        <div class="price">
-                          <div>$</div>
-                          <div>{{total()}}</div>
-                        </div>
-                      </div>
-
-
-                    </div>
-
-                  </div>
-                  <div class="valuess" style="border-top:2px solid #333;margin-top:14px;padding-top:14px;">
-                    <div class="values_title" style="font-weight:700;">📊 Аналіз угоди</div><div></div>
-                  </div>
-                  <div style="border:1px solid #c8dff5;border-radius:8px;padding:14px 14px 6px;margin-bottom:22px;background:#f0f7ff;">
-                  <div class="title" style="font-weight:600;margin-bottom:10px;">📊 Дані для аналізу</div>
-                  <div class="field-row">
-                    <div class="title">ACV (ринкова ціна)</div>
-                    <input type="number" v-model.number="acv" style="margin-bottom:0;flex:1;" /><span style="margin-left:4px;line-height:30px;">$</span>
-                  </div>
-                  <div class="field-row">
-                    <div class="title">Buy Now Price</div>
-                    <input type="number" v-model.number="buyNowPrice" style="margin-bottom:0;flex:1;" /><span style="margin-left:4px;line-height:30px;">$</span>
-                  </div>
-                  <div class="field-row">
-                    <div class="title">Вартість ремонту</div>
-                    <input type="number" v-model.number="repairCost" style="margin-bottom:0;flex:1;" /><span style="margin-left:4px;line-height:30px;">$</span>
-                  </div>
-                  <div class="field-row">
-                    <div class="title">Коефіцієнт ризику</div>
-                    <input type="number" min="0.5" max="1.0" step="0.05" v-model.number="riskCoefficient" style="margin-bottom:0;flex:1;" />
-                    <span style="margin-left:6px;font-size:13px;color:#666;line-height:30px;">(0.5–1.0)</span>
-                  </div>
-                </div>
-                  <div class="valuess">
-                    <div class="values_title">ACV − ремонт</div>
-                    <div class="price"><div>$</div><div>{{cleanValue()}}</div></div>
-                  </div>
-                  <div class="valuess" v-if="buyNowPrice > 0">
-                    <div class="values_title">Buy Now Price</div>
-                    <div class="price"><div>$</div><div>{{buyNowPrice}}</div></div>
-                  </div>
-                  <div class="valuess total" v-bind:style="benefit()>=0?{color:'#1a7a1a'}:{color:'#c00000'}">
-                    <div class="values_title">Вигода угоди <span style="font-size:12px;font-weight:400;">(ACV−ремонт − підсумок)</span></div>
-                    <div class="price"><div>{{benefit()>=0?'+':''}}$</div><div>{{benefit()}}</div></div>
-                  </div>
-                  <div class="valuess total" style="background:#fffbe6;padding:8px 4px;border-radius:6px;margin-top:6px;">
-                    <div class="values_title">
-                      Макс. ставка
-                      <div style="font-size:12px;font-weight:400;">(ACV − ремонт) × {{riskCoefficient}} − інші витрати</div>
-                    </div>
-                    <div class="price"><div>$</div><div>{{maxBid()}}</div></div>
-                  </div>
-                  <!-- Ukrainian Market Price Section -->
-                  <div style="border-top:2px solid #ccc;margin-top:20px;padding-top:14px;">
-                    <div class="valuess" style="border-bottom:1px solid #ddd;padding-bottom:10px;">
-                      <div class="values_title" style="font-weight:700;">🇺🇦 Ціна на українському ринку</div>
-                      <button type="button" v-on:click="lookupUkrainianPrice()"
-                        v-bind:disabled="marketStatus==='loading' || !autoPricing.autoPrice"
-                        style="height:30px;padding:0 13px;background:#0066cc;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0;">
-                        <span v-if="marketStatus!=='loading'">🔍 Шукати</span>
-                        <span v-else>⏳…</span>
-                      </button>
-                    </div>
-                    <div v-if="marketMsg" style="font-size:13px;margin:8px 0 4px 0;line-height:1.4;"
-                      v-bind:style="marketStatus==='ok'?{color:'#1a7a1a'}:marketStatus==='error'?{color:'#c00000'}:marketStatus==='warn'?{color:'#a06000'}:{color:'#555'}">
-                      {{marketMsg}}
-                    </div>
-                    <div v-if="customs.ukrainianMarketPrice > 0" style="margin-top:12px;">
-                      <div class="valuess">
-                        <div class="values_title">Ціна на укр. ринку (медіана)</div>
-                        <div class="price"><div>$</div><div>{{customs.ukrainianMarketPrice}}</div></div>
-                      </div>
-                      <div class="valuess" v-if="customs.marketCategory">
-                        <div class="values_title">Категорія угоди</div>
-                        <div class="price"
-                          v-bind:style="customs.marketCategory==='underpriced'?{color:'#1a7a1a',fontWeight:'bold'}:customs.marketCategory==='overpriced'?{color:'#c00000',fontWeight:'bold'}:{color:'#a06000',fontWeight:'bold'}">
-                          <div v-if="customs.marketCategory==='underpriced'">✅ Вигідна</div>
-                          <div v-else-if="customs.marketCategory==='overpriced'">❌ Невигідна</div>
-                          <div v-else>⚠️ Нейтральна</div>
-                        </div>
-                      </div>
-                      <div class="valuess total" v-bind:style="marketPriceDifference()>=0?{color:'#1a7a1a',background:'#e8f5e9'}:{color:'#c00000',background:'#ffebee'}" style="padding:8px 4px;border-radius:6px;margin-top:6px;">
-                        <div class="values_title" style="font-size:13px;">
-                          Різниця (укр. ринок − фінальна ціна)
-                        </div>
-                        <div class="price"><div>{{marketPriceDifference()>=0?'+':''}}$</div><div>{{marketPriceDifference()}}</div></div>
                       </div>
                     </div>
                   </div>
                 </div>
-                </div>
-              </div>
-            </section>
-
+              </section>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div id="rec193564085" class="r t-rec t-rec_pb_45" style="padding-bottom:45px; " data-animationappear="off"
-      data-record-type="131">
-      <!-- T123 -->
-      <div class="t123">
-        <div class="t-container_100 ">
-          <div class="t-width t-width_100 ">
+      <div
+        id="rec193564085"
+        class="r t-rec t-rec_pb_45"
+        style="padding-bottom: 45px"
+        data-animationappear="off"
+        data-record-type="131"
+      >
+        <!-- T123 -->
+        <div class="t123">
+          <div class="t-container_100">
+            <div class="t-width t-width_100"></div>
           </div>
         </div>
       </div>
+
+      <script type="module" src="assets/js/constants/auctions.js"></script>
+      <script type="module" src="assets/js/constants/locations.js"></script>
+      <script type="module" src="assets/js/constants/ports.js"></script>
+      <script type="module" src="assets/js/constants/vehicle.js"></script>
+      <script type="module" src="assets/js/constants/engine.js"></script>
+      <script type="module" src="assets/js/services/storage.service.js"></script>
+      <script type="module" src="assets/js/services/rates.service.js"></script>
+      <script type="module" src="assets/js/services/auction-parser.service.js"></script>
+      <script type="module" src="assets/js/services/market-lookup.service.js"></script>
+      <script type="module" src="assets/js/core/state.js"></script>
+      <script type="module" src="assets/js/core/computed.js"></script>
+      <script type="module" src="assets/js/core/watchers.js"></script>
+      <script type="module" src="assets/js/methods/ui.methods.js"></script>
+      <script type="module" src="assets/js/methods/fees.methods.js"></script>
+      <script type="module" src="assets/js/methods/market.methods.js"></script>
+      <script type="module" src="config.js"></script>
+      <script defer type="module" src="assets/js/app.js"></script>
     </div>
-
-  <script src="assets/js/constants/auctions.js"></script>
-  <script src="assets/js/constants/locations.js"></script>
-  <script src="assets/js/constants/ports.js"></script>
-  <script src="assets/js/constants/vehicle.js"></script>
-  <script src="assets/js/constants/engine.js"></script>
-  <script src="assets/js/core/state.js"></script>
-  <script src="assets/js/core/computed.js"></script>
-  <script src="assets/js/core/watchers.js"></script>
-  <script src="assets/js/services/storage.service.js"></script>
-  <script src="assets/js/services/auction-parser.service.js"></script>
-  <script src="assets/js/services/market-lookup.service.js"></script>
-  <script src="assets/js/services/rates.service.js"></script>
-  <script src="assets/js/methods/market.methods.js"></script>
-  <script src="assets/js/methods/ui.methods.js"></script>
-  <script src="assets/js/methods/fees.methods.js"></script>
-  <script src="assets/js/app.js"></script>
-
-</body>
-
+  </body>
 </html>
