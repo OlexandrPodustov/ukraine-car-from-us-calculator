@@ -32,6 +32,13 @@ module.exports = {
         sourceType: "script",
       },
     },
+    {
+      files: ["server.js"],
+      env: { node: true, browser: false },
+      parserOptions: {
+        sourceType: "script",
+      },
+    },
   ],
   rules: {
     // Add custom rules if needed

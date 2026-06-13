@@ -4,7 +4,8 @@
   "description": "Tool to calculate car from US price",
   "main": "index.html",
   "scripts": {
-    "start": "python3 -m http.server 5500",
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "start:py": "python3 -m http.server 5500",
     "test": "jest",
     "lint": "eslint assets/js/**/*.js",
     "lint:fix": "eslint assets/js/**/*.js --fix",

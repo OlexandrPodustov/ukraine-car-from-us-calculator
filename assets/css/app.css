@@ -157,3 +157,43 @@ input::-webkit-inner-spin-button {
   justify-content: space-between;
   width: 100px;
 }
+
+/* ── Спільне навігаційне меню ─────────────────────────────────── */
+.app-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 16px;
+  background: #1f2937;
+  z-index: 10000;
+  font-family: Roboto, system-ui, sans-serif;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+}
+
+.app-nav a {
+  color: #cbd5e1;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.app-nav a:hover {
+  background: #374151;
+  color: #fff;
+}
+
+.app-nav a.active {
+  background: #2563eb;
+  color: #fff;
+}
+
+.app-nav-spacer {
+  height: 44px;
+}

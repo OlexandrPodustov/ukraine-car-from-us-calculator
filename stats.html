@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Статистика ринку — Авто із США</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <style>
+      .page {
+        font-family: Roboto, system-ui, sans-serif;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 16px;
+        color: #1f2937;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 8px 0 16px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 14px;
+      }
+      select {
+        font-size: 14px;
+        padding: 8px 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        min-width: 360px;
+        max-width: 100%;
+      }
+      .cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 18px 0;
+      }
+      .card {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 14px;
+        min-width: 120px;
+      }
+      .card .k {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .card .v {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .verdict {
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 15px;
+        font-weight: 600;
+        margin: 8px 0 18px;
+      }
+      .verdict.good {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .verdict.mid {
+        background: #fef9c3;
+        color: #854d0e;
+      }
+      .verdict.bad {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .chart-wrap {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 8px;
+      }
+      svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-top: 10px;
+        font-size: 13px;
+        color: #374151;
+      }
+      .legend span::before {
+        content: "";
+        display: inline-block;
+        width: 14px;
+        height: 0;
+        border-top: 3px solid;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      .lg-lot::before {
+        border-color: #ea580c;
+      }
+      .lg-market::before {
+        border-color: #7c3aed;
+      }
+      .lg-median::before {
+        border-color: #111827;
+      }
+      .lg-q::before {
+        border-color: #9ca3af;
+        border-top-style: dashed;
+      }
+      .empty {
+        padding: 40px;
+        text-align: center;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body style="margin: 0">
+    <nav class="app-nav">
+      <a href="/index.html">🧮 Калькулятор</a>
+      <a href="/searches.html">🔎 Пошуки</a>
+      <a href="/stats.html" class="active">📊 Статистика</a>
+    </nav>
+    <div class="app-nav-spacer"></div>
+
+    <div class="page">
+      <h1>Статистика ринку AUTO.RIA</h1>
+      <p class="muted">
+        Розподіл цін схожих авто на ринку та позиція нашого лота. Дані — з
+        останнього пошуку (без повторних запитів до API).
+      </p>
+      <div>
+        <label class="muted" for="sel">Пошук: </label>
+        <select id="sel"></select>
+      </div>
+      <div id="content"><p class="muted" style="margin-top: 20px">Завантаження…</p></div>
+    </div>
+
+    <script>
+      var qs = new URLSearchParams(location.search);
+      var preId = qs.get("id");
+
+      function $(id) {
+        return document.getElementById(id);
+      }
+      function fmt(n) {
+        if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
+        return "$" + Math.round(Number(n)).toLocaleString("en-US");
+      }
+      function pct(p, key) {
+        return p && p[key] != null ? Number(p[key]) : null;
+      }
+
+      // ── Завантажити список у select ──────────────────────────────
+      fetch("/api/searches")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (rows) {
+          var sel = $("sel");
+          if (!rows || !rows.length) {
+            $("content").innerHTML =
+              '<div class="empty">Немає пошуків. Зроби пошук на ' +
+              '<a href="/index.html">калькуляторі</a>.</div>';
+            sel.style.display = "none";
+            return;
+          }
+          sel.innerHTML = rows
+            .map(function (r) {
+              var label =
+                "#" +
+                r.id +
+                " · " +
+                [r.make, r.model, r.year].filter(Boolean).join(" ") +
+                " · ринок " +
+                fmt(r.market_price) +
+                " (n=" +
+                (r.sample_count || 0) +
+                ")";
+              return '<option value="' + r.id + '">' + label + "</option>";
+            })
+            .join("");
+          var initial =
+            preId && rows.some((x) => String(x.id) === String(preId))
+              ? preId
+              : rows[0].id;
+          sel.value = initial;
+          sel.addEventListener("change", function () {
+            history.replaceState(null, "", "?id=" + sel.value);
+            load(sel.value);
+          });
+          load(initial);
+        })
+        .catch(function (e) {
+          $("content").innerHTML =
+            '<div class="empty">Помилка: ' +
+            e.message +
+            " (сервер запущено?)</div>";
+        });
+
+      // ── Завантажити деталі і намалювати ──────────────────────────
+      function load(id) {
+        $("content").innerHTML = '<p class="muted">Завантаження…</p>';
+        fetch("/api/searches/" + id)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(render)
+          .catch(function (e) {
+            $("content").innerHTML =
+              '<div class="empty">Помилка: ' + e.message + "</div>";
+          });
+      }
+
+      function render(d) {
+        var prices = (d.prices || []).filter(function (x) {
+          return x > 0;
+        });
+        var p = d.percentiles || {};
+        var lot = d.total_cost;
+        var market = d.market_price;
+
+        var cards =
+          '<div class="cards">' +
+          card("Оголошень", d.sample_count || prices.length) +
+          card("Серед. (mean)", fmt(d.arithmetic_mean)) +
+          card("IQ-середнє", fmt(d.iq_mean)) +
+          card("Медіана", fmt(d.median || pct(p, "50.0"))) +
+          card("Ринок (оцінка)", fmt(market)) +
+          card("Наш кошт", fmt(lot)) +
+          card(
+            "Різниця",
+            (d.diff > 0 ? "+" : "") + fmt(d.diff).replace("$-", "-$"),
+          ) +
+          "</div>";
+
+        var verdictHtml = buildVerdict(lot, p, market);
+
+        if (!prices.length) {
+          $("content").innerHTML =
+            cards +
+            verdictHtml +
+            '<div class="empty">Немає детального розподілу цін для цього запису ' +
+            "(старий пошук). Зроби новий пошук на калькуляторі — і тут зʼявиться гістограма.</div>";
+          return;
+        }
+
+        var svg = buildHistogram(prices, p, lot, market);
+        var legend =
+          '<div class="legend">' +
+          '<span class="lg-lot">наш лот</span>' +
+          '<span class="lg-market">ринок (оцінка)</span>' +
+          '<span class="lg-median">медіана</span>' +
+          '<span class="lg-q">25% / 75% перцентилі</span>' +
+          "</div>";
+        $("content").innerHTML =
+          cards +
+          verdictHtml +
+          '<div class="chart-wrap">' +
+          svg +
+          legend +
+          "</div>";
+      }
+
+      function card(k, v) {
+        return '<div class="card"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>";
+      }
+
+      function buildVerdict(lot, p, market) {
+        var q25 = pct(p, "25.0"),
+          q50 = pct(p, "50.0"),
+          q75 = pct(p, "75.0");
+        if (lot == null || q50 == null)
+          return '<div class="verdict mid">Недостатньо даних для вердикту.</div>';
+        var cls, txt;
+        if (q25 != null && lot <= q25) {
+          cls = "good";
+          txt = "🟢 Наш кошт нижче 25-го перцентиля ринку — дуже вигідно.";
+        } else if (lot <= q50) {
+          cls = "good";
+          txt = "🟢 Наш кошт нижче медіани ринку — вигідно.";
+        } else if (q75 != null && lot <= q75) {
+          cls = "mid";
+          txt = "🟡 Наш кошт між медіаною і 75-м перцентилем — близько до середини ринку.";
+        } else {
+          cls = "bad";
+          txt = "🔴 Наш кошт вище 75-го перцентиля ринку — дорого.";
+        }
+        var gap = market != null ? " Ринок ~" + fmt(market) + "." : "";
+        return '<div class="verdict ' + cls + '">' + txt + gap + "</div>";
+      }
+
+      // ── SVG-гістограма з маркерами ───────────────────────────────
+      function buildHistogram(prices, p, lot, market) {
+        var W = 1000,
+          H = 430,
+          padL = 12,
+          padR = 12,
+          padTop = 46,
+          padBot = 46;
+        var plotW = W - padL - padR,
+          plotH = H - padTop - padBot;
+
+        var q1 = pct(p, "1.0"),
+          q99 = pct(p, "99.0"),
+          q25 = pct(p, "25.0"),
+          q50 = pct(p, "50.0"),
+          q75 = pct(p, "75.0");
+
+        var lo = Math.min.apply(null, prices);
+        var hi = Math.max.apply(null, prices);
+        // межі домену з урахуванням маркерів
+        [lot, market, q1, q99].forEach(function (v) {
+          if (v != null && !isNaN(v)) {
+            lo = Math.min(lo, v);
+            hi = Math.max(hi, v);
+          }
+        });
+        var pad = (hi - lo) * 0.04 || 1;
+        var dMin = lo - pad,
+          dMax = hi + pad;
+
+        function x(v) {
+          return padL + ((v - dMin) / (dMax - dMin)) * plotW;
+        }
+
+        // бакети
+        var BINS = 32;
+        var bw = (dMax - dMin) / BINS;
+        var counts = new Array(BINS).fill(0);
+        prices.forEach(function (v) {
+          var i = Math.min(BINS - 1, Math.floor((v - dMin) / bw));
+          if (i >= 0) counts[i]++;
+        });
+        var maxC = Math.max.apply(null, counts) || 1;
+
+        var bars = "";
+        for (var i = 0; i < BINS; i++) {
+          if (!counts[i]) continue;
+          var bx0 = x(dMin + i * bw);
+          var bx1 = x(dMin + (i + 1) * bw);
+          var bh = (counts[i] / maxC) * plotH;
+          var center = dMin + (i + 0.5) * bw;
+          // дешевша за медіану половина — зелена, дорожча — червона
+          var fill = q50 != null && center > q50 ? "#fca5a5" : "#86efac";
+          bars +=
+            '<rect x="' +
+            bx0.toFixed(1) +
+            '" y="' +
+            (padTop + plotH - bh).toFixed(1) +
+            '" width="' +
+            Math.max(1, bx1 - bx0 - 1).toFixed(1) +
+            '" height="' +
+            bh.toFixed(1) +
+            '" fill="' +
+            fill +
+            '" />';
+        }
+
+        // вісь X — кілька міток ціни
+        var ticks = "";
+        for (var t = 0; t <= 5; t++) {
+          var tv = dMin + ((dMax - dMin) * t) / 5;
+          var tx = x(tv);
+          ticks +=
+            '<line x1="' +
+            tx.toFixed(1) +
+            '" y1="' +
+            (padTop + plotH) +
+            '" x2="' +
+            tx.toFixed(1) +
+            '" y2="' +
+            (padTop + plotH + 5) +
+            '" stroke="#9ca3af" />' +
+            '<text x="' +
+            tx.toFixed(1) +
+            '" y="' +
+            (padTop + plotH + 20) +
+            '" font-size="12" fill="#6b7280" text-anchor="middle">' +
+            fmt(tv) +
+            "</text>";
+        }
+        // базова лінія
+        var axis =
+          '<line x1="' +
+          padL +
+          '" y1="' +
+          (padTop + plotH) +
+          '" x2="' +
+          (W - padR) +
+          '" y2="' +
+          (padTop + plotH) +
+          '" stroke="#d1d5db" />';
+
+        // вертикальні маркери
+        function marker(v, color, label, dashed, row, thick) {
+          if (v == null || isNaN(v) || v < dMin || v > dMax) return "";
+          var mx = x(v);
+          var ly = row === 1 ? 30 : 14;
+          return (
+            '<line x1="' +
+            mx.toFixed(1) +
+            '" y1="' +
+            padTop +
+            '" x2="' +
+            mx.toFixed(1) +
+            '" y2="' +
+            (padTop + plotH) +
+            '" stroke="' +
+            color +
+            '" stroke-width="' +
+            (thick ? 3 : 1.5) +
+            '"' +
+            (dashed ? ' stroke-dasharray="5 4"' : "") +
+            " />" +
+            '<text x="' +
+            Math.min(W - 60, Math.max(40, mx)).toFixed(1) +
+            '" y="' +
+            ly +
+            '" font-size="12" font-weight="600" fill="' +
+            color +
+            '" text-anchor="middle">' +
+            label +
+            "</text>"
+          );
+        }
+
+        var markers =
+          marker(q25, "#9ca3af", "25%", true, 0) +
+          marker(q75, "#9ca3af", "75%", true, 0) +
+          marker(q50, "#111827", "медіана", false, 0) +
+          marker(market, "#7c3aed", "ринок " + fmt(market), false, 1) +
+          marker(lot, "#ea580c", "наш " + fmt(lot), false, 1, true);
+
+        return (
+          '<svg viewBox="0 0 ' +
+          W +
+          " " +
+          H +
+          '" preserveAspectRatio="xMidYMid meet">' +
+          bars +
+          axis +
+          ticks +
+          markers +
+          "</svg>"
+        );
+      }
+    </script>
+  </body>
+</html>

@@ -382,214 +382,143 @@ window.__createAllMethods = function () {
         // ignore
       }
     },
-    buildAutoriaSearchUrl: function (target) {
-      var query = [target.make, target.model, target.year]
-        .filter(Boolean)
-        .join(" ");
-      var params = new URLSearchParams();
-      params.set("indexName", "auto");
-      params.set("categories.main.id", "1");
-      params.set("country.import.usa.not", "-1");
-      params.set("abroad.not", "0");
-      params.set("custom.not", "1");
-      params.set("size", "100");
-      params.set("page", "0");
-      if (query) params.set("q", query);
-      if (target.year) {
-        params.set("year[0].gte", String(target.year - 2));
-        params.set("year[0].lte", String(target.year + 2));
-      }
-      return "https://auto.ria.com/uk/search/?" + params.toString();
+    riaApiKey: function () {
+      return typeof CONFIG !== "undefined" && CONFIG.autoRiaToken
+        ? CONFIG.autoRiaToken
+        : "";
     },
-    fetchViaProxy: async function (url) {
-      var proxy =
-        typeof CONFIG !== "undefined" && CONFIG.proxyUrl ? CONFIG.proxyUrl : "";
-      if (!proxy)
-        throw new Error("Не задано CONFIG.proxyUrl для доступу до AUTO.RIA");
+    riaFetchJson: async function (path) {
+      // path = "/auto/..." з query-рядком, але БЕЗ api_key
+      var key = this.riaApiKey();
+      if (!key)
+        throw new Error(
+          "Не задано CONFIG.autoRiaToken для доступу до API AUTO.RIA",
+        );
+      var sep = path.indexOf("?") === -1 ? "?" : "&";
+      var url =
+        "https://developers.ria.com" +
+        path +
+        sep +
+        "api_key=" +
+        encodeURIComponent(key);
       var ctrl = new AbortController();
       var timeoutId = setTimeout(function () {
         ctrl.abort();
       }, 15000);
       try {
-        var resp = await fetch(proxy + encodeURIComponent(url), {
-          signal: ctrl.signal,
-        });
-        if (!resp.ok) throw new Error("HTTP " + resp.status);
-        var html = await resp.text();
-        if (!html || html.length < 2000)
-          throw new Error("Коротка відповідь від проксі/сайту");
-        if (
-          /just a moment|cloudflare|enable javascript/i.test(
-            html.slice(0, 3000),
-          )
-        ) {
-          throw new Error("Сайт повернув антибот-захист");
+        var resp = await fetch(url, { signal: ctrl.signal });
+        if (resp.status === 429)
+          throw new Error("Перевищено ліміт запитів API AUTO.RIA (429).");
+        if (resp.status === 400) {
+          var errBody = null;
+          try {
+            errBody = await resp.json();
+          } catch (e) {
+            /* ignore */
+          }
+          var msg =
+            errBody && errBody.message ? errBody.message : "Недостатньо даних";
+          var e400 = new Error(msg);
+          e400.notEnoughData = /not enough data/i.test(msg);
+          throw e400;
         }
-        return html;
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        return await resp.json();
       } finally {
         clearTimeout(timeoutId);
       }
     },
-    extractListingsFromAutoriaHtml: function (html) {
-      var listings = [];
-      var byLink = {};
-      var vm = this;
-
-      function addListing(item) {
-        if (!item || !item.link || !item.price) return;
-        if (byLink[item.link]) return;
-        byLink[item.link] = true;
-        listings.push(item);
+    // ── Статичні довідники: кеш назавжди (марки/моделі майже не змінюються) ──
+    readStaticCache: function (key) {
+      try {
+        var raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        return null;
       }
-
-      var nextMatch = html.match(
-        /<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i,
+    },
+    writeStaticCache: function (key, data) {
+      try {
+        localStorage.setItem(key, JSON.stringify(data));
+      } catch (e) {
+        /* ignore */
+      }
+    },
+    getRiaMarks: async function () {
+      var KEY = "ria_marks_v1_cat1";
+      var cached = this.readStaticCache(KEY);
+      if (cached && cached.length) return cached;
+      var data = await this.riaFetchJson("/auto/categories/1/marks");
+      var list = Array.isArray(data) ? data : data.marks || [];
+      if (list.length) this.writeStaticCache(KEY, list);
+      return list;
+    },
+    getRiaModels: async function (markaId) {
+      var KEY = "ria_models_v1_" + markaId;
+      var cached = this.readStaticCache(KEY);
+      if (cached && cached.length) return cached;
+      var data = await this.riaFetchJson(
+        "/auto/categories/1/marks/" + markaId + "/models",
       );
-      if (nextMatch && nextMatch[1]) {
-        try {
-          var nd = JSON.parse(nextMatch[1]);
-          var stack = [nd];
-          while (stack.length) {
-            var cur = stack.pop();
-            if (!cur || typeof cur !== "object") continue;
-            if (Array.isArray(cur)) {
-              for (var i = 0; i < cur.length; i++) stack.push(cur[i]);
-              continue;
-            }
-            var link = cur.linkToView || cur.link || cur.url || "";
-            var title = cur.title || cur.name || "";
-            var price = cur.USD || cur.priceUSD || cur.price || 0;
-            var year = cur.year || (cur.autoData && cur.autoData.year);
-            var mileage = cur.race || cur.mileage || 0;
-            var fuel = cur.fuelName || cur.fuel || "";
-            var engineVolume = cur.engineVolume || cur.engineCapacity || 0;
-
-            var p = parseInt((price || "").toString().replace(/[^0-9]/g, ""));
-            if (
-              p >= 500 &&
-              p <= 300000 &&
-              /auto_ria|auto\.ria|\/auto_/i.test(link)
-            ) {
-              if (link.indexOf("http") !== 0)
-                link = "https://auto.ria.com" + link;
-              addListing({
-                link: link,
-                title: title || "",
-                price: p,
-                year: parseInt(year || 0) || 0,
-                mileage:
-                  parseInt((mileage || "").toString().replace(/[^0-9]/g, "")) ||
-                  0,
-                fuel: (fuel || "").toString().toLowerCase(),
-                engineVolume:
-                  parseFloat(
-                    (engineVolume || "").toString().replace(",", "."),
-                  ) || 0,
-              });
-            }
-            for (var key in cur) {
-              if (Object.prototype.hasOwnProperty.call(cur, key))
-                stack.push(cur[key]);
-            }
+      var list = Array.isArray(data) ? data : data.models || [];
+      if (list.length) this.writeStaticCache(KEY, list);
+      return list;
+    },
+    normalizeName: function (s) {
+      return (s || "")
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9а-яіїєґ]+/gi, " ")
+        .trim();
+    },
+    // Підбір {value,name} зі списку довідника за назвою (марка/модель).
+    // Трим-назви (напр. "M340I") часто не мають точної моделі в API —
+    // тоді повертаємо null, і викликач відкочується на марку+рік.
+    matchByName: function (list, query) {
+      var q = this.normalizeName(query);
+      if (!q || !list || !list.length) return null;
+      var i, n;
+      // 1) точний збіг назви
+      for (i = 0; i < list.length; i++) {
+        if (this.normalizeName(list[i].name) === q) return list[i];
+      }
+      // 2) одна назва містить іншу як ціле слово (виграє найдовша)
+      var best = null,
+        bestLen = 0;
+      for (i = 0; i < list.length; i++) {
+        n = this.normalizeName(list[i].name);
+        if (!n) continue;
+        if (
+          (" " + q + " ").indexOf(" " + n + " ") !== -1 ||
+          (" " + n + " ").indexOf(" " + q + " ") !== -1
+        ) {
+          if (n.length > bestLen) {
+            best = list[i];
+            bestLen = n.length;
           }
-        } catch (e) {
-          // ignore
         }
       }
-
-      if (!listings.length) {
-        var cardRe =
-          /<a[^>]+href="([^"]*\/uk\/auto_[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-        var m;
-        while ((m = cardRe.exec(html)) !== null) {
-          let link =
-            m[1].indexOf("http") === 0 ? m[1] : "https://auto.ria.com" + m[1];
-          var card = m[2] || "";
-          var priceMatch = card.match(/\$[\s]*([0-9\s]{3,10})/);
-          var yearMatch = card.match(/\b(19[8-9]\d|20[0-2]\d)\b/);
-          var mileMatch = card.match(/([0-9\s]{2,8})\s*км/i);
-          var titleMatch = card.match(/title="([^"]+)"/i);
-          let price = priceMatch
-            ? parseInt(priceMatch[1].replace(/[^0-9]/g, ""))
-            : 0;
-          addListing({
-            link: link,
-            title: titleMatch ? vm.decodeHtmlEntities(titleMatch[1]) : "",
-            price: price || 0,
-            year: yearMatch ? parseInt(yearMatch[1]) : 0,
-            mileage: mileMatch
-              ? parseInt(mileMatch[1].replace(/[^0-9]/g, ""))
-              : 0,
-            fuel: "",
-            engineVolume: 0,
-          });
-        }
-      }
-
-      return listings;
+      return best;
     },
-    decodeHtmlEntities: function (value) {
-      if (!value) return "";
-      var txt = document.createElement("textarea");
-      txt.innerHTML = value;
-      return txt.value;
+    applyMarketResult: function (price, category) {
+      this.customs.ukrainianMarketPrice = price;
+      var diff = this.marketPriceDifference();
+      var cat = category || this.getMarketCategoryByDiff(diff, this.total());
+      this.customs.marketCategory = cat;
+      return cat;
     },
-    scoreSimilarity: function (listing, target) {
-      var score = 0;
-      var text = (
-        (listing.title || "") +
-        " " +
-        (listing.link || "")
-      ).toLowerCase();
-      if (target.make && text.indexOf(target.make.toLowerCase()) !== -1)
-        score += 35;
-      if (target.model && text.indexOf(target.model.toLowerCase()) !== -1)
-        score += 45;
-
-      if (target.year && listing.year) {
-        var yDiff = Math.abs(listing.year - target.year);
-        if (yDiff === 0) score += 20;
-        else if (yDiff === 1) score += 12;
-        else if (yDiff <= 2) score += 7;
-        else if (yDiff <= 4) score += 2;
-        else score -= 10;
+    // Лог результату пошуку в локальну SQLite (через server.js).
+    // Fire-and-forget: якщо сервера нема (статика/python) — тихо ігнорується.
+    logSearch: function (payload) {
+      try {
+        fetch("/api/searches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch(function () {});
+      } catch (e) {
+        /* ignore */
       }
-
-      if (target.mileage && listing.mileage) {
-        var mDiff = Math.abs(listing.mileage - target.mileage);
-        if (mDiff <= 15000) score += 12;
-        else if (mDiff <= 35000) score += 7;
-        else if (mDiff <= 60000) score += 3;
-      }
-
-      if (target.engineType && listing.fuel) {
-        var lt = listing.fuel.toLowerCase();
-        if (target.engineType === "electric" && /electric|електр/.test(lt))
-          score += 10;
-        if (target.engineType === "petrol" && /gas|бенз|petrol/.test(lt))
-          score += 8;
-        if (target.engineType === "diesel" && /diesel|дизел/.test(lt))
-          score += 8;
-      }
-
-      if (target.engineVolume && listing.engineVolume) {
-        var eDiff = Math.abs(listing.engineVolume - target.engineVolume);
-        if (eDiff <= 0.2) score += 10;
-        else if (eDiff <= 0.5) score += 6;
-        else if (eDiff <= 0.8) score += 3;
-      }
-
-      return score;
-    },
-    computeMarketMedian: function (prices) {
-      if (!prices || !prices.length) return 0;
-      var sorted = prices.slice().sort(function (a, b) {
-        return a - b;
-      });
-      var mid = Math.floor(sorted.length / 2);
-      if (sorted.length % 2 === 0)
-        return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-      return sorted[mid];
     },
     lookupUkrainianPrice: async function () {
       var vm = this;
@@ -597,6 +526,13 @@ window.__createAllMethods = function () {
       vm.marketMsg = "⏳ Пошук схожих авто на AUTO.RIA...";
 
       try {
+        if (!vm.riaApiKey()) {
+          vm.marketStatus = "error";
+          vm.marketMsg =
+            "❌ Не задано API-ключ AUTO.RIA (CONFIG.autoRiaToken).";
+          return;
+        }
+
         var target = vm.normalizeMarketTarget();
         if (!target.make || !target.model) {
           vm.marketStatus = "warn";
@@ -608,96 +544,111 @@ window.__createAllMethods = function () {
         var cacheKey = vm.getMarketCacheKey(target);
         var cached = vm.readMarketCache(cacheKey);
         if (cached) {
-          vm.customs.ukrainianMarketPrice = cached.medianPrice;
-          vm.customs.marketCategory =
-            cached.marketCategory ||
-            vm.getMarketCategoryByDiff(
-              vm.customs.ukrainianMarketPrice - vm.total(),
-              vm.total(),
-            );
+          vm.applyMarketResult(cached.medianPrice, cached.marketCategory);
           vm.marketStatus = "ok";
           vm.marketMsg =
             "✅ Використано кеш AUTO.RIA: " +
             cached.sampleCount +
-            " оголошень, медіана $" +
+            " оголошень, ціна $" +
             cached.medianPrice;
           return;
         }
 
-        var searchUrl = vm.buildAutoriaSearchUrl(target);
-
-        console.log("aria searchUrl", searchUrl);
-
-        var html = await vm.fetchViaProxy(searchUrl);
-        var listings = vm.extractListingsFromAutoriaHtml(html);
-        if (!listings.length) {
-          vm.marketStatus = "warn";
-          vm.marketMsg = "⚠ На AUTO.RIA не знайдено оголошень по запиту.";
-          return;
-        }
-
-        var withScore = listings.map(function (l) {
-          return { item: l, score: vm.scoreSimilarity(l, target) };
-        });
-
-        var filtered = withScore
-          .filter(function (x) {
-            if (x.item.price < 500 || x.item.price > 300000) return false;
-            if (
-              target.year &&
-              x.item.year &&
-              Math.abs(x.item.year - target.year) > 4
-            )
-              return false;
-            return x.score >= 25;
-          })
-          .sort(function (a, b) {
-            return b.score - a.score;
-          });
-
-        if (!filtered.length) {
+        // 1) Резолв марки (довідник кешується назавжди)
+        var marks = await vm.getRiaMarks();
+        var mark = vm.matchByName(marks, target.make);
+        if (!mark) {
           vm.marketStatus = "warn";
           vm.marketMsg =
-            "⚠ Знайдено оголошення, але немає релевантних для порівняння.";
+            "⚠ Марку «" + target.make + "» не знайдено в довіднику AUTO.RIA.";
           return;
         }
 
-        var selected = filtered.slice(0, 20);
-        var prices = selected.map(function (x) {
-          return x.item.price;
-        });
-        var median = vm.computeMarketMedian(prices);
-        if (!median) {
-          vm.marketStatus = "warn";
-          vm.marketMsg = "⚠ Не вдалося обчислити медіану по знайдених авто.";
-          return;
+        // 2) Резолв моделі (best-effort; для тримів може лишитись null)
+        var models = await vm.getRiaModels(mark.value);
+        var model = vm.matchByName(models, target.model);
+
+        // 3) average_price (кешуємо результат)
+        var path =
+          "/auto/average_price?main_category=1&marka_id=" + mark.value;
+        if (model) path += "&model_id=" + model.value;
+        if (target.year) {
+          path +=
+            "&yers%5B0%5D.gte=" +
+            (target.year - 1) +
+            "&yers%5B0%5D.lte=" +
+            (target.year + 1);
         }
 
-        vm.customs.ukrainianMarketPrice = median;
-        var diff = vm.marketPriceDifference();
-        vm.customs.marketCategory = vm.getMarketCategoryByDiff(
-          diff,
-          vm.total(),
+        var data;
+        try {
+          data = await vm.riaFetchJson(path);
+        } catch (e) {
+          if (e && e.notEnoughData) {
+            vm.marketStatus = "warn";
+            vm.marketMsg =
+              "⚠ На AUTO.RIA замало даних для оцінки по цьому авто.";
+            return;
+          }
+          throw e;
+        }
+
+        var price = Math.round(
+          data.interQuartileMean ||
+            data.arithmeticMean ||
+            (data.percentiles && data.percentiles["50.0"]) ||
+            0,
         );
-        vm.marketStatus = selected.length < 3 ? "warn" : "ok";
+        var total = data.total || 0;
+        if (!price) {
+          vm.marketStatus = "warn";
+          vm.marketMsg = "⚠ Не вдалося обчислити ринкову ціну AUTO.RIA.";
+          return;
+        }
+
+        var category = vm.applyMarketResult(price, null);
+        vm.marketStatus = total < 5 ? "warn" : "ok";
+        var modelNote = model
+          ? ""
+          : " (по марці+рік, модель «" + target.model + "» не зматчилась)";
         vm.marketMsg =
-          (selected.length < 3 ? "⚠ Мало даних: " : "✅ ") +
-          "знайдено " +
-          listings.length +
-          ", релевантних " +
-          filtered.length +
-          ", у медіані " +
-          selected.length +
-          ", медіана $" +
-          median;
+          (total < 5 ? "⚠ Мало даних: " : "✅ ") +
+          "оцінка по " +
+          total +
+          " оголошеннях, медіана/IQ-середнє $" +
+          price +
+          modelNote;
 
         vm.writeMarketCache(cacheKey, {
           ts: Date.now(),
-          medianPrice: median,
-          sampleCount: selected.length,
-          marketCategory: vm.customs.marketCategory,
+          medianPrice: price,
+          sampleCount: total,
+          marketCategory: category,
         });
         vm.saveToLocalStorage();
+
+        vm.logSearch({
+          make: target.make,
+          model: target.model,
+          year: target.year,
+          engineType: target.engineType,
+          engineVolume: target.engineVolume,
+          markaId: mark.value,
+          modelId: model ? model.value : null,
+          modelMatched: !!model,
+          marketPrice: price,
+          sampleCount: total,
+          arithmeticMean: Math.round(data.arithmeticMean || 0),
+          iqMean: Math.round(data.interQuartileMean || 0),
+          median: Math.round(
+            (data.percentiles && data.percentiles["50.0"]) || 0,
+          ),
+          totalCost: vm.total(),
+          diff: vm.marketPriceDifference(),
+          category: category,
+          prices: Array.isArray(data.prices) ? data.prices : [],
+          percentiles: data.percentiles || null,
+        });
       } catch (err) {
         vm.marketStatus = "error";
         vm.marketMsg =
@@ -705,6 +656,7 @@ window.__createAllMethods = function () {
           (err && err.message ? err.message : "невідома помилка");
       }
     },
+
     auctionFee: function () {
       if (this.autoPricing.auctions.selected === window.auctions[0].id) {
         if (this.autoPricing.autoPrice < 2000) {
@@ -1038,12 +990,16 @@ export function createMarketMethods() {
     "normalizeMarketTarget",
     "readMarketCache",
     "writeMarketCache",
-    "buildAutoriaSearchUrl",
-    "fetchViaProxy",
-    "extractListingsFromAutoriaHtml",
-    "decodeHtmlEntities",
-    "scoreSimilarity",
-    "computeMarketMedian",
+    "riaApiKey",
+    "riaFetchJson",
+    "readStaticCache",
+    "writeStaticCache",
+    "getRiaMarks",
+    "getRiaModels",
+    "normalizeName",
+    "matchByName",
+    "applyMarketResult",
+    "logSearch",
     "lookupUkrainianPrice",
   ];
   var out = {};
