@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -m 20 __TRACKED_VAR__/categories/1/bodystyles?api_key=__TRACKED_VAR__ -o /tmp/bs.json)",
+      "Bash(node -e 'const a=require\\(\"/tmp/bs.json\"\\);const l=Array.isArray\\(a\\)?a:\\(a.bodystyles||[]\\);console.log\\(\"count\",l.length\\);console.log\\(l.filter\\(x=>/седан|sedan|позашлях|кросовер|suv|універсал|купе/i.test\\(x.name\\)\\).slice\\(0,8\\)\\)')",
+      "Bash(curl -s -m 20 __TRACKED_VAR__/categories/1/gearboxes?api_key=__TRACKED_VAR__ -o /tmp/gb.json)",
+      "Bash(node -e 'const a=require\\(\"/tmp/gb.json\"\\);const l=Array.isArray\\(a\\)?a:\\(a.gearboxes||[]\\);console.log\\(l\\)')",
+      "Bash(curl -s -m 20 __TRACKED_VAR__/type?api_key=__TRACKED_VAR__ -o /tmp/ft.json)"
+    ]
+  }
+}

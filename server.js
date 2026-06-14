@@ -34,19 +34,23 @@ db.exec(`
     category        TEXT,
     prices_json     TEXT,
     percentiles_json TEXT,
-    classifieds_json TEXT
+    classifieds_json TEXT,
+    filters_json    TEXT
   )
 `);
 // Міграції для вже створених БД (нові колонки)
-["prices_json TEXT", "percentiles_json TEXT", "classifieds_json TEXT"].forEach(
-  function (col) {
-    try {
-      db.exec("ALTER TABLE searches ADD COLUMN " + col);
-    } catch (e) {
-      /* колонка вже існує */
-    }
-  },
-);
+[
+  "prices_json TEXT",
+  "percentiles_json TEXT",
+  "classifieds_json TEXT",
+  "filters_json TEXT",
+].forEach(function (col) {
+  try {
+    db.exec("ALTER TABLE searches ADD COLUMN " + col);
+  } catch (e) {
+    /* колонка вже існує */
+  }
+});
 
 // Колонки списку (без важких JSON-масивів) — для таблиці пошуків
 const LIST_COLS =
@@ -59,9 +63,9 @@ const insertStmt = db.prepare(`
     (ts, make, model, year, engine_type, engine_volume, marka_id, model_id,
      model_matched, market_price, sample_count, arithmetic_mean, iq_mean,
      median, total_cost, diff, category, prices_json, percentiles_json,
-     classifieds_json)
+     classifieds_json, filters_json)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 // ── Таблиця лотів (повна інформація + HD-фото/відео + сирий JSON) ─────
@@ -110,7 +114,7 @@ const LOT_LIST_COLS =
   "id, ts, url, auction, lot_number, vin, year, make, model, series, " +
   "body_style, fuel, engine, transmission, color, odometer, primary_damage, " +
   "title_brand, acv, repair_cost, buy_now_price, min_bid, selling_branch, " +
-  "branch_state, sale_date, image_count, primary_thumb, image360_url";
+  "branch_state, sale_date, image_count, primary_thumb, primary_hd, image360_url";
 
 const insertLotStmt = db.prepare(`
   INSERT INTO lots
@@ -211,14 +215,17 @@ const server = http.createServer(function (req, res) {
       row.classifieds = row.classifieds_json
         ? JSON.parse(row.classifieds_json)
         : [];
+      row.filters = row.filters_json ? JSON.parse(row.filters_json) : [];
     } catch (e) {
       row.prices = [];
       row.percentiles = null;
       row.classifieds = [];
+      row.filters = [];
     }
     delete row.prices_json;
     delete row.percentiles_json;
     delete row.classifieds_json;
+    delete row.filters_json;
     sendJson(res, 200, row);
     return;
   }
@@ -350,6 +357,9 @@ const server = http.createServer(function (req, res) {
             p.percentiles ? JSON.stringify(p.percentiles) : null,
             Array.isArray(p.classifieds)
               ? JSON.stringify(p.classifieds)
+              : null,
+            Array.isArray(p.filtersApplied)
+              ? JSON.stringify(p.filtersApplied)
               : null,
           );
           sendJson(res, 201, { ok: true });

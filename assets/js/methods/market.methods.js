@@ -318,6 +318,11 @@ window.__createAllMethods = function () {
 
         // Зберігаємо ВЕСЬ лот (включно з HD-фото/відео) у локальну БД
         vm.logLot(vm.collectLotData(nd, attrs, saleValues));
+
+        // Персистимо зчитані поля (рік/марку/модель/двигун…) у localStorage,
+        // щоб після перезавантаження сторінки вони не повертались до старих
+        // значень — інакше наступний пошук ціни піде по неправильному року.
+        vm.saveToLocalStorage();
       } catch (parseErr) {
         console.error("[parse] error:", parseErr);
         vm.auctionStatus = "error";
@@ -354,6 +359,9 @@ window.__createAllMethods = function () {
       var engineVolume = parseFloat(this.customs.engineVolume || 0);
       var batteryKwh = parseInt(this.customs.batteryKwh || 0);
       var mileage = parseInt((this.customs.carrierInfo || {}).mileage || 0);
+      var transmission = ((this.customs.carrierInfo || {}).transmission || "")
+        .toString()
+        .trim();
       return {
         make: make,
         model: model,
@@ -362,6 +370,7 @@ window.__createAllMethods = function () {
         engineVolume: isNaN(engineVolume) ? 0 : engineVolume,
         batteryKwh: isNaN(batteryKwh) ? 0 : batteryKwh,
         mileage: isNaN(mileage) ? 0 : mileage,
+        transmission: transmission,
       };
     },
     readMarketCache: function (cacheKey) {
@@ -470,6 +479,89 @@ window.__createAllMethods = function () {
       var list = Array.isArray(data) ? data : data.models || [];
       if (list.length) this.writeStaticCache(KEY, list);
       return list;
+    },
+    getRiaFuels: async function () {
+      var KEY = "ria_fuels_v1";
+      var cached = this.readStaticCache(KEY);
+      if (cached && cached.length) return cached;
+      var data = await this.riaFetchJson("/auto/type");
+      var list = Array.isArray(data) ? data : data.types || [];
+      if (list.length) this.writeStaticCache(KEY, list);
+      return list;
+    },
+    getRiaGearboxes: async function () {
+      var KEY = "ria_gearboxes_v1";
+      var cached = this.readStaticCache(KEY);
+      if (cached && cached.length) return cached;
+      var data = await this.riaFetchJson("/auto/categories/1/gearboxes");
+      var list = Array.isArray(data) ? data : data.gearboxes || [];
+      if (list.length) this.writeStaticCache(KEY, list);
+      return list;
+    },
+    // Резолв моделі: спершу точний/підрядковий збіг; якщо нема (трим на кшталт
+    // M340I) — евристика по марці до базової моделі. Повертає {model, base}.
+    resolveBaseModel: function (make, model, models) {
+      var direct = this.matchByName(models, model);
+      if (direct) return { model: direct, base: false };
+      var mk = (make || "").toLowerCase();
+      var m = (model || "").toUpperCase().replace(/\s+/g, "");
+      // BMW: числові трими (M340I, 330I, 540I, 320D) → "{N} Series".
+      // Додавати правила інших брендів за потреби.
+      if (mk === "bmw") {
+        var mm = m.match(/^[A-Z]?(\d)\d\d/);
+        if (mm) {
+          var series = this.matchByName(models, mm[1] + " Series");
+          if (series) return { model: series, base: true };
+        }
+      }
+      return { model: null, base: false };
+    },
+    // Будує робочі фільтри average_price (перевірено емпірично, що діють лише
+    // fuel_id, gear_id, raceInt — body/drive/engineVolume/custom RIA ігнорує).
+    buildRiaFilters: async function (target) {
+      var vm = this;
+      var f = {
+        fuel: "",
+        gear: "",
+        mileage: "",
+        fuelLabel: "",
+        gearLabel: "",
+        mileageLabel: "",
+      };
+      var fuelKw = {
+        petrol: "Бензин",
+        diesel: "Дизель",
+        electric: "Електро",
+        hybrid: "Гібрид",
+      }[target.engineType];
+      if (fuelKw) {
+        var fm = vm.matchByName(await vm.getRiaFuels(), fuelKw);
+        if (fm) {
+          f.fuel = "&fuel_id%5B0%5D=" + fm.value;
+          f.fuelLabel = fuelKw.toLowerCase();
+        }
+      }
+      var tx = (target.transmission || "").toLowerCase();
+      var gearKw = /auto|автомат|типтрон/.test(tx)
+        ? "Автомат"
+        : /manual|механ/.test(tx)
+          ? "Ручна"
+          : "";
+      if (gearKw) {
+        var gm = vm.matchByName(await vm.getRiaGearboxes(), gearKw);
+        if (gm) {
+          f.gear = "&gear_id%5B0%5D=" + gm.value;
+          f.gearLabel = gearKw === "Ручна" ? "механіка" : "автомат";
+        }
+      }
+      // Пробіг лота в милях → км, діапазон ±30 тис. км (raceInt у тис. км).
+      if (target.mileage > 0) {
+        var km = Math.round((target.mileage * 1.60934) / 1000);
+        var lo = Math.max(0, km - 30);
+        f.mileage = "&raceInt%5B0%5D=" + lo + "&raceInt%5B1%5D=" + (km + 30);
+        f.mileageLabel = "пробіг ~" + km + "k км";
+      }
+      return f;
     },
     normalizeName: function (s) {
       return (s || "")
@@ -691,33 +783,64 @@ window.__createAllMethods = function () {
           return;
         }
 
-        // 2) Резолв моделі (best-effort; для тримів може лишитись null)
+        // 2) Резолв моделі: точний збіг або базова модель для тримів
         var models = await vm.getRiaModels(mark.value);
-        var model = vm.matchByName(models, target.model);
+        var resolved = vm.resolveBaseModel(target.make, target.model, models);
+        var model = resolved.model;
 
-        // 3) average_price (кешуємо результат)
-        var path =
+        // 3) Прогресивне звуження: від точного (фільтри) до широкого (марка+рік).
+        //    Зупиняємось на першому тирі з total >= MIN; максимум 3 запити.
+        var basePath =
           "/auto/average_price?main_category=1&marka_id=" + mark.value;
-        if (model) path += "&model_id=" + model.value;
+        if (model) basePath += "&model_id=" + model.value;
         if (target.year) {
-          path +=
+          basePath +=
             "&yers%5B0%5D.gte=" +
             (target.year - 1) +
             "&yers%5B0%5D.lte=" +
             (target.year + 1);
         }
 
-        var data;
-        try {
-          data = await vm.riaFetchJson(path);
-        } catch (e) {
-          if (e && e.notEnoughData) {
-            vm.marketStatus = "warn";
-            vm.marketMsg =
-              "⚠ На AUTO.RIA замало даних для оцінки по цьому авто.";
-            return;
+        var filt = await vm.buildRiaFilters(target);
+        var tiers = [
+          {
+            suffix: filt.fuel + filt.gear + filt.mileage,
+            labels: [filt.fuelLabel, filt.gearLabel, filt.mileageLabel],
+          },
+          { suffix: filt.fuel, labels: [filt.fuelLabel] },
+          { suffix: "", labels: [] },
+        ];
+        var MIN = 5;
+        var data = null,
+          usedLabels = [],
+          lastSuffix = null;
+        for (var ti = 0; ti < tiers.length; ti++) {
+          if (tiers[ti].suffix === lastSuffix) continue;
+          lastSuffix = tiers[ti].suffix;
+          var d;
+          try {
+            d = await vm.riaFetchJson(basePath + tiers[ti].suffix);
+          } catch (e) {
+            if (e && e.notEnoughData) continue;
+            throw e;
           }
-          throw e;
+          // Найкращий (з найбільшою вибіркою) — на випадок, якщо жоден тир
+          // не дотягне до MIN.
+          if (!data || (d.total || 0) > (data.total || 0)) {
+            data = d;
+            usedLabels = tiers[ti].labels.filter(Boolean);
+          }
+          if ((d.total || 0) >= MIN) {
+            data = d;
+            usedLabels = tiers[ti].labels.filter(Boolean);
+            break;
+          }
+        }
+
+        if (!data) {
+          vm.marketStatus = "warn";
+          vm.marketMsg = "⚠ На AUTO.RIA замало даних для оцінки по цьому авто.";
+          return;
         }
 
         var price = Math.round(
@@ -734,17 +857,20 @@ window.__createAllMethods = function () {
         }
 
         var category = vm.applyMarketResult(price, null);
-        vm.marketStatus = total < 5 ? "warn" : "ok";
-        var modelNote = model
-          ? ""
-          : " (по марці+рік, модель «" + target.model + "» не зматчилась)";
+        vm.marketStatus = total < MIN ? "warn" : "ok";
+
+        var modelLabel = model
+          ? model.name + (resolved.base ? " (баз.)" : "")
+          : "марка+рік";
+        var appliedLabels = [modelLabel].concat(usedLabels);
         vm.marketMsg =
-          (total < 5 ? "⚠ Мало даних: " : "✅ ") +
-          "оцінка по " +
+          (total < MIN ? "⚠ Мало даних: " : "✅ ") +
+          appliedLabels.join(" · ") +
+          " — n=" +
           total +
-          " оголошеннях, медіана/IQ-середнє $" +
+          ", медіана/IQ $" +
           price +
-          modelNote;
+          (model ? "" : " (модель «" + target.model + "» не зматчилась)");
 
         vm.writeMarketCache(cacheKey, {
           ts: Date.now(),
@@ -762,7 +888,7 @@ window.__createAllMethods = function () {
           engineVolume: target.engineVolume,
           markaId: mark.value,
           modelId: model ? model.value : null,
-          modelMatched: !!model,
+          modelMatched: !!model && !resolved.base,
           marketPrice: price,
           sampleCount: total,
           arithmeticMean: Math.round(data.arithmeticMean || 0),
@@ -776,6 +902,7 @@ window.__createAllMethods = function () {
           prices: Array.isArray(data.prices) ? data.prices : [],
           percentiles: data.percentiles || null,
           classifieds: Array.isArray(data.classifieds) ? data.classifieds : [],
+          filtersApplied: appliedLabels,
         });
       } catch (err) {
         vm.marketStatus = "error";
@@ -1124,6 +1251,10 @@ export function createMarketMethods() {
     "writeStaticCache",
     "getRiaMarks",
     "getRiaModels",
+    "getRiaFuels",
+    "getRiaGearboxes",
+    "resolveBaseModel",
+    "buildRiaFilters",
     "normalizeName",
     "matchByName",
     "resetLotData",

@@ -72,16 +72,47 @@ Response: `[{ "name": "3 Series", "value": 3219 }, ...]` (`value` = `model_id`).
 
 > **Trim vs model gotcha:** the lot model from the auction parser is often a *trim*
 > (e.g. `M340I`), but the API only lists *base models* (`3 Series` = 3219). A literal string
-> match fails. Resolution strategy: exact name → substring/token match → if still unresolved,
-> fall back to `marka_id` + year only (broader, less accurate) and warn the user the match was
-> brand-level. Never silently return a wrong-model price.
+> match fails. Resolution: exact/substring match → else brand heuristic to base model
+> (BMW numeric trims `^[A-Z]?(\d)\d\d` → "{N} Series", in `resolveBaseModel`) → else brand-only,
+> and say so in the message. Never silently return a wrong-model price.
 
 ### Average price — the main endpoint
 ```
 GET /auto/average_price?api_key=KEY&main_category=1&marka_id=9&model_id=3219&yers[0].gte=2024&yers[0].lte=2026
 ```
-Params: `marka_id`, `model_id`, `yers[0].gte` / `yers[0].lte` (year range), `raceInt`
-(mileage range, thousands km), `fuel_id`, `gear_id`, `city_id`.
+
+#### ⚠️ Which filters actually work (verified empirically 2026-06 vs 3 Series baseline)
+Test = does appending the param change `total`? `average_price` **silently ignores** many params:
+
+| Works ✅ (developers-API names) | Encoded |
+|---|---|
+| brand / model / year | `marka_id=`, `model_id=`, `yers%5B0%5D.gte=` / `.lte=` |
+| **fuel** | `fuel_id%5B0%5D=` (NOT `type_id`) |
+| **gearbox** | `gear_id%5B0%5D=` |
+| **mileage** (×1000 km) | `raceInt%5B0%5D=lo&raceInt%5B1%5D=hi` |
+
+Ignored ❌ under developers-doc names: `body_id`/`bodystyle`, `drive_id`, `engineVolumeFrom/To`
+& `engine[].gte/lte`, `custom` (`custom=2`→0).
+
+#### 🔎 Lead to verify (blocked by hourly limit 2026-06)
+The **website** `auto.ria.com/uk/search` filters fine with DIFFERENT names — `gearbox[0]`,
+`drive[0]`, `engine_volume[0]`, `customs_cleared=1`, `abroad=0` (e.g. 2020 M340i:
+`...brand=9&...model=3219&year[0]=2020&fuel[0]=1&gearbox[0]=2&drive[0]=1&engine_volume[0]=2.9&abroad=0&customs_cleared=1`).
+**Untested on `average_price`** — `engine_volume[0]` (separates M340i 3.0 from 320i 2.0) and
+`drive[0]` would be big precision wins. Verify these names on `average_price` when the hourly
+quota resets; if honored, add to the precise tier in `buildRiaFilters`.
+
+**Rate limit is HOURLY** — 429 body `{"error":"Переліміт погодинного обмеження..."}`. ~25 calls
+exhausts it; then ALL calls fail till the hour rolls over. See [[autoria-api-cache-limits]].
+
+**Tiered narrowing** (`lookupUkrainianPrice`, ≤3 calls, stop at first `total>=5`):
+T1 `model+year+fuel+gear+mileage` → T2 `model+year+fuel` → T3 `model(or brand)+year`; keeps the
+broadest result if none reach the threshold.
+
+Dictionary IDs (resolve via cached dicts): fuel `/auto/type` Бензин=1 Дизель=2 Газ=3 Гібрид(HEV)=5
+Електро=6 · gearbox `/auto/categories/1/gearboxes` Механіка=1 Автомат=2 Типтронік=3 · bodystyles
+Седан=3 SUV=5 · driverTypes Повний=1 Передній=2 Задній=3. Our `engineType`/`transmission` are
+English → map to UA name, then `matchByName`.
 
 Response:
 ```json

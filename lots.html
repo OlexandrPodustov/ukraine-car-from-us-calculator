@@ -335,6 +335,20 @@
         }
       }
 
+      // Прев'ю картки: маленький thumbnail (188×141) розтягувався на всю
+      // картку й виглядав розмито. У IAAI-резайзера можна попросити будь-який
+      // розмір — перезамовляємо чітке зображення під розмір картки (×2 для
+      // retina). Для не-резайзерних URL (Copart) повертаємо як є.
+      function cardImg(hd, thumb) {
+        var url = hd || thumb || "";
+        if (/[?&]width=\d+/.test(url) && /[?&]height=\d+/.test(url)) {
+          return url
+            .replace(/([?&]width=)\d+/, "$1520")
+            .replace(/([?&]height=)\d+/, "$1360");
+        }
+        return url;
+      }
+
       // ── Список карток ────────────────────────────────────────────
       fetch(API + "/api/lots")
         .then(function (r) {
@@ -353,9 +367,10 @@
             .map(function (r) {
               var title =
                 [r.year, r.make, r.model].filter(Boolean).join(" ") || "Лот";
-              var thumb = r.primary_thumb
+              var thumbSrc = cardImg(r.primary_hd, r.primary_thumb);
+              var thumb = thumbSrc
                 ? '<img class="thumb" loading="lazy" src="' +
-                  esc(r.primary_thumb) +
+                  esc(thumbSrc) +
                   '" alt="">'
                 : '<div class="noimg">без фото</div>';
               var facts = [
