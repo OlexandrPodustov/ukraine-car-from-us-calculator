@@ -12,6 +12,8 @@ window.createInitialState = function () {
     auctionUrl: "",
     auctionStatus: "", // '', 'loading', 'ok', 'warn', 'error'
     auctionMsg: "",
+    // Ідентичність розпарсеного лота — щоб прив'язати пошук ціни до лота в БД.
+    currentLot: { auction: "", lotNumber: "" },
     acv: 0,
     repairCost: 0,
     buyNowPrice: 0,

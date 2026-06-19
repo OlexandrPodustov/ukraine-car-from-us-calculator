@@ -317,7 +317,12 @@ window.__createAllMethods = function () {
           : "⚠ Дані з JSON не розпізнано. Заповніть вручну.";
 
         // Зберігаємо ВЕСЬ лот (включно з HD-фото/відео) у локальну БД
-        vm.logLot(vm.collectLotData(nd, attrs, saleValues));
+        var lotData = vm.collectLotData(nd, attrs, saleValues);
+        vm.currentLot = {
+          auction: lotData.auction || "",
+          lotNumber: lotData.lotNumber || "",
+        };
+        vm.logLot(lotData);
 
         // Персистимо зчитані поля (рік/марку/модель/двигун…) у localStorage,
         // щоб після перезавантаження сторінки вони не повертались до старих
@@ -603,6 +608,7 @@ window.__createAllMethods = function () {
     // замовчуванням. Викликається на початку parseAuctionLot, щоб дані одного
     // лоту ніколи не переносились на інший.
     resetLotData: function () {
+      this.currentLot = { auction: "", lotNumber: "" };
       this.acv = 0;
       this.repairCost = 0;
       this.buyNowPrice = 0;
@@ -881,6 +887,8 @@ window.__createAllMethods = function () {
         vm.saveToLocalStorage();
 
         vm.logSearch({
+          auction: vm.currentLot.auction,
+          lotNumber: vm.currentLot.lotNumber,
           make: target.make,
           model: target.model,
           year: target.year,

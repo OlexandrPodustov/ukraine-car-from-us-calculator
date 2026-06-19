@@ -44,6 +44,7 @@ db.exec(`
   "percentiles_json TEXT",
   "classifieds_json TEXT",
   "filters_json TEXT",
+  "lot_id INTEGER",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE searches ADD COLUMN " + col);
@@ -56,17 +57,22 @@ db.exec(`
 const LIST_COLS =
   "id, ts, make, model, year, engine_type, engine_volume, marka_id, " +
   "model_id, model_matched, market_price, sample_count, arithmetic_mean, " +
-  "iq_mean, median, total_cost, diff, category";
+  "iq_mean, median, total_cost, diff, category, lot_id";
 
 const insertStmt = db.prepare(`
   INSERT INTO searches
     (ts, make, model, year, engine_type, engine_volume, marka_id, model_id,
      model_matched, market_price, sample_count, arithmetic_mean, iq_mean,
      median, total_cost, diff, category, prices_json, percentiles_json,
-     classifieds_json, filters_json)
+     classifieds_json, filters_json, lot_id)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
+
+// Знаходить id лота за (аукціон, номер лота), щоб прив'язати до нього пошук.
+const lotIdLookupStmt = db.prepare(
+  "SELECT id FROM lots WHERE auction = ? AND lot_number = ?",
+);
 
 // ── Таблиця лотів (повна інформація + HD-фото/відео + сирий JSON) ─────
 db.exec(`
@@ -110,6 +116,28 @@ db.exec(`
   )
 `);
 
+// Дедуплікація лотів за (auction, lot_number): лишаємо найсвіжіший запис
+// (max id), решту видаляємо. Потрібно ПЕРЕД створенням унікального індексу,
+// інакше індекс не створиться через наявні дублі. Рядки без lot_number
+// (NULL) не чіпаємо — це нерозпізнані лоти, кожен лишається окремо.
+db.exec(`
+  DELETE FROM lots
+  WHERE auction IS NOT NULL AND lot_number IS NOT NULL
+    AND id NOT IN (
+      SELECT MAX(id) FROM lots
+      WHERE auction IS NOT NULL AND lot_number IS NOT NULL
+      GROUP BY auction, lot_number
+    )
+`);
+// Унікальний ключ лота = (аукціон, номер лота). NULL-номери лишаються
+// унікальними (SQLite вважає NULL-и різними), тож нерозпізнані лоти не
+// злипаються. Завдяки цьому повторний парсинг того ж лота не дублюється,
+// а оновлює наявний рядок (див. ON CONFLICT нижче).
+db.exec(
+  "CREATE UNIQUE INDEX IF NOT EXISTS idx_lots_auction_lot " +
+    "ON lots(auction, lot_number)",
+);
+
 const LOT_LIST_COLS =
   "id, ts, url, auction, lot_number, vin, year, make, model, series, " +
   "body_style, fuel, engine, transmission, color, odometer, primary_damage, " +
@@ -127,6 +155,22 @@ const insertLotStmt = db.prepare(`
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(auction, lot_number) DO UPDATE SET
+    ts=excluded.ts, url=excluded.url, vin=excluded.vin, year=excluded.year,
+    make=excluded.make, model=excluded.model, series=excluded.series,
+    body_style=excluded.body_style, fuel=excluded.fuel, engine=excluded.engine,
+    cylinders=excluded.cylinders, drive=excluded.drive,
+    transmission=excluded.transmission, color=excluded.color,
+    odometer=excluded.odometer, primary_damage=excluded.primary_damage,
+    secondary_damage=excluded.secondary_damage, title_brand=excluded.title_brand,
+    title_state=excluded.title_state, acv=excluded.acv,
+    repair_cost=excluded.repair_cost, buy_now_price=excluded.buy_now_price,
+    min_bid=excluded.min_bid, selling_branch=excluded.selling_branch,
+    branch_state=excluded.branch_state, sale_date=excluded.sale_date,
+    image_count=excluded.image_count, primary_thumb=excluded.primary_thumb,
+    primary_hd=excluded.primary_hd, image360_url=excluded.image360_url,
+    images_json=excluded.images_json, videos_json=excluded.videos_json,
+    raw_json=excluded.raw_json
 `);
 
 function num(v) {
@@ -335,6 +379,12 @@ const server = http.createServer(function (req, res) {
       req.on("end", function () {
         try {
           var p = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+          // Прив'язка пошуку до лота за (аукціон, номер лота), якщо відомі.
+          var lotId = null;
+          if (p.auction && p.lotNumber) {
+            var lr = lotIdLookupStmt.get(p.auction, String(p.lotNumber));
+            if (lr) lotId = lr.id;
+          }
           insertStmt.run(
             new Date().toISOString(),
             p.make || null,
@@ -361,8 +411,9 @@ const server = http.createServer(function (req, res) {
             Array.isArray(p.filtersApplied)
               ? JSON.stringify(p.filtersApplied)
               : null,
+            lotId,
           );
-          sendJson(res, 201, { ok: true });
+          sendJson(res, 201, { ok: true, lotId: lotId });
         } catch (e) {
           sendJson(res, 400, { ok: false, error: e.message });
         }
