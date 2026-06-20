@@ -82,7 +82,7 @@ key `carCalcData` via `saveToLocalStorage()`; restored in `mounted()`.
    (CORS-allowed — do NOT route through the proxy). Resolves brand/model from cached dictionaries,
    then does tiered narrowing on `average_price` (≤3 calls, stop at first `total>=5`). **The free
    API tier is hourly rate-limited — caching in localStorage is mandatory.** See the
-   `autoria-api` skill (`.claude/skills/autoria-api/`) before touching this code.
+   `autoria-api` skill before touching this code.
 
 ### Persistence (server.js + SQLite at `data/searches.db`)
 
