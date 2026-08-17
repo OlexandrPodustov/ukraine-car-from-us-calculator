@@ -430,17 +430,25 @@ window.__createAllMethods = function () {
       }, 15000);
       try {
         var resp = await fetch(url, { signal: ctrl.signal });
-        // 429 — погодинний ліміт; 403 — вичерпаний пакет запитів (саме так
-        // API відповідає браузеру; в curl той самий стан приходить як 200 з
-        // полем error, тому перевіряємо обидва варіанти).
-        if (resp.status === 429 || resp.status === 403) {
-          var eRate = new Error(
-            resp.status === 429
-              ? "Перевищено погодинний ліміт запитів AUTO.RIA (429)."
-              : "AUTO.RIA відмовила в доступі (403): вичерпано пакет запитів або невалідний ключ.",
+        // Два РІЗНІ стани, які легко переплутати:
+        // 429 «Переліміт погодинного обмеження» — минає з наступною годиною;
+        // 403 (у curl — 200 з полем error «У Вашому пакеті закінчились запити»)
+        // — вичерпаний пакет тарифу, сам по собі за годину НЕ відновиться.
+        if (resp.status === 429) {
+          var eHour = new Error(
+            "Погодинний ліміт AUTO.RIA (429) — спробуй за годину.",
           );
-          eRate.rateLimited = true;
-          throw eRate;
+          eHour.rateLimited = true;
+          throw eHour;
+        }
+        if (resp.status === 403) {
+          var eQuota = new Error(
+            "AUTO.RIA (403): пакет неактивний — вичерпано або сплив термін дії. " +
+              "Продовж безкоштовний пакет у кабінеті developers.ria.com.",
+          );
+          eQuota.rateLimited = true;
+          eQuota.quotaDrained = true;
+          throw eQuota;
         }
         if (resp.status === 400) {
           var errBody = null;
@@ -460,8 +468,9 @@ window.__createAllMethods = function () {
         // Вичерпаний пакет запитів приходить як HTTP 200 з полем error —
         // без цієї перевірки він виглядав би як порожня вибірка.
         if (body && body.error) {
-          var eLimit = new Error(body.error);
+          var eLimit = new Error("AUTO.RIA: " + body.error);
           eLimit.rateLimited = true;
+          eLimit.quotaDrained = !/погодин/i.test(body.error);
           throw eLimit;
         }
         return body;
@@ -975,7 +984,7 @@ window.__createAllMethods = function () {
       } catch (err) {
         if (err && err.rateLimited) {
           vm.marketStatus = "warn";
-          vm.marketMsg = "⏳ " + err.message + " Спробуй за годину.";
+          vm.marketMsg = (err.quotaDrained ? "🚫 " : "⏳ ") + err.message;
           return;
         }
         vm.marketStatus = "error";

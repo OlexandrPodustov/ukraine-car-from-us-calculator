@@ -15,6 +15,9 @@ window.createWatchers = function () {
     },
     customs: {
       handler: function (newVal) {
+        // Марка/модель/рік могли змінитись (новий лот або ручне редагування) —
+        // тоді знайдена раніше ринкова ціна вже не про це авто.
+        this.syncMarketFreshness();
         this.saveToLocalStorage();
       },
       deep: true,

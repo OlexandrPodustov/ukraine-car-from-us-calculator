@@ -58,6 +58,9 @@ window.createInitialState = function () {
     },
     marketStatus: "", // '', 'loading', 'ok', 'warn', 'error'
     marketMsg: "",
+    // Підпис авто (марка|модель|рік), до якого належить знайдена ринкова ціна.
+    // Якщо він розійшовся з поточним авто — ціна застаріла і її треба прибрати.
+    marketTarget: "",
     portExpeditor: 450,
     portBrokerFee: 400,
     portParking: 35,

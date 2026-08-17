@@ -54,6 +54,7 @@ function initializeApp() {
           if (savedData.auctionMsg) vm.auctionMsg = savedData.auctionMsg;
           if (savedData.marketStatus) vm.marketStatus = savedData.marketStatus;
           if (savedData.marketMsg) vm.marketMsg = savedData.marketMsg;
+          if (savedData.marketTarget) vm.marketTarget = savedData.marketTarget;
           if (savedData.ukrainianMarketPrice)
             vm.customs.ukrainianMarketPrice = savedData.ukrainianMarketPrice;
           if (savedData.marketCategory)
@@ -72,6 +73,13 @@ function initializeApp() {
             vm.customs.marketCategory = savedData.customs.marketCategory;
         } catch (e) {
           console.warn("[LocalStorage] Помилка при завантаженні даних", e);
+        }
+        // Ціна без підпису авто — зі старої версії сховища: невідомо, до якого
+        // авто вона належить. Інакше — звіряємо підпис із поточним авто.
+        if (!vm.marketTarget && vm.customs.ukrainianMarketPrice > 0) {
+          vm.clearMarketResult();
+        } else {
+          vm.syncMarketFreshness();
         }
       }
       ratesService.initNbuRate(vm);
