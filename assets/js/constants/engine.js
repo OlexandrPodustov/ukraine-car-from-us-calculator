@@ -1,6 +1,7 @@
 var engineTypes = {
   Petrol: "petrol",
   Diesel: "diesel",
+  Electric: "electric",
 };
 
 var engineVolumes = [];

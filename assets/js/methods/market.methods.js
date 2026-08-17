@@ -16,6 +16,7 @@ window.__createAllMethods = function () {
         oceanFreightOverride: this.oceanFreightOverride,
         marketStatus: this.marketStatus,
         marketMsg: this.marketMsg,
+        marketTarget: this.marketTarget,
         ukrainianMarketPrice: this.customs.ukrainianMarketPrice,
         marketCategory: this.customs.marketCategory,
       };
@@ -429,8 +430,18 @@ window.__createAllMethods = function () {
       }, 15000);
       try {
         var resp = await fetch(url, { signal: ctrl.signal });
-        if (resp.status === 429)
-          throw new Error("Перевищено ліміт запитів API AUTO.RIA (429).");
+        // 429 — погодинний ліміт; 403 — вичерпаний пакет запитів (саме так
+        // API відповідає браузеру; в curl той самий стан приходить як 200 з
+        // полем error, тому перевіряємо обидва варіанти).
+        if (resp.status === 429 || resp.status === 403) {
+          var eRate = new Error(
+            resp.status === 429
+              ? "Перевищено погодинний ліміт запитів AUTO.RIA (429)."
+              : "AUTO.RIA відмовила в доступі (403): вичерпано пакет запитів або невалідний ключ.",
+          );
+          eRate.rateLimited = true;
+          throw eRate;
+        }
         if (resp.status === 400) {
           var errBody = null;
           try {
@@ -445,7 +456,15 @@ window.__createAllMethods = function () {
           throw e400;
         }
         if (!resp.ok) throw new Error("HTTP " + resp.status);
-        return await resp.json();
+        var body = await resp.json();
+        // Вичерпаний пакет запитів приходить як HTTP 200 з полем error —
+        // без цієї перевірки він виглядав би як порожня вибірка.
+        if (body && body.error) {
+          var eLimit = new Error(body.error);
+          eLimit.rateLimited = true;
+          throw eLimit;
+        }
+        return body;
       } finally {
         clearTimeout(timeoutId);
       }
@@ -625,8 +644,38 @@ window.__createAllMethods = function () {
       this.customs.carrierInfo.color = "";
       this.customs.carrierInfo.transmission = "";
       this.customs.carrierInfo.mileage = 0;
+      // Ринкова ціна завжди стосується конкретного авто — новий лот починає
+      // з чистого блоку, інакше на екрані лишається ціна попереднього авто.
+      this.clearMarketResult();
+    },
+    // Підпис авто, до якого належить знайдена ринкова ціна (марка|модель|рік).
+    marketSignature: function () {
+      var ci = this.customs.carrierInfo || {};
+      return [
+        (ci.make || "").trim().toLowerCase(),
+        (ci.model || "").trim().toLowerCase(),
+        parseInt(this.customs.manufactureYear || 0) || "",
+      ].join("|");
+    },
+    clearMarketResult: function () {
+      this.customs.ukrainianMarketPrice = 0;
+      this.customs.marketCategory = "";
+      this.marketTarget = "";
+      this.marketStatus = "";
+      this.marketMsg = "";
+    },
+    // Викликається з watcher-а customs: якщо марка/модель/рік змінились після
+    // пошуку — знайдена ціна більше не стосується цього авто, прибираємо її.
+    syncMarketFreshness: function () {
+      if (!this.marketTarget) return;
+      if (this.marketTarget === this.marketSignature()) return;
+      this.clearMarketResult();
+      this.marketStatus = "warn";
+      this.marketMsg =
+        "⚠ Дані авто змінились — ринкову ціну скинуто, натисніть пошук ще раз.";
     },
     applyMarketResult: function (price, category) {
+      this.marketTarget = this.marketSignature();
       this.customs.ukrainianMarketPrice = price;
       var diff = this.marketPriceDifference();
       var cat = category || this.getMarketCategoryByDiff(diff, this.total());
@@ -767,13 +816,21 @@ window.__createAllMethods = function () {
           return;
         }
 
+        // Назва авто в кожному повідомленні — щоб було видно, до якого саме
+        // авто належить ціна (і одразу помітно, якщо вона від іншого лоту).
+        var carLabel = [target.make, target.model, target.year]
+          .filter(Boolean)
+          .join(" ");
+
         var cacheKey = vm.getMarketCacheKey(target);
         var cached = vm.readMarketCache(cacheKey);
         if (cached) {
           vm.applyMarketResult(cached.medianPrice, cached.marketCategory);
           vm.marketStatus = "ok";
           vm.marketMsg =
-            "✅ Використано кеш AUTO.RIA: " +
+            "✅ " +
+            carLabel +
+            " — кеш AUTO.RIA: " +
             cached.sampleCount +
             " оголошень, ціна $" +
             cached.medianPrice;
@@ -872,6 +929,8 @@ window.__createAllMethods = function () {
         var appliedLabels = [modelLabel].concat(usedLabels);
         vm.marketMsg =
           (total < MIN ? "⚠ Мало даних: " : "✅ ") +
+          carLabel +
+          " → " +
           appliedLabels.join(" · ") +
           " — n=" +
           total +
@@ -914,6 +973,11 @@ window.__createAllMethods = function () {
           filtersApplied: appliedLabels,
         });
       } catch (err) {
+        if (err && err.rateLimited) {
+          vm.marketStatus = "warn";
+          vm.marketMsg = "⏳ " + err.message + " Спробуй за годину.";
+          return;
+        }
         vm.marketStatus = "error";
         vm.marketMsg =
           "❌ Помилка пошуку ціни на AUTO.RIA: " +
@@ -984,10 +1048,6 @@ window.__createAllMethods = function () {
         return port.id === portid;
       })[0];
     },
-    poshlina: function () {
-      return (this.autoPricing.autoPrice + this.auctionFee() + 1000) * 10;
-    },
-
     onLocationBlur: function () {
       var vm = this;
       setTimeout(function () {
@@ -1146,116 +1206,65 @@ window.__createAllMethods = function () {
     },
 
     isElectricEngine: function () {
-      return this.customs.engineType === "electric";
+      return this.customs.engineType === window.engineType.Electric;
     },
 
-    akcis: function () {
-      /* eslint-disable no-redeclare */
-      var engineVolumeNum = Number.parseFloat(this.customs.engineVolume) || 0;
-      var age = window.currentYear - this.customs.manufactureYear;
+    // ── Митні платежі ─────────────────────────────────────────────────────
+    // Ставки та формули звірені з ПКУ; джерела й дата — docs/customs-rates-baseline.md
 
-      if (
-        this.customs.engineType === window.engineType.Petrol ||
-        window.engineType.Petrol3
-      ) {
-        var base = engineVolumeNum < 3.0 ? 56 : 112;
+    // Коефіцієнт віку для акцизу: кількість повних календарних років з року,
+    // НАСТУПНОГО за роком випуску. Для нового авто — 1.
+    // Приклад: авто 2020 р., розмитнення 2026 → 2026 − 2020 − 1 = 5.
+    ageCoefficient: function () {
+      var years = window.currentYear - this.customs.manufactureYear - 1;
+      return years > 1 ? years : 1;
+    },
 
-        var akcis = base * engineVolumeNum * (age > 0 ? age : 1);
+    // Митна вартість — база для мита й ПДВ.
+    // +1000 — грубий проксі вартості доставки в складі митної вартості (CIF).
+    customsBase: function () {
+      return this.autoPricing.autoPrice + this.auctionFee() + 1000;
+    },
 
-        // eur to usd
-        // akcis + nds + poshlina
-      } else if (
-        this.customs.engineType === window.engineType.Diesel ||
-        window.engineType.Diesel3
-      ) {
-        var base = engineVolumeNum < 3.5 ? 84 : 150;
-
-        var akcis = base * engineVolumeNum * (age > 0 ? age : 1);
-        akcis = akcis * 1.13;
-        // eur to usd
-        // akcis + nds + poshlina
-        var res = akcis + this.totalAutoFee() * 0.2 + this.totalAutoFee() * 0.1;
-        return Math.round(res);
+    // Акциз у ЄВРО — ставки в ПКУ задані саме в євро.
+    // ДВЗ: ставка за літр × об'єм × коефіцієнт віку.
+    // Електро: 1 €/кВт·год БЕЗ коефіцієнта віку (окрема норма).
+    exciseEur: function () {
+      if (this.isElectricEngine()) {
+        return 1.0 * (Number.parseInt(this.customs.batteryKwh) || 0);
       }
+      var volume = Number.parseFloat(this.customs.engineVolume) || 0;
+      var base =
+        this.customs.engineType === window.engineType.Diesel
+          ? volume <= 3.5
+            ? 75
+            : 150
+          : volume <= 3.0
+            ? 50
+            : 100;
+      return base * volume * this.ageCoefficient();
     },
 
+    // Акциз у доларах. Курс євро тягнеться з НБУ (rates.service.js).
+    exciseUsd: function () {
+      return this.exciseEur() * this.eurUsd;
+    },
+
+    // Ввізне мито: 10% для ДВЗ, 0% для електромобілів.
+    importDuty: function () {
+      return this.isElectricEngine() ? 0 : this.customsBase() * 0.1;
+    },
+
+    // ПДВ 20% від (митна вартість + мито + акциз).
+    // Для електро нульова ставка скасована з 01.01.2026.
+    vatFee: function () {
+      return (this.customsBase() + this.importDuty() + this.exciseUsd()) * 0.2;
+    },
+
+    // Збір до Пенсійного фонду сюди НЕ входить — він рахується окремо в
+    // mreo() і додається в total(). Не дублювати.
     totalCustomsFee: function () {
-      var engineVolumeNum = Number.parseFloat(this.customs.engineVolume);
-
-      var age = window.currentYear - this.customs.manufactureYear;
-
-      if (this.customs.engineType === window.engineType.Petrol) {
-        var base = engineVolumeNum < 3.2 ? 60 : 120;
-
-        var akcis = base * engineVolumeNum * (age > 0 ? age : 1);
-
-        // eur to usd
-        // akcis + nds + poshlina
-        var poshlina =
-          ((this.autoPricing.autoPrice + this.auctionFee() + 1000) / 100) * 10;
-        var nds =
-          ((this.autoPricing.autoPrice +
-            this.auctionFee() +
-            1000 +
-            poshlina +
-            akcis) /
-            100) *
-          20;
-
-        var res = akcis + nds + poshlina; // + 150
-        //  console.log("posl: " + poshlina + " | nds: " + nds + " | akcis: " + akcis);
-        return Math.round(res);
-      } else if (this.customs.engineType === window.engineType.Diesel) {
-        var base = engineVolumeNum < 3.5 ? 90 : 180;
-
-        var akcis = base * engineVolumeNum * (age > 0 ? age : 1);
-
-        // eur to usd
-        // akcis + nds + poshlina
-        var poshlina =
-          ((this.autoPricing.autoPrice + this.auctionFee() + 1000) / 100) * 10;
-        var nds =
-          ((this.autoPricing.autoPrice +
-            this.auctionFee() +
-            1000 +
-            poshlina +
-            akcis) /
-            100) *
-          20;
-
-        var res = akcis + nds + poshlina; // + 150
-        return Math.round(res);
-      } else {
-        // electric — повна формула (акциз НБУ + ПДВ 20%)
-        var excisEur = 1.0 * this.customs.batteryKwh * Math.max(age, 1);
-        var excisUsd = excisEur * this.eurUsd;
-        var duty = 0;
-        var customsBase = this.autoPricing.autoPrice + this.auctionFee() + 1000;
-        var vat = (customsBase + duty + excisUsd) * 0.2;
-        var pension = customsBase * 0.01;
-        return Math.round(duty + excisUsd + vat + pension);
-      }
-    },
-
-    pensionFee() {
-      var price = this.totalAutoFee();
-      var result = price > 10000 ? price * 0.05 : price * 0.03;
-
-      return Math.round(result);
-    },
-
-    totalCost: function () {
-      return (
-        this.totalShippingFee() +
-        this.totalAutoFee() +
-        this.totalCustomsFee() +
-        this.portExpeditor +
-        this.portBrokerFee +
-        this.portParking +
-        this.legalCert +
-        this.legalRegistration +
-        this.pensionFee()
-      );
+      return Math.round(this.importDuty() + this.exciseUsd() + this.vatFee());
     },
 
     cleanValue: function () {
@@ -1327,6 +1336,9 @@ export function createMarketMethods() {
     "normalizeName",
     "matchByName",
     "resetLotData",
+    "marketSignature",
+    "clearMarketResult",
+    "syncMarketFreshness",
     "applyMarketResult",
     "logSearch",
     "apiBase",
