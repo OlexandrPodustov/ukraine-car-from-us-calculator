@@ -63,6 +63,8 @@ function initializeApp() {
           if (savedData.buyNowPrice) vm.buyNowPrice = savedData.buyNowPrice;
           if (savedData.riskCoefficient)
             vm.riskCoefficient = savedData.riskCoefficient;
+          if (savedData.oceanFreightOverride)
+            vm.oceanFreightOverride = savedData.oceanFreightOverride;
           if (savedData.customs && savedData.customs.ukrainianMarketPrice)
             vm.customs.ukrainianMarketPrice =
               savedData.customs.ukrainianMarketPrice;

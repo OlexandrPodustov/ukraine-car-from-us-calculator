@@ -13,6 +13,7 @@ window.__createAllMethods = function () {
         repairCost: this.repairCost,
         buyNowPrice: this.buyNowPrice,
         riskCoefficient: this.riskCoefficient,
+        oceanFreightOverride: this.oceanFreightOverride,
         marketStatus: this.marketStatus,
         marketMsg: this.marketMsg,
         ukrainianMarketPrice: this.customs.ukrainianMarketPrice,
@@ -1055,33 +1056,93 @@ window.__createAllMethods = function () {
       return this.getCurrentLocation().toPort[port.id];
     },
 
-    freightFee: function (destination) {
-      return this.getCurrentPort().toPort[destination.id];
+    // Обраний порт призначення (Одеса / Клайпеда / Гданськ).
+    currentDestination: function () {
+      var id = this.autoShipping.destinationPort.selected;
+      return (
+        window.destinationPorts.filter(function (p) {
+          return p.id === id;
+        })[0] || window.destinationPorts[0]
+      );
+    },
+
+    // Узбережжя США беремо з порту відправлення, а не з назви локації аукціону:
+    // авто з внутрішнього штату може виїжджати через будь-який порт.
+    currentCoast: function () {
+      var port = this.getCurrentPort();
+      return (port && port.coast) || "east";
+    },
+
+    // Табличний фрахт для поточної пари (узбережжя → порт призначення).
+    baseOceanFreight: function () {
+      var rates = this.oceanFreightRates[this.currentDestination().id] || {};
+      return rates[this.currentCoast()] || 0;
+    },
+
+    // Фактичний фрахт: ручна ставка має пріоритет над табличною.
+    oceanFreightFee: function () {
+      var override = Number.parseInt(this.oceanFreightOverride);
+      return !isNaN(override) && override > 0
+        ? override
+        : this.baseOceanFreight();
+    },
+
+    // Наземна доставка від аукціону до порту США.
+    inlandUsFee: function () {
+      var location = this.getCurrentLocation();
+      return (location && location[this.autoPricing.auctions.selected]) || 1100;
+    },
+
+    // Надбавка за габарит: пікапи/вантажівки займають більше місця.
+    oversizeFee: function () {
+      return this.autoShipping.vehicleType === window.vehicleType[2].id
+        ? 300
+        : 0;
+    },
+
+    // Автовоз від порту призначення до кордону України (0 для Одеси).
+    toUkraineFee: function () {
+      return this.currentDestination().toUkraine || 0;
+    },
+
+    // Розклад доставки по пунктах. Єдине джерело правди: totalShippingFee()
+    // просто підсумовує ці рядки, тож UI і сума не можуть розійтися.
+    shippingBreakdown: function () {
+      var port = this.getCurrentPort();
+      var dest = this.currentDestination();
+      var rows = [
+        {
+          key: "inland",
+          label: "Аукціон → порт " + (port ? port.name : "США"),
+          amount: this.inlandUsFee(),
+        },
+        {
+          key: "ocean",
+          label: "Океанський фрахт → " + dest.name,
+          amount: this.oceanFreightFee(),
+        },
+      ];
+      if (this.oversizeFee()) {
+        rows.push({
+          key: "oversize",
+          label: "Надбавка за габарит (пікап/вантажівка)",
+          amount: this.oversizeFee(),
+        });
+      }
+      if (this.toUkraineFee()) {
+        rows.push({
+          key: "toUkraine",
+          label: "Автовоз " + dest.name + " → кордон України",
+          amount: this.toUkraineFee(),
+        });
+      }
+      return rows;
     },
 
     totalShippingFee: function () {
-      var location = this.getCurrentLocation();
-      var dostavka = location[this.autoPricing.auctions.selected] || 1100;
-
-      var freightFee =
-        this.getCurrentPort().toPort[
-          this.autoShipping.destinationPort.selected
-        ];
-      var vtFee =
-        this.autoShipping.vehicleType == window.vehicleType[1].id
-          ? 0
-          : this.autoShipping.vehicleType == window.vehicleType[2].id
-            ? 300
-            : 0;
-
-      // Океанський фрахт SUV → Одеса (2026)
-      var locName = (
-        this.getCurrentLocation() ? this.getCurrentLocation().name : ""
-      ).toUpperCase();
-      var isWest = /^(CA|WA|OR)\s/.test(locName);
-      var isGulf = /^(TX|FL|LA|MS|AL)\s/.test(locName);
-      var oceanKey = isWest ? "west" : isGulf ? "gulf" : "east";
-      return freightFee + dostavka + vtFee + this.oceanFreight[oceanKey];
+      return this.shippingBreakdown().reduce(function (sum, row) {
+        return sum + row.amount;
+      }, 0);
     },
 
     isElectricEngine: function () {

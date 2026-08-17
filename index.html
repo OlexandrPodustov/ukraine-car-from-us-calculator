@@ -320,6 +320,36 @@
                               </div>
                             </div>
                             <div
+                              class="field-row t-input-group t-input-group_nm"
+                              data-input-lid="1495646545079"
+                            >
+                              <div
+                                class="t-input-block t-input-group t-input-block-ext"
+                              >
+                                <div class="title">Порт призначення</div>
+                                <select
+                                  name="destination_port"
+                                  v-model="autoShipping.destinationPort.selected"
+                                >
+                                  <option
+                                    v-for="opt in autoShipping.destinationPort.options"
+                                    v-bind:value="opt.id"
+                                  >
+                                    {{opt.name}}
+                                  </option>
+                                </select>
+                                <div
+                                  style="
+                                    font-size: 13px;
+                                    color: #777;
+                                    margin-top: 4px;
+                                  "
+                                >
+                                  {{currentDestination().note}}
+                                </div>
+                              </div>
+                            </div>
+                            <div
                               class="t-input-group t-input-group_em"
                               data-input-lid="1495646567135"
                             ></div>
@@ -362,11 +392,73 @@
                         </div>
                         <div class="valuess">
                           <div class="values_title">
-                            Доставка по США та до Одеси
+                            Доставка по США та до
+                            {{currentDestination().name}}
                           </div>
                           <div class="price">
                             <div>$</div>
                             <div>{{totalShippingFee()}}</div>
+                          </div>
+                        </div>
+                        <div
+                          style="
+                            margin: -4px 0 10px;
+                            padding: 8px 12px;
+                            background: #f7f9fb;
+                            border-left: 3px solid #cfd8e3;
+                            border-radius: 4px;
+                          "
+                        >
+                          <div
+                            v-for="row in shippingBreakdown()"
+                            v-bind:key="row.key"
+                            style="
+                              display: flex;
+                              justify-content: space-between;
+                              gap: 12px;
+                              font-size: 14px;
+                              color: #555;
+                              padding: 3px 0;
+                            "
+                          >
+                            <div>{{row.label}}</div>
+                            <div style="white-space: nowrap">
+                              ${{row.amount}}
+                            </div>
+                          </div>
+                          <div
+                            style="
+                              display: flex;
+                              align-items: center;
+                              gap: 8px;
+                              margin-top: 8px;
+                              padding-top: 8px;
+                              border-top: 1px solid #e2e8f0;
+                              font-size: 13px;
+                              color: #777;
+                            "
+                          >
+                            <label for="ocean-freight-override">
+                              Своя ставка фрахту, $
+                            </label>
+                            <input
+                              id="ocean-freight-override"
+                              type="number"
+                              min="0"
+                              step="50"
+                              name="ocean-freight-override"
+                              v-model.number="oceanFreightOverride"
+                              v-bind:placeholder="baseOceanFreight()"
+                              style="
+                                width: 90px;
+                                margin: 0;
+                                padding: 2px 6px;
+                                font-size: 13px;
+                              "
+                            />
+                            <span v-if="oceanFreightOverride > 0">
+                              (таблична: ${{baseOceanFreight()}})
+                            </span>
                           </div>
                         </div>
                         <div class="valuess">

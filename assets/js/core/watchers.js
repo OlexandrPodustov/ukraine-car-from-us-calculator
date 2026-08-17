@@ -34,6 +34,9 @@ window.createWatchers = function () {
     buyNowPrice: function () {
       this.saveToLocalStorage();
     },
+    oceanFreightOverride: function () {
+      this.saveToLocalStorage();
+    },
     auctionUrl: function (newVal) {
       this.saveToLocalStorage();
     },

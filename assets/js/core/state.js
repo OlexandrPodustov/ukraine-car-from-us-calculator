@@ -1,7 +1,12 @@
 window.createInitialState = function () {
   return {
     eurUsd: 1.1,
-    oceanFreight: { east: 2500, west: 3000, gulf: 2700 },
+    // Ставки фрахту [порт призначення][узбережжя США]. Редаговані в UI через
+    // oceanFreightOverride — ставки експедиторів різняться в рази, тож
+    // захардкоджені значення тут лише як стартова точка.
+    oceanFreightRates: window.oceanFreightRates,
+    // Ручна ставка фрахту; 0/порожньо → береться з oceanFreightRates.
+    oceanFreightOverride: 0,
     autoPricing: {
       autoPrice: 4000,
       auctions: {
