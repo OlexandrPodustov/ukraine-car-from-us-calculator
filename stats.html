@@ -33,6 +33,18 @@
         min-width: 360px;
         max-width: 100%;
       }
+      /* Шапка запису: яке саме авто/лот показує графік */
+      .lot-head {
+        margin: 16px 0 0;
+        font-size: 14px;
+        color: #374151;
+      }
+      .vin {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        letter-spacing: 0.02em;
+        color: #111827;
+        user-select: all;
+      }
       .cards {
         display: flex;
         flex-wrap: wrap;
@@ -139,7 +151,9 @@
         <label class="muted" for="sel">Пошук: </label>
         <select id="sel"></select>
       </div>
-      <div id="content"><p class="muted" style="margin-top: 20px">Завантаження…</p></div>
+      <div id="content">
+        <p class="muted" style="margin-top: 20px">Завантаження…</p>
+      </div>
     </div>
 
     <script>
@@ -156,6 +170,20 @@
       }
       function pct(p, key) {
         return p && p[key] != null ? Number(p[key]) : null;
+      }
+      // Екрануємо і ' та ` — значення з esc() підставляються в атрибути,
+      // а дані приходять зі скрапленої сторінки аукціону.
+      function esc(s) {
+        return (s == null ? "" : String(s)).replace(/[<>&"'`]/g, function (c) {
+          return {
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&#39;",
+            "`": "&#96;",
+          }[c];
+        });
       }
 
       // ── Завантажити список у select ──────────────────────────────
@@ -174,17 +202,20 @@
           }
           sel.innerHTML = rows
             .map(function (r) {
+              // VIN у підписі — бо той самий авто могли шукати для кількох
+              // лотів, і без нього записи в списку не відрізнити.
               var label =
                 "#" +
                 r.id +
                 " · " +
                 [r.make, r.model, r.year].filter(Boolean).join(" ") +
+                (r.vin ? " · " + r.vin : "") +
                 " · ринок " +
                 fmt(r.market_price) +
                 " (n=" +
                 (r.sample_count || 0) +
                 ")";
-              return '<option value="' + r.id + '">' + label + "</option>";
+              return '<option value="' + r.id + '">' + esc(label) + "</option>";
             })
             .join("");
           var initial =
@@ -227,6 +258,21 @@
         var lot = d.total_cost;
         var market = d.market_price;
 
+        var carTitle = [d.year, d.make, d.model].filter(Boolean).join(" ");
+        var head =
+          '<div class="lot-head">' +
+          (carTitle ? "<b>" + esc(carTitle) + "</b>" : "") +
+          (d.vin
+            ? ' · VIN <span class="vin">' + esc(d.vin) + "</span>"
+            : ' · <span class="muted">VIN невідомий (пошук без лота)</span>') +
+          (d.lot_number
+            ? " · " +
+              esc((d.auction || "").toUpperCase()) +
+              " лот " +
+              esc(d.lot_number)
+            : "") +
+          "</div>";
+
         var cards =
           '<div class="cards">' +
           card("Оголошень", d.sample_count || prices.length) +
@@ -245,6 +291,7 @@
 
         if (!prices.length) {
           $("content").innerHTML =
+            head +
             cards +
             verdictHtml +
             '<div class="empty">Немає детального розподілу цін для цього запису ' +
@@ -261,6 +308,7 @@
           '<span class="lg-q">25% / 75% перцентилі</span>' +
           "</div>";
         $("content").innerHTML =
+          head +
           cards +
           verdictHtml +
           '<div class="chart-wrap">' +
@@ -270,7 +318,13 @@
       }
 
       function card(k, v) {
-        return '<div class="card"><div class="k">' + k + '</div><div class="v">' + v + "</div></div>";
+        return (
+          '<div class="card"><div class="k">' +
+          k +
+          '</div><div class="v">' +
+          v +
+          "</div></div>"
+        );
       }
 
       function buildVerdict(lot, p, market) {
@@ -288,7 +342,8 @@
           txt = "🟢 Наш кошт нижче медіани ринку — вигідно.";
         } else if (q75 != null && lot <= q75) {
           cls = "mid";
-          txt = "🟡 Наш кошт між медіаною і 75-м перцентилем — близько до середини ринку.";
+          txt =
+            "🟡 Наш кошт між медіаною і 75-м перцентилем — близько до середини ринку.";
         } else {
           cls = "bad";
           txt = "🔴 Наш кошт вище 75-го перцентиля ринку — дорого.";

@@ -43,11 +43,20 @@
         font-weight: 600;
         border-bottom: 2px solid #d1d5db;
       }
+      /* Дата, авто і VIN — текстові колонки, ліворуч; решта — числа, праворуч */
       th:first-child,
       td:first-child,
       th:nth-child(2),
-      td:nth-child(2) {
+      td:nth-child(2),
+      th:nth-child(3),
+      td:nth-child(3) {
         text-align: left;
+      }
+      .vin {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+        letter-spacing: 0.02em;
+        user-select: all;
       }
       tr:hover td {
         background: #f9fafb;
@@ -123,6 +132,20 @@
           return iso;
         }
       }
+      // Екрануємо і ' та ` — значення з esc() підставляються в атрибути,
+      // а дані приходять зі скрапленої сторінки аукціону.
+      function esc(s) {
+        return (s == null ? "" : String(s)).replace(/[<>&"'`]/g, function (c) {
+          return {
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&#39;",
+            "`": "&#96;",
+          }[c];
+        });
+      }
       function catLabel(c) {
         if (c === "underpriced") return "вигідно";
         if (c === "overpriced") return "дорого";
@@ -142,14 +165,16 @@
             return;
           }
           var head =
-            "<tr><th>Дата</th><th>Авто</th><th>Двигун</th><th>Ринок</th>" +
-            "<th>n</th><th>IQ-сер.</th><th>Медіана</th><th>Наш кошт</th>" +
-            "<th>Різниця</th><th>Оцінка</th><th></th></tr>";
+            "<tr><th>Дата</th><th>Авто</th><th>VIN</th><th>Двигун</th>" +
+            "<th>Ринок</th><th>n</th><th>IQ-сер.</th><th>Медіана</th>" +
+            "<th>Наш кошт</th><th>Різниця</th><th>Оцінка</th><th></th></tr>";
           var body = rows
             .map(function (r) {
               var car =
                 [r.make, r.model, r.year].filter(Boolean).join(" ") +
-                (r.model_matched ? "" : " <span class='muted'>(марка+рік)</span>");
+                (r.model_matched
+                  ? ""
+                  : " <span class='muted'>(марка+рік)</span>");
               var eng = [
                 r.engine_type || "",
                 r.engine_volume ? r.engine_volume + "л" : "",
@@ -166,6 +191,10 @@
                 dt(r.ts) +
                 "</td><td>" +
                 car +
+                '</td><td class="vin" title="' +
+                esc(r.lot_number ? "лот " + r.lot_number : "") +
+                '">' +
+                esc(r.vin || "—") +
                 "</td><td>" +
                 (eng || "—") +
                 "</td><td>" +
@@ -183,7 +212,7 @@
                 "'>" +
                 diffTxt +
                 "</td><td><span class='badge " +
-                (r.category || "fair") +
+                esc(r.category || "fair") +
                 "'>" +
                 catLabel(r.category) +
                 "</span></td><td><a class='analyze' href='/stats.html?id=" +
@@ -192,7 +221,8 @@
               );
             })
             .join("");
-          el.innerHTML = "<table>" + head + "<tbody>" + body + "</tbody></table>";
+          el.innerHTML =
+            "<table>" + head + "<tbody>" + body + "</tbody></table>";
         })
         .catch(function (e) {
           document.getElementById("content").innerHTML =

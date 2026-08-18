@@ -130,6 +130,34 @@
                                 {{auctionMsg}}
                                 <!-- </div> -->
                               </div>
+                              <!-- VIN зчитаного лота. Показуємо тут, бо це
+                                   єдиний ідентифікатор авто, який потрібно
+                                   копіювати в Carfax/страховику; user-select:all
+                                   виділяє весь VIN одним кліком. -->
+                              <div
+                                v-if="currentLot.vin"
+                                style="
+                                  font-size: 13px;
+                                  margin-bottom: 6px;
+                                  color: #555;
+                                "
+                              >
+                                VIN:
+                                <span
+                                  style="
+                                    font-family:
+                                      ui-monospace, Menlo, Consolas, monospace;
+                                    font-weight: 600;
+                                    letter-spacing: 0.02em;
+                                    color: #111;
+                                    user-select: all;
+                                  "
+                                  >{{currentLot.vin}}</span
+                                >
+                                <span v-if="currentLot.lotNumber"
+                                  >· лот {{currentLot.lotNumber}}</span
+                                >
+                              </div>
                               <!-- ──────────────────────── -->
                               <div class="field-row">
                                 <div class="title">Ціна авто</div>
@@ -392,8 +420,7 @@
                         </div>
                         <div class="valuess">
                           <div class="values_title">
-                            Доставка по США та до
-                            {{currentDestination().name}}
+                            Доставка по США та до {{currentDestination().name}}
                           </div>
                           <div class="price">
                             <div>$</div>
@@ -783,10 +810,19 @@
       <script type="module" src="assets/js/constants/ports.js"></script>
       <script type="module" src="assets/js/constants/vehicle.js"></script>
       <script type="module" src="assets/js/constants/engine.js"></script>
-      <script type="module" src="assets/js/services/storage.service.js"></script>
+      <script
+        type="module"
+        src="assets/js/services/storage.service.js"
+      ></script>
       <script type="module" src="assets/js/services/rates.service.js"></script>
-      <script type="module" src="assets/js/services/auction-parser.service.js"></script>
-      <script type="module" src="assets/js/services/market-lookup.service.js"></script>
+      <script
+        type="module"
+        src="assets/js/services/auction-parser.service.js"
+      ></script>
+      <script
+        type="module"
+        src="assets/js/services/market-lookup.service.js"
+      ></script>
       <script type="module" src="assets/js/core/state.js"></script>
       <script type="module" src="assets/js/core/computed.js"></script>
       <script type="module" src="assets/js/core/watchers.js"></script>

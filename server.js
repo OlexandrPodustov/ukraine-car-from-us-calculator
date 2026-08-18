@@ -53,11 +53,18 @@ db.exec(`
   }
 });
 
-// Колонки списку (без важких JSON-масивів) — для таблиці пошуків
+// Колонки списку (без важких JSON-масивів) — для таблиці пошуків.
+// Префікс s. обов'язковий: запит іде з JOIN на lots, а половина імен
+// (id, ts, make, model, year) є в обох таблицях.
 const LIST_COLS =
-  "id, ts, make, model, year, engine_type, engine_volume, marka_id, " +
-  "model_id, model_matched, market_price, sample_count, arithmetic_mean, " +
-  "iq_mean, median, total_cost, diff, category, lot_id";
+  "s.id, s.ts, s.make, s.model, s.year, s.engine_type, s.engine_volume, " +
+  "s.marka_id, s.model_id, s.model_matched, s.market_price, s.sample_count, " +
+  "s.arithmetic_mean, s.iq_mean, s.median, s.total_cost, s.diff, s.category, " +
+  "s.lot_id, l.vin, l.lot_number, l.auction";
+
+// VIN зберігається лише в lots, тож у пошуки він приходить через lot_id.
+// LEFT JOIN — старі пошуки без прив'язки до лота лишаються з vin = NULL.
+const SEARCH_JOIN = " FROM searches s LEFT JOIN lots l ON l.id = s.lot_id ";
 
 const insertStmt = db.prepare(`
   INSERT INTO searches
@@ -245,7 +252,11 @@ const server = http.createServer(function (req, res) {
   var idMatch = route.match(/^\/api\/searches\/(\d+)$/);
   if (idMatch && req.method === "GET") {
     var row = db
-      .prepare("SELECT * FROM searches WHERE id = ?")
+      .prepare(
+        "SELECT s.*, l.vin, l.lot_number, l.auction" +
+          SEARCH_JOIN +
+          "WHERE s.id = ?",
+      )
       .get(Number(idMatch[1]));
     if (!row) {
       sendJson(res, 404, { ok: false, error: "not found" });
@@ -405,9 +416,7 @@ const server = http.createServer(function (req, res) {
             p.category || null,
             Array.isArray(p.prices) ? JSON.stringify(p.prices) : null,
             p.percentiles ? JSON.stringify(p.percentiles) : null,
-            Array.isArray(p.classifieds)
-              ? JSON.stringify(p.classifieds)
-              : null,
+            Array.isArray(p.classifieds) ? JSON.stringify(p.classifieds) : null,
             Array.isArray(p.filtersApplied)
               ? JSON.stringify(p.filtersApplied)
               : null,
@@ -423,7 +432,7 @@ const server = http.createServer(function (req, res) {
     if (req.method === "GET") {
       var rows = db
         .prepare(
-          "SELECT " + LIST_COLS + " FROM searches ORDER BY id DESC LIMIT 200",
+          "SELECT " + LIST_COLS + SEARCH_JOIN + "ORDER BY s.id DESC LIMIT 200",
         )
         .all();
       sendJson(res, 200, rows);

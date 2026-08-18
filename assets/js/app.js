@@ -52,6 +52,8 @@ function initializeApp() {
           if (savedData.auctionStatus)
             vm.auctionStatus = savedData.auctionStatus;
           if (savedData.auctionMsg) vm.auctionMsg = savedData.auctionMsg;
+          if (savedData.currentLot)
+            Object.assign(vm.currentLot, savedData.currentLot);
           if (savedData.marketStatus) vm.marketStatus = savedData.marketStatus;
           if (savedData.marketMsg) vm.marketMsg = savedData.marketMsg;
           if (savedData.marketTarget) vm.marketTarget = savedData.marketTarget;

@@ -71,6 +71,16 @@
         font-size: 12px;
         margin: 2px 0 6px;
       }
+      /* VIN — 17 символів моноширинним, щоб читався і збігався по ширині
+         з VIN у модалці та на сторінках пошуків/статистики. */
+      .vin {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        color: #374151;
+        margin-bottom: 6px;
+        user-select: all;
+      }
       .facts {
         display: flex;
         flex-wrap: wrap;
@@ -319,9 +329,18 @@
         if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
         return "$" + Math.round(Number(n)).toLocaleString("en-US");
       }
+      // Екрануємо і ' та ` — значення з esc() підставляються в атрибути,
+      // а дані приходять зі скрапленої сторінки аукціону.
       function esc(s) {
-        return (s == null ? "" : String(s)).replace(/[<>&"]/g, function (c) {
-          return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c];
+        return (s == null ? "" : String(s)).replace(/[<>&"'`]/g, function (c) {
+          return {
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&#39;",
+            "`": "&#96;",
+          }[c];
         });
       }
       function dt(iso) {
@@ -404,7 +423,9 @@
                 esc(r.lot_number || "—") +
                 " · " +
                 (r.image_count || 0) +
-                ' фото</div><div class="facts">' +
+                ' фото</div><div class="vin">VIN ' +
+                esc(r.vin || "—") +
+                '</div><div class="facts">' +
                 facts +
                 '</div><span class="pill">' +
                 esc(price) +
@@ -440,6 +461,17 @@
           });
       }
 
+      // VIN окремо від row(): моноширинний і виділяється одним кліком —
+      // його зазвичай копіюють у Carfax/страховику.
+      function vinRow(v) {
+        if (!v) return "";
+        return (
+          '<tr><td>VIN</td><td><span class="vin" style="font-size:13px">' +
+          esc(v) +
+          "</span></td></tr>"
+        );
+      }
+
       function row(label, val) {
         if (val === null || val === undefined || val === "") return "";
         return "<tr><td>" + label + "</td><td>" + esc(val) + "</td></tr>";
@@ -449,7 +481,8 @@
         var images = d.images || [];
         LB.images = images;
         LB.index = 0;
-        var title = [d.year, d.make, d.model].filter(Boolean).join(" ") || "Лот";
+        var title =
+          [d.year, d.make, d.model].filter(Boolean).join(" ") || "Лот";
         var main = images.length
           ? '<img class="main-img" id="mainImg" title="Відкрити на весь екран" src="' +
             esc(images[0].hd) +
@@ -494,8 +527,11 @@
           row("Збережено", dt(d.ts)) +
           row("Аукціон", (d.auction || "").toUpperCase()) +
           row("Лот №", d.lot_number) +
-          row("VIN", d.vin) +
-          row("Пробіг", d.odometer ? d.odometer.toLocaleString("en-US") + " mi" : "") +
+          vinRow(d.vin) +
+          row(
+            "Пробіг",
+            d.odometer ? d.odometer.toLocaleString("en-US") + " mi" : "",
+          ) +
           row("Кузов", d.body_style) +
           row("Двигун", d.engine) +
           row("Паливо", d.fuel) +
@@ -587,8 +623,7 @@
       }
       function lbNav(step) {
         if (!LB.images.length) return;
-        LB.index =
-          (LB.index + step + LB.images.length) % LB.images.length;
+        LB.index = (LB.index + step + LB.images.length) % LB.images.length;
         lbShow();
         setMain(LB.index); // синхронізуємо вибір у модалці
       }

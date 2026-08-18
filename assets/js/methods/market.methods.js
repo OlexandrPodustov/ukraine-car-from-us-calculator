@@ -9,6 +9,9 @@ window.__createAllMethods = function () {
         auctionUrl: this.auctionUrl,
         auctionStatus: this.auctionStatus,
         auctionMsg: this.auctionMsg,
+        // Разом з auctionMsg — щоб після перезавантаження сторінки VIN лоту
+        // не зникав із шапки.
+        currentLot: this.currentLot,
         acv: this.acv,
         repairCost: this.repairCost,
         buyNowPrice: this.buyNowPrice,
@@ -29,7 +32,8 @@ window.__createAllMethods = function () {
       console.log("[parseAuctionLot] Натиснуто кнопку Заповнити. URL:", url);
       if (!url) {
         vm.auctionStatus = "error";
-        vm.auctionMsg = "⚠ Будь ласка, введіть посилання на лот Copart або IAAI";
+        vm.auctionMsg =
+          "⚠ Будь ласка, введіть посилання на лот Copart або IAAI";
         return;
       }
 
@@ -323,6 +327,7 @@ window.__createAllMethods = function () {
         vm.currentLot = {
           auction: lotData.auction || "",
           lotNumber: lotData.lotNumber || "",
+          vin: lotData.vin || "",
         };
         vm.logLot(lotData);
 
@@ -637,7 +642,7 @@ window.__createAllMethods = function () {
     // замовчуванням. Викликається на початку parseAuctionLot, щоб дані одного
     // лоту ніколи не переносились на інший.
     resetLotData: function () {
-      this.currentLot = { auction: "", lotNumber: "" };
+      this.currentLot = { auction: "", lotNumber: "", vin: "" };
       this.acv = 0;
       this.repairCost = 0;
       this.buyNowPrice = 0;
@@ -743,7 +748,8 @@ window.__createAllMethods = function () {
       if (id.vrdUrl) videos.push({ type: "engine", url: id.vrdUrl });
       // Copart / generic fallback: масиви готових посилань
       var inv = nd.inventory || {};
-      var hd = inv.hdImageLinks && (inv.hdImageLinks["$values"] || inv.hdImageLinks);
+      var hd =
+        inv.hdImageLinks && (inv.hdImageLinks["$values"] || inv.hdImageLinks);
       if (Array.isArray(hd)) {
         hd.forEach(function (u) {
           if (typeof u === "string")
@@ -783,7 +789,8 @@ window.__createAllMethods = function () {
         transmission: s(a.Transmission || inv.transmissionDesc),
         color: s(a.Color || inv.colorDesc),
         odometer:
-          parseInt((a.Odometer || "").toString().replace(/[^0-9]/g, "")) || null,
+          parseInt((a.Odometer || "").toString().replace(/[^0-9]/g, "")) ||
+          null,
         primaryDamage: s(a.PrimaryDamage || inv.primaryDamageDesc),
         secondaryDamage: s(a.SecondaryDamage || inv.secondaryDamageDesc),
         titleBrand: s(a.TitleBrand || inv.titleBrand),
