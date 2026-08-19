@@ -38,8 +38,8 @@ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5500/api/lots   # ма
 assets/js/
 ├── app.js ← точка входу (Vue instance)
 ├── services/
-│ ├── storage.service.js ← localStorage persist
-│ ├── rates.service.js ← курс НБУ
+│ ├── storage.service.js ← localStorage persist (лише вибір, не довідники)
+│ ├── rates.service.js ← курси НБУ (EUR/USD і USD/UAH)
 │ ├── auction-parser.service.js ← парсинг IAAI/Copart лотів
 │ └── market-lookup.service.js ← пошук ціни на укр. ринку
 ├── core/
@@ -50,3 +50,17 @@ assets/js/
 ├── ui.methods.js ← UI логіка (локація, dropdown)
 ├── fees.methods.js ← розрахунок всіх зборів
 └── market.methods.js ← аналіз угоди (ACV, benefit, maxBid)
+
+## Ставки й константи
+
+Кожна ставка в коді має датований зріз у `docs/`:
+
+| Файл                              | Що покриває                       |
+| --------------------------------- | --------------------------------- |
+| `docs/customs-rates-baseline.md`  | мито, акциз, ПДВ, митна вартість  |
+| `docs/pension-fee-baseline.md`    | збір до Пенсійного фонду (3/4/5%) |
+| `docs/auction-fees-baseline.md`   | збори Copart / IAAI               |
+| `docs/shipping-rates-baseline.md` | автовоз по США, океанський фрахт  |
+
+Перед тим як міняти будь-яке число — прочитай відповідний baseline. При новому
+вимірі додавай **нову колонку**, а не перезаписуй стару: цінність саме в дельті.

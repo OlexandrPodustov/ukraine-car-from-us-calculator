@@ -69,7 +69,15 @@ lookup code is in `market.methods.js`.
 
 `core/state.js` → Vue `data()` (defaults like price, ports, customs). `core/computed.js` →
 only `filteredLocations`. `core/watchers.js` → watchers. UI state persists to localStorage under
-key `carCalcData` via `saveToLocalStorage()`; restored in `mounted()`.
+key `carCalcData` via `saveToLocalStorage()`; restored in `mounted()` via
+`applyPersistedState()`.
+
+**Only the user's choices are persisted, never the reference tables.** `storage.service.js`
+holds the shape (`pickPersistedState` / `applyPersistedState`), validates every stored id
+against the live constants, and migrates pre-v2 payloads. Do not go back to storing whole
+`autoPricing` / `autoShipping` / `customs` objects: that wrote 62 KB on every keystroke and,
+worse, restored a frozen copy of `location.options` over the fresh one, so shipping-rate
+updates never reached anyone who had opened the page before.
 
 ### Two external integrations
 
@@ -99,10 +107,28 @@ standing project rules — see memory).
 
 ## Tests
 
-`__tests__/calculator.test.js` runs under jsdom but **re-declares** the functions it tests
-(`inRange`, `calculateCopartFee`) and a `mockVm` inline rather than importing from source — the
-source relies on browser `window` globals that don't exist under Node. So tests can silently
-drift from the real implementation; keep them in sync by hand when changing fee logic.
+Tests run the **real** source. `__tests__/helpers/load-calculator.js` executes the files in
+`assets/js/` in the same order as the `<script type="module">` tags in `index.html`, so they
+populate a jsdom `window` exactly as in the browser; `test/esm-to-cjs-transform.cjs` is a tiny
+jest transformer that strips the `export` lines (the real contract between files is `window.*`,
+not the exports). `createVm(overrides)` then assembles a Vue-like instance from
+`createInitialState()` + the three `*.methods.js` pickers + `createComputed()`.
+
+`createVm` **binds every method to the vm and keeps a `_data`**, because Vue 2 does. This is not
+cosmetic: `totalForPrice()` depends on it, and two bugs have already slipped through by working
+in an unbound harness and looping the real page.
+
+Before this, the test file kept its own copies of `inRange` / `calculateCopartFee` and a
+hand-written `mockVm`, and had silently drifted from the source (it asserted a $59 gate fee that
+does not exist and skipped a whole price branch that does).
+
+## Rates and constants are dated, not guessed
+
+`docs/*-baseline.md` is the source of truth for every rate in the code — customs, shipping,
+pension fee, auction fees. Each records the value, the date it was checked, the primary source
+and what is still unverified. **Read the relevant baseline before touching a number**, and when
+re-measuring add a new column rather than overwriting the old one. Constants that turned out to
+be undated 2021 leftovers are called out as such; do not present them as current.
 
 ## Linting nuance
 
