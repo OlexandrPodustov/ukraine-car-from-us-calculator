@@ -1,118 +1,315 @@
-// Test utilities and functions
+/**
+ * Тести ганяють РЕАЛЬНИЙ код з assets/js — той самий, що вантажить браузер.
+ *
+ * Раніше цей файл тримав власні копії `inRange`/`calculateCopartFee` і власний
+ * `mockVm`. Копії розійшлися з джерелом непомітно: тест стверджував, що збір
+ * Copart містить gate fee $59 і що діапазону $25 000–29 999.99 не існує — у
+ * коді ні того, ні іншого немає. Тому тепер усе вантажиться через
+ * helpers/load-calculator.js і розійтися вже не може.
+ */
+const { createVm, loadModules } = require("./helpers/load-calculator");
 
-function inRange(min, max, val) {
-  return function (num) {
-    return num >= min && num <= max ? val : 0;
-  };
-}
+loadModules();
 
-function calculateCopartFee(price) {
-  var gateFee = 59;
-
-  var stdVehicleFee =
-    inRange(50.0, 99.99, 75.0)(price) +
-    inRange(100.0, 199.99, 138.0)(price) +
-    inRange(200.0, 299.99, 163.0)(price) +
-    inRange(300.0, 349.99, 188.0)(price) +
-    inRange(350.0, 399.99, 188.0)(price) +
-    inRange(400.0, 449.99, 223.0)(price) +
-    inRange(450.0, 499.99, 223.0)(price) +
-    inRange(500.0, 549.99, 248.0)(price) +
-    inRange(550.0, 599.99, 253.0)(price) +
-    inRange(600.0, 699.99, 263.0)(price) +
-    inRange(700.0, 799.99, 278.0)(price) +
-    inRange(800.0, 899.99, 293.0)(price) +
-    inRange(900.0, 999.99, 308.0)(price) +
-    inRange(1000.0, 1199.99, 343.0)(price) +
-    inRange(1200.0, 1299.99, 368.0)(price) +
-    inRange(1300.0, 1399.99, 383.0)(price) +
-    inRange(1400.0, 1499.99, 393.0)(price) +
-    inRange(1500.0, 1599.99, 413.0)(price) +
-    inRange(1600.0, 1699.99, 428.0)(price) +
-    inRange(1700.0, 1799.99, 438.0)(price) +
-    inRange(1800.0, 1999.99, 453.0)(price) +
-    inRange(2000.0, 2399.99, 473.0)(price) +
-    inRange(2400.0, 2499.99, 483.0)(price) +
-    inRange(2500.0, 2999.99, 498.0)(price) +
-    inRange(3000.0, 3499.99, 548.0)(price) +
-    inRange(3500.0, 3999.99, 598.0)(price) +
-    inRange(4000.0, 4499.99, 633.0)(price) +
-    inRange(4500.0, 4999.99, 658.0)(price) +
-    inRange(5000.0, 5999.99, 683.0)(price) +
-    inRange(6000.0, 7499.99, 728.0)(price) +
-    inRange(7500.0, 9999.99, 753.0)(price) +
-    inRange(10000.0, 14999.99, 788.0)(price) +
-    inRange(15000.0, 19999.99, price * 0.04)(price) +
-    inRange(20000.0, 24999.99, price * 0.04)(price) +
-    inRange(30000.0, 34999.99, price * 0.04)(price) +
-    inRange(35000.0, 39999.99, price * 0.04)(price) +
-    inRange(40000.0, 49999.99, price * 0.04)(price) +
-    inRange(50000.0, 59999.99, price * 0.04)(price) +
-    inRange(60000.0, 999999.99, price * 0.03)(price);
-
-  return gateFee + stdVehicleFee;
-}
-
-describe("Calculator Functions", () => {
-  test("inRange function", () => {
-    expect(inRange(0, 10, 5)(7)).toBe(5);
-    expect(inRange(0, 10, 5)(15)).toBe(0);
+describe("inRange", () => {
+  test("повертає значення всередині діапазону і 0 поза ним", () => {
+    expect(window.inRange(0, 10, 5)(7)).toBe(5);
+    expect(window.inRange(0, 10, 5)(15)).toBe(0);
   });
 
-  test("calculateCopartFee for price 100", () => {
-    const fee = calculateCopartFee(100);
-    expect(fee).toBe(59 + 138); // gateFee + fee for 100-199.99
+  test("межі включні з обох боків", () => {
+    expect(window.inRange(0, 10, 5)(0)).toBe(5);
+    expect(window.inRange(0, 10, 5)(10)).toBe(5);
   });
-
-  test("calculateCopartFee for price 10000", () => {
-    const fee = calculateCopartFee(10000);
-    expect(fee).toBe(59 + 788); // for 10000-14999.99
-  });
-
-  test("calculateCopartFee for price 20000", () => {
-    const fee = calculateCopartFee(20000);
-    expect(fee).toBe(59 + 20000 * 0.04);
-  });
-
-  // Add more tests for other functions
 });
 
-// Mock Vue instance for testing methods
-const mockVm = {
-  autoPricing: { auctions: { selected: "copart" }, autoPrice: 1000 },
-  autoShipping: {
-    location: {
-      options: [
-        { id: "CA", name: "California" },
-        { id: "OR", name: "Oregon (iaai)" },
-      ],
-    },
-  },
-  locationSearch: "cal",
-  filteredLocations: function () {
-    var q = (this.locationSearch || "").toLowerCase().trim();
-    var auction = this.autoPricing.auctions.selected;
-    return this.autoShipping.location.options.filter(function (loc) {
-      var name = loc.name.toLowerCase();
-      if (auction === "copart" && name.indexOf("(iaai)") !== -1) return false;
-      if (auction === "iaai" && name.indexOf("(copart)") !== -1) return false;
-      if (!q) return true;
-      return name.indexOf(q) !== -1;
-    });
-  },
-};
+describe("Сітка зборів Copart", () => {
+  const fee = (p) => window.calculateCopartFee(p);
 
-describe("Vue Computed Properties", () => {
-  test("filteredLocations with search", () => {
-    const result = mockVm.filteredLocations();
-    expect(result.length).toBe(1);
-    expect(result[0].id).toBe("CA");
+  test("фіксовані сходинки", () => {
+    expect(fee(50)).toBe(75);
+    expect(fee(100)).toBe(138);
+    expect(fee(10000)).toBe(788);
+    expect(fee(14999)).toBe(788);
   });
 
-  test("filteredLocations without search", () => {
-    mockVm.locationSearch = "";
-    mockVm.autoPricing.auctions.selected = "iaai"; // to include both
-    const result = mockVm.filteredLocations();
-    expect(result.length).toBe(2);
+  test("від $15 000 — 4% від ціни", () => {
+    expect(fee(15000)).toBeCloseTo(600, 2);
+    expect(fee(20000)).toBeCloseTo(800, 2);
+    expect(fee(100000)).toBeCloseTo(4000, 2);
+  });
+
+  test("сітка покриває діапазон без дірок аж до $10 млн", () => {
+    // Кожна сходинка мусить давати ненульовий збір: «дірка» в таблиці
+    // inRange мовчки дає 0 і занижує підсумок на сотні доларів.
+    for (let p = 50; p <= 200000; p += 137) {
+      expect(fee(p)).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("Сітка зборів IAAI", () => {
+  const fee = (p) => window.calculateIaaIFee(p);
+
+  test("фіксовані сходинки з надбавкою $30", () => {
+    expect(fee(0)).toBe(105);
+    expect(fee(100)).toBe(173);
+  });
+
+  test("до $20 000 — 1% + $733, від $20 000 — 4% + $233", () => {
+    expect(fee(10000)).toBe(Math.round(10000 * 0.01 + 733));
+    expect(fee(25750)).toBe(Math.round(25750 * 0.04 + 233));
+  });
+
+  test("сітка покриває діапазон без дірок", () => {
+    for (let p = 0; p <= 200000; p += 137) {
+      expect(fee(p)).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("Коефіцієнт віку для акцизу", () => {
+  test("рік випуску = поточний → 1 (нове авто)", () => {
+    const vm = createVm({ customs: { manufactureYear: window.currentYear } });
+    expect(vm.ageCoefficient()).toBe(1);
+  });
+
+  test("КВ = поточний рік − рік випуску − 1", () => {
+    const vm = createVm({
+      customs: { manufactureYear: window.currentYear - 6 },
+    });
+    expect(vm.ageCoefficient()).toBe(5);
+  });
+
+  test("ніколи не менший за 1", () => {
+    const vm = createVm({
+      customs: { manufactureYear: window.currentYear + 1 },
+    });
+    expect(vm.ageCoefficient()).toBe(1);
+  });
+});
+
+describe("Акциз", () => {
+  const base = { manufactureYear: window.currentYear - 6 }; // КВ = 5
+
+  test("бензин ≤ 3.0 л — 50 €/л", () => {
+    const vm = createVm({
+      customs: {
+        ...base,
+        engineType: window.engineType.Petrol,
+        engineVolume: "2.0",
+      },
+    });
+    expect(vm.exciseEur()).toBeCloseTo(50 * 2.0 * 5, 5);
+  });
+
+  test("бензин > 3.0 л — 100 €/л", () => {
+    const vm = createVm({
+      customs: {
+        ...base,
+        engineType: window.engineType.Petrol,
+        engineVolume: "3.5",
+      },
+    });
+    expect(vm.exciseEur()).toBeCloseTo(100 * 3.5 * 5, 5);
+  });
+
+  test("дизель ≤ 3.5 л — 75 €/л, > 3.5 л — 150 €/л", () => {
+    const small = createVm({
+      customs: {
+        ...base,
+        engineType: window.engineType.Diesel,
+        engineVolume: "3.0",
+      },
+    });
+    const big = createVm({
+      customs: {
+        ...base,
+        engineType: window.engineType.Diesel,
+        engineVolume: "4.0",
+      },
+    });
+    expect(small.exciseEur()).toBeCloseTo(75 * 3.0 * 5, 5);
+    expect(big.exciseEur()).toBeCloseTo(150 * 4.0 * 5, 5);
+  });
+
+  test("електро — 1 €/кВт·год БЕЗ коефіцієнта віку", () => {
+    const nova = createVm({
+      customs: {
+        engineType: window.engineType.Electric,
+        batteryKwh: 77,
+        manufactureYear: window.currentYear,
+      },
+    });
+    const stara = createVm({
+      customs: {
+        engineType: window.engineType.Electric,
+        batteryKwh: 77,
+        manufactureYear: window.currentYear - 10,
+      },
+    });
+    expect(nova.exciseEur()).toBe(77);
+    expect(stara.exciseEur()).toBe(77);
+  });
+
+  test("конвертація в долари через курс євро", () => {
+    const vm = createVm({
+      eurUsd: 1.1566,
+      customs: {
+        ...base,
+        engineType: window.engineType.Petrol,
+        engineVolume: "2.0",
+      },
+    });
+    expect(vm.exciseUsd()).toBeCloseTo(vm.exciseEur() * 1.1566, 5);
+  });
+});
+
+describe("Мито і ПДВ", () => {
+  test("ДВЗ — мито 10% від митної вартості", () => {
+    const vm = createVm({ customs: { engineType: window.engineType.Petrol } });
+    expect(vm.importDuty()).toBeCloseTo(vm.customsBase() * 0.1, 5);
+  });
+
+  test("електро — мито 0%", () => {
+    const vm = createVm({
+      customs: { engineType: window.engineType.Electric },
+    });
+    expect(vm.importDuty()).toBe(0);
+  });
+
+  test("ПДВ 20% від (вартість + мито + акциз)", () => {
+    const vm = createVm();
+    expect(vm.vatFee()).toBeCloseTo(
+      (vm.customsBase() + vm.importDuty() + vm.exciseUsd()) * 0.2,
+      5,
+    );
+  });
+
+  test("електро не звільнене від ПДВ (нульова ставка скасована з 2026)", () => {
+    const vm = createVm({
+      customs: { engineType: window.engineType.Electric },
+    });
+    expect(vm.vatFee()).toBeGreaterThan(0);
+  });
+
+  test("totalCustomsFee = мито + акциз + ПДВ, без збору до ПФ", () => {
+    const vm = createVm();
+    expect(vm.totalCustomsFee()).toBe(
+      Math.round(vm.importDuty() + vm.exciseUsd() + vm.vatFee()),
+    );
+    // ПФ рахується окремо в mreo() і додається в total() — тут його бути не має.
+    expect(vm.totalCustomsFee()).toBeLessThan(vm.total());
+  });
+});
+
+describe("Митна вартість", () => {
+  test("= ціна + збір аукціону + доставка до кордону + страхування", () => {
+    const vm = createVm();
+    expect(vm.customsBase()).toBeCloseTo(
+      vm.autoPricing.autoPrice +
+        vm.auctionFee() +
+        vm.totalShippingFee() +
+        vm.strahovka(),
+      5,
+    );
+  });
+
+  test("дешевший маршрут → менша база → менше мито", () => {
+    const odessa = createVm({
+      autoShipping: { destinationPort: { selected: "odessa" } },
+    });
+    const klaipeda = createVm({
+      autoShipping: { destinationPort: { selected: "klaipeda" } },
+    });
+    expect(klaipeda.totalShippingFee()).toBeLessThan(odessa.totalShippingFee());
+    expect(klaipeda.importDuty()).toBeLessThan(odessa.importDuty());
+  });
+});
+
+describe("Доставка", () => {
+  test("totalShippingFee = сума рядків розкладу (UI і сума не розходяться)", () => {
+    const vm = createVm();
+    const sum = vm.shippingBreakdown().reduce((s, r) => s + r.amount, 0);
+    expect(vm.totalShippingFee()).toBe(sum);
+  });
+
+  test("для Одеси немає плеча «порт → кордон»", () => {
+    const vm = createVm({
+      autoShipping: { destinationPort: { selected: "odessa" } },
+    });
+    expect(vm.toUkraineFee()).toBe(0);
+    expect(vm.shippingBreakdown().some((r) => r.key === "toUkraine")).toBe(
+      false,
+    );
+  });
+
+  test("для Клайпеди плече «порт → кордон» присутнє окремим рядком", () => {
+    const vm = createVm({
+      autoShipping: { destinationPort: { selected: "klaipeda" } },
+    });
+    expect(vm.toUkraineFee()).toBeGreaterThan(0);
+    expect(vm.shippingBreakdown().some((r) => r.key === "toUkraine")).toBe(
+      true,
+    );
+  });
+});
+
+describe("Підсумок", () => {
+  test("total() — число, а не NaN, для дефолтного стану", () => {
+    const vm = createVm();
+    expect(Number.isFinite(vm.total())).toBe(true);
+    expect(vm.total()).toBeGreaterThan(vm.autoPricing.autoPrice);
+  });
+
+  test("зростає монотонно з ціною авто", () => {
+    const cheap = createVm({ autoPricing: { autoPrice: 5000 } });
+    const dear = createVm({ autoPricing: { autoPrice: 25000 } });
+    expect(dear.total()).toBeGreaterThan(cheap.total());
+  });
+
+  test("benefit = чиста вартість − повні витрати", () => {
+    const vm = createVm({ acv: 30000, repairCost: 4000 });
+    expect(vm.cleanValue()).toBe(26000);
+    expect(vm.benefit()).toBe(26000 - vm.total());
+  });
+
+  test("maxBid = (ACV − ремонт) × коефіцієнт ризику", () => {
+    const vm = createVm({ acv: 30000, repairCost: 4000, riskCoefficient: 0.5 });
+    expect(vm.maxBid()).toBe(13000);
+  });
+});
+
+describe("filteredLocations (computed)", () => {
+  test("локації Copart не показуються при вибраному IAAI і навпаки", () => {
+    const copart = createVm({
+      autoPricing: { auctions: { selected: "copart" } },
+    });
+    const iaai = createVm({ autoPricing: { auctions: { selected: "iaai" } } });
+
+    expect(
+      copart.filteredLocations.every(
+        (l) => l.name.toLowerCase().indexOf("(iaai)") === -1,
+      ),
+    ).toBe(true);
+    expect(
+      iaai.filteredLocations.every(
+        (l) => l.name.toLowerCase().indexOf("(copart)") === -1,
+      ),
+    ).toBe(true);
+  });
+
+  test("текстовий пошук звужує список", () => {
+    const vm = createVm({ locationSearch: "birmingham" });
+    const all = createVm({ locationSearch: "" });
+    expect(vm.filteredLocations.length).toBeGreaterThan(0);
+    expect(vm.filteredLocations.length).toBeLessThan(
+      all.filteredLocations.length,
+    );
+    expect(
+      vm.filteredLocations.every(
+        (l) => l.name.toLowerCase().indexOf("birmingham") !== -1,
+      ),
+    ).toBe(true);
   });
 });

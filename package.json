@@ -26,8 +26,10 @@
   "jest": {
     "testEnvironment": "jsdom",
     "testMatch": [
-      "**/__tests__/**/*.js",
-      "**/?(*.)+(spec|test).js"
-    ]
+      "**/__tests__/**/*.test.js"
+    ],
+    "transform": {
+      "\\.js$": "<rootDir>/test/esm-to-cjs-transform.cjs"
+    }
   }
 }
