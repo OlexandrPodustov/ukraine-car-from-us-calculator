@@ -1061,30 +1061,31 @@ window.__createAllMethods = function () {
       this.locationDropOpen = false;
       this.onLocationChange();
     },
+    // Збір на обов'язкове державне пенсійне страхування при ПЕРШІЙ реєстрації
+    // легкового авто. Ставки й пороги — docs/pension-fee-baseline.md.
+    //
+    // Пороги задані в гривнях як кратні прожиткового мінімуму для працездатних
+    // осіб (165 і 290 ПМ), тому базу переводимо в гривні за курсом НБУ, а не
+    // порівнюємо з доларовими константами: раніше тут стояли $13 300 / $23 500
+    // з коміту 2021 року, які ні до чого не прив'язані й давно розійшлися з
+    // законом.
+    pensionFeeRate: function () {
+      var thresholds = [165, 290].map(
+        function (multiple) {
+          return multiple * this.subsistenceMinUah;
+        }.bind(this),
+      );
+      var baseUah = this.customsBase() * this.usdUah;
+      if (baseUah <= thresholds[0]) return 0.03;
+      if (baseUah <= thresholds[1]) return 0.04;
+      return 0.05;
+    },
+
+    // Історична назва методу — в шаблоні він виводиться рядком «МРЕО».
     mreo: function () {
-      //  console.log(this.autoPricing.autoPrice)
-      //  console.log(this.auctionFee())
-      var mreo_tmp = 0;
-      if (this.autoPricing.autoPrice < 13300) {
-        mreo_tmp = Math.ceil(
-          ((this.autoPricing.autoPrice + this.auctionFee() + 1000) / 100) * 3 +
-            25,
-        );
-      } else if (
-        this.autoPricing.autoPrice >= 13300 &&
-        this.autoPricing.autoPrice < 23500
-      ) {
-        mreo_tmp = Math.ceil(
-          ((this.autoPricing.autoPrice + this.auctionFee() + 1000) / 100) * 4 +
-            25,
-        );
-      } else if (this.autoPricing.autoPrice >= 23500) {
-        mreo_tmp = Math.ceil(
-          ((this.autoPricing.autoPrice + this.auctionFee() + 1000) / 100) * 5 +
-            25,
-        );
-      }
-      return mreo_tmp;
+      // Авто виключно на електротязі від збору звільнені.
+      if (this.isElectricEngine()) return 0;
+      return Math.ceil(this.customsBase() * this.pensionFeeRate());
     },
 
     shippingAllowedPorts: function () {

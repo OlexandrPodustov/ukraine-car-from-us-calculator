@@ -7,6 +7,7 @@ window.createFeesMethods = function () {
     "strahovka",
     "totalAutoFee",
     "mreo",
+    "pensionFeeRate",
     "shippingAllowedPorts",
     "transportFee",
     "currentDestination",

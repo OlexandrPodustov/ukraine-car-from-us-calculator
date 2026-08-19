@@ -344,3 +344,58 @@ describe("filteredLocations (computed)", () => {
     ).toBe(true);
   });
 });
+
+describe("Збір до Пенсійного фонду", () => {
+  // Пороги — 165 / 290 прожиткових мінімумів, у гривнях.
+  // Див. docs/pension-fee-baseline.md.
+  const withBaseUah = (uah) => {
+    const vm = createVm();
+    // Підбираємо ціну так, щоб митна вартість у гривнях була приблизно uah.
+    const probe = createVm({ autoPricing: { autoPrice: 10000 } });
+    const overhead = probe.customsBase() - probe.autoPricing.autoPrice;
+    vm.autoPricing.autoPrice = Math.max(
+      1000,
+      Math.round(uah / vm.usdUah - overhead),
+    );
+    return vm;
+  };
+
+  test("ставка 3% нижче 165 прожиткових мінімумів", () => {
+    const vm = withBaseUah(165 * 3328 * 0.7);
+    expect(vm.pensionFeeRate()).toBe(0.03);
+  });
+
+  test("ставка 4% між 165 і 290 прожиткових мінімумів", () => {
+    const vm = withBaseUah(165 * 3328 * 1.2);
+    expect(vm.pensionFeeRate()).toBe(0.04);
+  });
+
+  test("ставка 5% вище 290 прожиткових мінімумів", () => {
+    const vm = withBaseUah(290 * 3328 * 1.5);
+    expect(vm.pensionFeeRate()).toBe(0.05);
+  });
+
+  test("пороги рухаються разом із прожитковим мінімумом", () => {
+    const vm = withBaseUah(165 * 3328 * 1.2);
+    expect(vm.pensionFeeRate()).toBe(0.04);
+    vm.subsistenceMinUah = 3328 * 2; // умовне подвоєння ПМ
+    expect(vm.pensionFeeRate()).toBe(0.03);
+  });
+
+  test("база — митна вартість, та сама, що й для мита", () => {
+    const vm = createVm();
+    expect(vm.mreo()).toBe(Math.ceil(vm.customsBase() * vm.pensionFeeRate()));
+  });
+
+  test("електромобілі звільнені від збору", () => {
+    const vm = createVm({
+      customs: { engineType: window.engineType.Electric, batteryKwh: 77 },
+    });
+    expect(vm.mreo()).toBe(0);
+  });
+
+  test("ДВЗ збір платить", () => {
+    const vm = createVm({ customs: { engineType: window.engineType.Petrol } });
+    expect(vm.mreo()).toBeGreaterThan(0);
+  });
+});
