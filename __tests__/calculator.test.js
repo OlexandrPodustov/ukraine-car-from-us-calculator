@@ -27,16 +27,29 @@ describe("Сітка зборів Copart", () => {
   const fee = (p) => window.calculateCopartFee(p);
 
   test("фіксовані сходинки", () => {
+    expect(fee(0)).toBe(75);
     expect(fee(50)).toBe(75);
     expect(fee(100)).toBe(138);
     expect(fee(10000)).toBe(788);
     expect(fee(14999)).toBe(788);
   });
 
-  test("від $15 000 — 4% від ціни", () => {
-    expect(fee(15000)).toBeCloseTo(600, 2);
-    expect(fee(20000)).toBeCloseTo(800, 2);
-    expect(fee(100000)).toBeCloseTo(4000, 2);
+  test("від $15 000 — 4% від ціни, але не менше попередньої сходинки", () => {
+    // 4% від $15 000 = $600 < $788 на сходинці $10 000–14 999.99, тому до
+    // $19 700 тримається $788, далі відсоток його переганяє.
+    expect(fee(15000)).toBe(788);
+    expect(fee(19700)).toBe(788);
+    expect(fee(20000)).toBe(800);
+    expect(fee(100000)).toBe(4000);
+  });
+
+  test("сітка не спадає зі зростанням ціни", () => {
+    let prev = 0;
+    for (let p = 0; p <= 200000; p += 97) {
+      const cur = fee(p);
+      expect(cur).toBeGreaterThanOrEqual(prev);
+      prev = cur;
+    }
   });
 
   test("сітка покриває діапазон без дірок аж до $10 млн", () => {
@@ -51,20 +64,41 @@ describe("Сітка зборів Copart", () => {
 describe("Сітка зборів IAAI", () => {
   const fee = (p) => window.calculateIaaIFee(p);
 
-  test("фіксовані сходинки з надбавкою $30", () => {
-    expect(fee(0)).toBe(105);
-    expect(fee(100)).toBe(173);
+  // Офіційна таблиця IAA Standard Volume, чинна з 04.11.2024.
+  // Джерела й повна таблиця — docs/auction-fees-baseline.md.
+  test("фіксовані сходинки за офіційною таблицею", () => {
+    expect(fee(0)).toBe(25);
+    expect(fee(49)).toBe(25);
+    expect(fee(50)).toBe(45);
+    expect(fee(100)).toBe(80);
+    expect(fee(300)).toBe(138); // $137.50 з округленням
+    expect(fee(2000)).toBe(535);
+    expect(fee(10000)).toBe(1000);
+    expect(fee(14999)).toBe(1000);
   });
 
-  test("до $20 000 — 1% + $733, від $20 000 — 4% + $233", () => {
-    expect(fee(10000)).toBe(Math.round(10000 * 0.01 + 733));
-    expect(fee(25750)).toBe(Math.round(25750 * 0.04 + 233));
+  test("від $15 000 — 7.5% від ціни", () => {
+    expect(fee(15000)).toBe(1125);
+    expect(fee(25750)).toBe(1931);
+    expect(fee(50000)).toBe(3750);
   });
 
-  test("сітка покриває діапазон без дірок", () => {
-    for (let p = 0; p <= 200000; p += 137) {
-      expect(fee(p)).toBeGreaterThan(0);
+  test("сітка не спадає зі зростанням ціни", () => {
+    // Збір аукціону не може зменшуватись, коли авто дорожчає.
+    let prev = 0;
+    for (let p = 0; p <= 200000; p += 97) {
+      const cur = fee(p);
+      expect(cur).toBeGreaterThanOrEqual(prev);
+      prev = cur;
     }
+  });
+
+  test("internet bid fee — сходинками до $140", () => {
+    expect(window.iaaiInternetBidFee(1000)).toBe(0);
+    expect(window.iaaiInternetBidFee(2000)).toBe(100);
+    expect(window.iaaiInternetBidFee(5000)).toBe(110);
+    expect(window.iaaiInternetBidFee(7000)).toBe(125);
+    expect(window.iaaiInternetBidFee(25750)).toBe(140);
   });
 });
 
@@ -84,8 +118,10 @@ describe("auctionFee — вибір сітки за аукціоном", () => {
     );
   });
 
-  test("IAAI: базова сітка + $15", () => {
-    expect(at("iaai", 12000)).toBe(window.calculateIaaIFee(12000) + 15);
+  test("IAAI: збір покупця + фіксовані збори + internet bid fee", () => {
+    expect(at("iaai", 12000)).toBe(
+      window.calculateIaaIFee(12000) + 140 + window.iaaiInternetBidFee(12000),
+    );
   });
 
   test("невідомий аукціон не робить підсумок NaN", () => {
