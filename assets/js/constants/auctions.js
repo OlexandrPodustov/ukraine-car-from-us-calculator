@@ -1,13 +1,44 @@
+// Кожен аукціон несе власну функцію збору покупця. Раніше auctionFee()
+// в market.methods.js звірявся з `auctions[0].id` / `auctions[1].id` за
+// індексом і при невідомому id не повертав нічого — тобто весь підсумок
+// ставав NaN. Тепер сітка збору лежить поруч із самим аукціоном.
 var auctions = [
   {
     id: "copart",
     name: "Copart",
+    buyerFee: copartBuyerFee,
   },
   {
     id: "iaai",
     name: "IAAI",
+    buyerFee: iaaiBuyerFee,
   },
 ];
+
+// Повний збір покупця = базова сітка + надбавки аукціону.
+// Надбавки (25 / 203 / 15 у Copart, 15 у IAAI) були зашиті числами в
+// auctionFee() без пояснення; джерело так само не встановлене — див.
+// docs/auction-fees-baseline.md.
+function copartBuyerFee(price) {
+  var fee = calculateCopartFee(price);
+  if (price < 2000) return fee;
+  if (price >= 8000 && price < 10000) return fee + 25;
+  if (price >= 15000) return fee + 203;
+  return fee + 15;
+}
+
+function iaaiBuyerFee(price) {
+  return calculateIaaIFee(price) + 15;
+}
+
+// Невідомий id (застаріле сховище, ручне втручання) не має обвалювати
+// розрахунок у NaN — падаємо на перший аукціон у списку.
+function getAuctionById(id) {
+  for (var a = 0; a < auctions.length; a++) {
+    if (auctions[a].id === id) return auctions[a];
+  }
+  return auctions[0];
+}
 
 function calculateCopartFee(price) {
   var stdVehicleFee =
@@ -293,8 +324,15 @@ function inRange(min, max, val) {
     return num >= min && num <= max ? val : 0;
   };
 }
-export { auctions, calculateCopartFee, calculateIaaIFee, inRange };
+export {
+  auctions,
+  calculateCopartFee,
+  calculateIaaIFee,
+  getAuctionById,
+  inRange,
+};
 window.auctions = auctions;
 window.calculateCopartFee = calculateCopartFee;
 window.calculateIaaIFee = calculateIaaIFee;
 window.inRange = inRange;
+window.getAuctionById = getAuctionById;

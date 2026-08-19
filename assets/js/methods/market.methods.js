@@ -983,24 +983,11 @@ window.__createAllMethods = function () {
       }
     },
 
+    // Сітка збору живе разом з аукціоном у constants/auctions.js.
     auctionFee: function () {
-      if (this.autoPricing.auctions.selected === window.auctions[0].id) {
-        if (this.autoPricing.autoPrice < 2000) {
-          return window.calculateCopartFee(this.autoPricing.autoPrice);
-        }
-        if (
-          this.autoPricing.autoPrice >= 8000 &&
-          this.autoPricing.autoPrice < 10000
-        ) {
-          return window.calculateCopartFee(this.autoPricing.autoPrice) + 25;
-        }
-        if (this.autoPricing.autoPrice >= 15000) {
-          return window.calculateCopartFee(this.autoPricing.autoPrice) + 203;
-        }
-        return window.calculateCopartFee(this.autoPricing.autoPrice) + 15;
-      } else if (this.autoPricing.auctions.selected === window.auctions[1].id) {
-        return window.calculateIaaIFee(this.autoPricing.autoPrice) + 15;
-      }
+      return window
+        .getAuctionById(this.autoPricing.auctions.selected)
+        .buyerFee(this.autoPricing.autoPrice);
     },
 
     commissionBank: function () {
@@ -1012,20 +999,18 @@ window.__createAllMethods = function () {
       );
     },
 
+    // Збір брокера/АНЗ. Обидві гілки колишнього тернарника давали 300,
+    // тобто ставка плоска; джерело числа не встановлене (коміт 2021 р.).
     anzFee: function () {
-      return this.autoPricing.autoPrice < 25000 ? 300 : 300;
+      return 300;
     },
 
+    // Страхування вантажу: 2% від ціни з молотка + збору, мінімум $100.
     strahovka: function () {
       var strah = Math.ceil(
         ((this.autoPricing.autoPrice + this.auctionFee()) / 100) * 2,
       );
-      if (strah < 100) {
-        strah = 100;
-        return strah;
-      } else {
-        return strah;
-      }
+      return strah < 100 ? 100 : strah;
     },
 
     totalAutoFee: function () {

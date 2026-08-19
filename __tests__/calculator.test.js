@@ -68,6 +68,37 @@ describe("Сітка зборів IAAI", () => {
   });
 });
 
+describe("auctionFee — вибір сітки за аукціоном", () => {
+  const at = (auction, price) =>
+    createVm({
+      autoPricing: { autoPrice: price, auctions: { selected: auction } },
+    }).auctionFee();
+
+  test("Copart: надбавки 0 / +25 / +15 / +203 за тирами ціни", () => {
+    expect(at("copart", 1500)).toBe(window.calculateCopartFee(1500));
+    expect(at("copart", 9000)).toBe(window.calculateCopartFee(9000) + 25);
+    expect(at("copart", 5000)).toBe(window.calculateCopartFee(5000) + 15);
+    expect(at("copart", 20000)).toBeCloseTo(
+      window.calculateCopartFee(20000) + 203,
+      5,
+    );
+  });
+
+  test("IAAI: базова сітка + $15", () => {
+    expect(at("iaai", 12000)).toBe(window.calculateIaaIFee(12000) + 15);
+  });
+
+  test("невідомий аукціон не робить підсумок NaN", () => {
+    // До того як сітка переїхала в constants/auctions.js, auctionFee()
+    // не повертав нічого для чужого id і total() ставав NaN.
+    const vm = createVm({
+      autoPricing: { autoPrice: 5000, auctions: { selected: "manheim" } },
+    });
+    expect(Number.isFinite(vm.auctionFee())).toBe(true);
+    expect(Number.isFinite(vm.total())).toBe(true);
+  });
+});
+
 describe("Коефіцієнт віку для акцизу", () => {
   test("рік випуску = поточний → 1 (нове авто)", () => {
     const vm = createVm({ customs: { manufactureYear: window.currentYear } });
