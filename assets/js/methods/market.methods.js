@@ -1,30 +1,12 @@
 window.__createAllMethods = function () {
   return {
+    // Зріз формує storage.service.js — там же задокументовано, чому в
+    // localStorage не потрапляють довідники (списки локацій/портів/років).
     saveToLocalStorage: function () {
-      var dataToSave = {
-        autoPricing: this.autoPricing,
-        autoShipping: this.autoShipping,
-        customs: this.customs,
-        locationSearch: this.locationSearch,
-        auctionUrl: this.auctionUrl,
-        auctionStatus: this.auctionStatus,
-        auctionMsg: this.auctionMsg,
-        // Разом з auctionMsg — щоб після перезавантаження сторінки VIN лоту
-        // не зникав із шапки.
-        currentLot: this.currentLot,
-        acv: this.acv,
-        repairCost: this.repairCost,
-        buyNowPrice: this.buyNowPrice,
-        riskCoefficient: this.riskCoefficient,
-        oceanFreightOverride: this.oceanFreightOverride,
-        marketStatus: this.marketStatus,
-        marketMsg: this.marketMsg,
-        marketTarget: this.marketTarget,
-        ukrainianMarketPrice: this.customs.ukrainianMarketPrice,
-        marketCategory: this.customs.marketCategory,
-      };
-      localStorage.setItem("carCalcData", JSON.stringify(dataToSave));
-      // console.log('[LocalStorage] Дані збережені');
+      localStorage.setItem(
+        "carCalcData",
+        JSON.stringify(window.pickPersistedState(this)),
+      );
     },
     parseAuctionLot: async function () {
       var vm = this;

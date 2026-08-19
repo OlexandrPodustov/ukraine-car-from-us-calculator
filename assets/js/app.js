@@ -8,7 +8,10 @@ import { autoLocation } from "./constants/locations.js";
 import { shippingPorts } from "./constants/ports.js";
 import { vehicleTypes } from "./constants/vehicle.js";
 import { engineTypes, engineVolumes } from "./constants/engine.js";
-import { createStorageService } from "./services/storage.service.js";
+import {
+  createStorageService,
+  applyPersistedState,
+} from "./services/storage.service.js";
 import { createRatesService } from "./services/rates.service.js";
 import { createAuctionParserService } from "./services/auction-parser.service.js";
 import { createMarketLookupService } from "./services/market-lookup.service.js";
@@ -41,38 +44,9 @@ function initializeApp() {
       var savedData = storageService.load();
       if (savedData) {
         try {
-          if (savedData.autoPricing)
-            Object.assign(vm.autoPricing, savedData.autoPricing);
-          if (savedData.autoShipping)
-            Object.assign(vm.autoShipping, savedData.autoShipping);
-          if (savedData.customs) Object.assign(vm.customs, savedData.customs);
-          if (savedData.locationSearch)
-            vm.locationSearch = savedData.locationSearch;
-          if (savedData.auctionUrl) vm.auctionUrl = savedData.auctionUrl;
-          if (savedData.auctionStatus)
-            vm.auctionStatus = savedData.auctionStatus;
-          if (savedData.auctionMsg) vm.auctionMsg = savedData.auctionMsg;
-          if (savedData.currentLot)
-            Object.assign(vm.currentLot, savedData.currentLot);
-          if (savedData.marketStatus) vm.marketStatus = savedData.marketStatus;
-          if (savedData.marketMsg) vm.marketMsg = savedData.marketMsg;
-          if (savedData.marketTarget) vm.marketTarget = savedData.marketTarget;
-          if (savedData.ukrainianMarketPrice)
-            vm.customs.ukrainianMarketPrice = savedData.ukrainianMarketPrice;
-          if (savedData.marketCategory)
-            vm.customs.marketCategory = savedData.marketCategory;
-          if (savedData.acv) vm.acv = savedData.acv;
-          if (savedData.repairCost) vm.repairCost = savedData.repairCost;
-          if (savedData.buyNowPrice) vm.buyNowPrice = savedData.buyNowPrice;
-          if (savedData.riskCoefficient)
-            vm.riskCoefficient = savedData.riskCoefficient;
-          if (savedData.oceanFreightOverride)
-            vm.oceanFreightOverride = savedData.oceanFreightOverride;
-          if (savedData.customs && savedData.customs.ukrainianMarketPrice)
-            vm.customs.ukrainianMarketPrice =
-              savedData.customs.ukrainianMarketPrice;
-          if (savedData.customs && savedData.customs.marketCategory)
-            vm.customs.marketCategory = savedData.customs.marketCategory;
+          // Валідацію ідентифікаторів і міграцію зі старого формату сховища
+          // робить applyPersistedState — див. services/storage.service.js.
+          applyPersistedState(vm, savedData);
         } catch (e) {
           console.warn("[LocalStorage] Помилка при завантаженні даних", e);
         }
