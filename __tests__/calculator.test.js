@@ -136,28 +136,39 @@ describe("auctionFee — вибір сітки за аукціоном", () => {
 });
 
 describe("Коефіцієнт віку для акцизу", () => {
+  // ПКУ 215.3.5-1: повні календарні роки з року, НАСТУПНОГО за роком
+  // виробництва, до року визначення ставки — обидва краї включно.
+  const kv = (year) =>
+    createVm({ customs: { manufactureYear: year } }).ageCoefficient();
+
   test("рік випуску = поточний → 1 (нове авто)", () => {
-    const vm = createVm({ customs: { manufactureYear: window.currentYear } });
-    expect(vm.ageCoefficient()).toBe(1);
+    expect(kv(window.currentYear)).toBe(1);
   });
 
-  test("КВ = поточний рік − рік випуску − 1", () => {
-    const vm = createVm({
-      customs: { manufactureYear: window.currentYear - 6 },
-    });
-    expect(vm.ageCoefficient()).toBe(5);
+  test("торішнє авто → 1", () => {
+    expect(kv(window.currentYear - 1)).toBe(1);
+  });
+
+  test("роки рахуються включно з обох країв", () => {
+    // Авто 2012 р. у 2026-му — це роки 2013…2026, тобто 14.
+    expect(window.currentYear - 2012).toBe(14);
+    expect(kv(2012)).toBe(14);
+    expect(kv(window.currentYear - 6)).toBe(6);
+  });
+
+  test("понад 15 повних років — рівно 15, не більше", () => {
+    expect(kv(window.currentYear - 16)).toBe(15);
+    expect(kv(window.currentYear - 25)).toBe(15);
+    expect(kv(window.currentYear - 40)).toBe(15);
   });
 
   test("ніколи не менший за 1", () => {
-    const vm = createVm({
-      customs: { manufactureYear: window.currentYear + 1 },
-    });
-    expect(vm.ageCoefficient()).toBe(1);
+    expect(kv(window.currentYear + 1)).toBe(1);
   });
 });
 
 describe("Акциз", () => {
-  const base = { manufactureYear: window.currentYear - 6 }; // КВ = 5
+  const base = { manufactureYear: window.currentYear - 5 }; // КВ = 5
 
   test("бензин ≤ 3.0 л — 50 €/л", () => {
     const vm = createVm({
