@@ -30,6 +30,7 @@ window.createFeesMethods = function () {
     "cleanValue",
     "benefit",
     "maxBid",
+    "totalForPrice",
     "recalcMaxBid",
     "total",
   ];

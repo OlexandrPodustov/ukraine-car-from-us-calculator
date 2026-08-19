@@ -1,3 +1,8 @@
+// Незв'язані методи для пробних розрахунків (див. totalForPrice). Vue 2
+// прив'язує кожен метод до інстансу через bind, тому «підмінити» this у
+// vm.total() неможливо — потрібні саме сирі функції.
+var rawMethodsCache = null;
+
 window.__createAllMethods = function () {
   return {
     // Зріз формує storage.service.js — там же задокументовано, чому в
@@ -1272,8 +1277,57 @@ window.__createAllMethods = function () {
     benefit: function () {
       return Math.round(this.cleanValue() - this.total());
     },
+    // Підсумок для іншої ціни авто, БЕЗ мутації реактивного стану: Object.create
+    // віддає об'єкт, який делегує все до vm і перекриває лише autoPrice.
+    // Пряме присвоєння сюди не годиться — maxBid() викликається з шаблону, і
+    // зміна autoPrice запустила б новий ререндер, тобто нескінченний цикл.
+    // Підсумок для іншої ціни авто, без жодного дотику до реактивного стану.
+    //
+    // Vue 2 прив'язує методи до інстансу (`bind(vm)`), тож усі спроби
+    // підставити інший `this` — Object.create, call, apply — на vm.total()
+    // не діють: усередині все одно буде справжній vm. А писати ціну в стан
+    // під час рендеру не можна: це нескінченний цикл ререндерів.
+    // Тому будуємо окремий об'єкт із СИРИХ (незв'язаних) методів і копії даних.
+    totalForPrice: function (price) {
+      if (!rawMethodsCache) rawMethodsCache = window.__createAllMethods();
+
+      var data = this._data || this;
+      var probe = Object.create(rawMethodsCache);
+      Object.keys(data).forEach(function (key) {
+        // Тільки дані. Методи мусять лишитись сирими з прототипу — інакше
+        // probe.total() виявиться прив'язаним до справжнього vm.
+        if (typeof data[key] !== "function") probe[key] = data[key];
+      });
+      probe.autoPricing = Object.assign({}, this.autoPricing, {
+        autoPrice: price,
+      });
+      return probe.total();
+    },
+
+    // Максимальна ставка — найбільша ціна з молотка, за якої ПОВНІ витрати на
+    // авто «під ключ» ще вкладаються в (ACV − ремонт) × коефіцієнт ризику.
+    //
+    // Раніше тут було просто (ACV − ремонт) × коефіцієнт, тобто збори,
+    // доставка й розмитнення не віднімались зовсім — хоча підпис у шапці
+    // обіцяє «− інші витрати». На типовому лоті це завищувало ставку вдвічі.
+    //
+    // total() зростає з ціною монотонно, але сходинками (тарифні сітки
+    // аукціонів), тож розв'язуємо бінарним пошуком, а не аналітично.
     maxBid: function () {
-      return Math.round((this.acv - this.repairCost) * this.riskCoefficient);
+      var target = this.cleanValue() * this.riskCoefficient;
+      if (!(target > 0)) return 0;
+      // Навіть за нульової ставки супутні витрати можуть перевищити ліміт —
+      // тоді лот не проходить ні за якою ціною.
+      if (this.totalForPrice(0) > target) return 0;
+
+      var lo = 0;
+      var hi = target;
+      for (var i = 0; i < 40; i++) {
+        var mid = (lo + hi) / 2;
+        if (this.totalForPrice(mid) <= target) lo = mid;
+        else hi = mid;
+      }
+      return Math.floor(lo);
     },
     getVal: function (arr, keyName) {
       var item = arr.find(function (x) {

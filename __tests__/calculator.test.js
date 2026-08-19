@@ -341,9 +341,101 @@ describe("Підсумок", () => {
     expect(vm.benefit()).toBe(26000 - vm.total());
   });
 
-  test("maxBid = (ACV − ремонт) × коефіцієнт ризику", () => {
+  test("maxBid — ставка, за якої ПОВНІ витрати вкладаються в ліміт", () => {
     const vm = createVm({ acv: 30000, repairCost: 4000, riskCoefficient: 0.5 });
-    expect(vm.maxBid()).toBe(13000);
+    const limit = vm.cleanValue() * vm.riskCoefficient;
+
+    expect(vm.totalForPrice(vm.maxBid())).toBeLessThanOrEqual(limit);
+    // І це саме МАКСИМУМ: на долар більше — вже за межею.
+    expect(vm.totalForPrice(vm.maxBid() + 1)).toBeGreaterThan(limit);
+  });
+
+  test("maxBid віднімає супутні витрати, а не ігнорує їх", () => {
+    const vm = createVm({ acv: 30000, repairCost: 4000, riskCoefficient: 0.5 });
+    // Стара формула повертала (ACV − ремонт) × коефіцієнт = 13000, тобто
+    // ставку, за якої підсумок удвічі перевищує власний ліміт.
+    expect(vm.maxBid()).toBeLessThan(13000);
+    expect(vm.totalForPrice(13000)).toBeGreaterThan(13000);
+  });
+
+  test("maxBid = 0, коли витрати з'їдають ліміт навіть за нульової ставки", () => {
+    const vm = createVm({ acv: 8000, repairCost: 3000, riskCoefficient: 0.5 });
+    expect(vm.maxBid()).toBe(0);
+  });
+
+  test("maxBid зростає з ACV і з коефіцієнтом ризику", () => {
+    const base = createVm({
+      acv: 30000,
+      repairCost: 4000,
+      riskCoefficient: 0.5,
+    });
+    const richer = createVm({
+      acv: 40000,
+      repairCost: 4000,
+      riskCoefficient: 0.5,
+    });
+    const bolder = createVm({
+      acv: 30000,
+      repairCost: 4000,
+      riskCoefficient: 0.8,
+    });
+    expect(richer.maxBid()).toBeGreaterThan(base.maxBid());
+    expect(bolder.maxBid()).toBeGreaterThan(base.maxBid());
+  });
+
+  test("totalForPrice не чіпає реальний стан", () => {
+    const vm = createVm({ autoPricing: { autoPrice: 7000 } });
+    const before = vm.total();
+    vm.totalForPrice(50000);
+    expect(vm.autoPricing.autoPrice).toBe(7000);
+    expect(vm.total()).toBe(before);
+  });
+
+  test("totalForPrice не пише в реактивний стан через сеттер", () => {
+    // Vue визначає поля data аксесорами, а не простими значеннями. Наївне
+    // `Object.create(pricing).autoPrice = price` викликає УСПАДКОВАНИЙ сеттер
+    // і мутує справжній стан під час рендеру — сторінка вішається в циклі.
+    const vm = createVm({ autoPricing: { autoPrice: 7000 } });
+    let stored = vm.autoPricing.autoPrice;
+    let writes = 0;
+    Object.defineProperty(vm.autoPricing, "autoPrice", {
+      get: () => stored,
+      set: (v) => {
+        writes += 1;
+        stored = v;
+      },
+      configurable: true,
+      enumerable: true,
+    });
+
+    vm.totalForPrice(50000);
+    vm.maxBid();
+
+    expect(writes).toBe(0);
+    expect(vm.autoPricing.autoPrice).toBe(7000);
+  });
+
+  test("totalForPrice не підміняє сам autoPricing через сеттер інстансу", () => {
+    // Той самий капкан рівнем вище: Vue проксіює ключі data на інстанс теж
+    // аксесорами, тож `probe.autoPricing = ...` замінив би autoPricing у vm.
+    const vm = createVm({ autoPricing: { autoPrice: 7000 } });
+    const real = vm.autoPricing;
+    let writes = 0;
+    Object.defineProperty(vm, "autoPricing", {
+      get: () => real,
+      set: () => {
+        writes += 1;
+      },
+      configurable: true,
+      enumerable: true,
+    });
+
+    vm.totalForPrice(50000);
+    vm.maxBid();
+
+    expect(writes).toBe(0);
+    expect(vm.autoPricing).toBe(real);
+    expect(vm.autoPricing.autoPrice).toBe(7000);
   });
 });
 

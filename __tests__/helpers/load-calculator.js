@@ -47,13 +47,25 @@ function loadModules() {
 function createVm(overrides) {
   loadModules();
 
-  const vm = Object.assign(
+  // Vue тримає дані в `vm._data` і проксіює ключі на сам інстанс. Харнес
+  // повторює обидва рівні, бо код (totalForPrice) на це спирається.
+  const state = window.createInitialState();
+  const vm = Object.assign({}, state);
+  Object.defineProperty(vm, "_data", { value: state, enumerable: false });
+
+  // Vue 2 прив'язує КОЖЕН метод до інстансу (`bind(vm)`). Робимо так само —
+  // інакше харнес поводиться інакше за браузер: код, який підміняє `this`
+  // через Object.create/call, у тестах «працює», а на сторінці мовчки
+  // рахує зі справжнім станом і вішає рендер у циклі.
+  const methods = Object.assign(
     {},
-    window.createInitialState(),
     window.createUiMethods(),
     window.createFeesMethods(),
     window.createMarketMethods(),
   );
+  Object.keys(methods).forEach(function (key) {
+    vm[key] = methods[key].bind(vm);
+  });
 
   const computed = window.createComputed();
   Object.keys(computed).forEach(function (key) {
@@ -61,6 +73,10 @@ function createVm(overrides) {
   });
 
   deepAssign(vm, overrides || {});
+  // Тримаємо _data синхронним із проксі-полями на інстансі.
+  Object.keys(state).forEach(function (key) {
+    state[key] = vm[key];
+  });
   return vm;
 }
 
