@@ -130,6 +130,12 @@ window.__createAllMethods = function () {
         return;
       }
 
+      // Підписи до фото живуть у HTML, а не в JSON лота. Кладемо їх у те саме
+      // дерево до applyLotJson, щоб вони потрапили в raw_json: інакше лот,
+      // перерахований із бази, лишався б без знімка VIN-таблички.
+      var captions = vm.parseImageCaptions(html);
+      if (captions.length) nd.imageCaptions = captions;
+
       vm.applyLotJson(nd, url, { save: true });
     },
 
@@ -372,6 +378,12 @@ window.__createAllMethods = function () {
           auction: lotData.auction || "",
           lotNumber: lotData.lotNumber || "",
           vin: lotData.vin || "",
+          // Повний VIN парсинг дати не може — маску знімає лише фото
+          // заводської таблички. Підтягнеться з БД (POST /api/lots повертає
+          // vin_full) або буде введений вручну.
+          vinFull: "",
+          lotId: null,
+          vinPlate: (vm.vinPlateImage(lotData.images) || {}).hd || "",
         };
         vm.lotCondition = {
           damage: lotData.primaryDamage || "",
@@ -431,7 +443,18 @@ window.__createAllMethods = function () {
           window.getAuctionById(row.auction).id === row.auction
         )
           vm.autoPricing.auctions.selected = row.auction;
+        // Підписи фото прилітають окремою колонкою: у лотів, збережених до
+        // 2026-08-23, їх у raw_json немає (парсер тоді не читав HTML), а
+        // scripts/vin-plate.mjs дописує саме колонку. Без цього посилання на
+        // фото VIN-таблички не з'являлось би на жодному старому лоті.
+        if (row.image_captions && row.image_captions.length && row.raw)
+          row.raw.imageCaptions = row.image_captions;
         vm.applyLotJson(row.raw, row.url, { save: false });
+        // applyLotJson перебирає currentLot з сирого JSON, а повного VIN там
+        // немає за визначенням — він лише в колонці vin_full. Тому доповнюємо
+        // після, а не до.
+        vm.currentLot.lotId = row.id || Number(id) || null;
+        vm.currentLot.vinFull = row.vin_full || "";
         return true;
       } catch (e) {
         vm.auctionStatus = "error";
@@ -863,7 +886,14 @@ window.__createAllMethods = function () {
     // замовчуванням. Викликається на початку parseAuctionLot, щоб дані одного
     // лоту ніколи не переносились на інший.
     resetLotData: function () {
-      this.currentLot = { auction: "", lotNumber: "", vin: "" };
+      this.currentLot = {
+        auction: "",
+        lotNumber: "",
+        vin: "",
+        vinFull: "",
+        lotId: null,
+        vinPlate: "",
+      };
       this.lotCondition = {
         damage: "",
         secondaryDamage: "",
@@ -1046,8 +1076,110 @@ window.__createAllMethods = function () {
       throw lastErr || new Error("API недоступне");
     },
     // Лог повного лота (всі поля + HD-фото/відео + сирий JSON) у SQLite.
+    // Відповідь несе id щойно збереженого рядка і його vin_full — повний VIN,
+    // якщо його вже колись зчитали з фото таблички. Парсинг його не приносить
+    // ніколи, тож без цього перечитаний лот щоразу показував би маску.
     logLot: function (payload) {
-      return this.postToApi("/api/lots", payload, "Лот");
+      var vm = this;
+      return vm
+        .apiFetch("/api/lots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        .then(function (res) {
+          // Тіло відповіді тут — приємний бонус, а не умова успіху: лот уже
+          // збережено. Тому і відсутній json(), і невалідний JSON у ньому
+          // не мають перетворювати вдалий запис на «не збережено в БД».
+          if (!res || typeof res.json !== "function") return {};
+          return res.json().catch(function () {
+            return {};
+          });
+        })
+        .then(function (body) {
+          vm.dbMsg = "";
+          if (body && body.id) vm.currentLot.lotId = body.id;
+          if (body && body.vinFull) vm.currentLot.vinFull = body.vinFull;
+          return true;
+        })
+        .catch(function (e) {
+          console.warn("[api] /api/lots", e.message);
+          vm.dbMsg =
+            "⚠ Лот не збережено в БД (" +
+            e.message +
+            "). Запусти `npm start` — статичний сервер /api не має.";
+          return false;
+        });
+    },
+
+    // Записує зчитаний з фото повний VIN у БД і на екран.
+    // Приймає або всі 17 символів, або лише хвіст, якого бракує в масці —
+    // з фото зручніше переписати саме останні 6.
+    saveVinFull: async function (input) {
+      var vm = this;
+      var raw = String(input == null ? "" : input)
+        .replace(/[\s-]/g, "")
+        .toUpperCase();
+      var mask = String(vm.currentLot.vin || "");
+      var full = raw;
+      if (raw && raw.length < 17 && mask.length === 17) {
+        var known = mask.replace(/\*+$/, "");
+        if (raw.length === 17 - known.length) full = known + raw;
+      }
+      if (full && !vm.vinCheckDigitOk(full)) {
+        vm.vinMsg = "⚠ Контрольна цифра VIN не сходиться — перевір символи.";
+        return false;
+      }
+      if (!vm.currentLot.lotId) {
+        vm.vinMsg = "⚠ Лот ще не збережений у БД — нема куди писати VIN.";
+        return false;
+      }
+      try {
+        var res = await vm.apiFetch("/api/lots/" + vm.currentLot.lotId + "/vin", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vinFull: full }),
+        });
+        var body = await res.json();
+        vm.currentLot.vinFull = body.vinFull || "";
+        vm.vinInput = "";
+        vm.vinMsg = body.vinFull ? "✔ VIN збережено." : "VIN очищено.";
+        return true;
+      } catch (e) {
+        vm.vinMsg = "⚠ Не вдалося зберегти VIN (" + e.message + ").";
+        return false;
+      }
+    },
+
+    // Контрольна цифра VIN (ISO 3779, позиція 9). Ловить одрук у переписаному
+    // з фото хвості — те, чого перевірка по масці аукціону зробити не може,
+    // бо маска приховує саме ті символи, які вводяться руками.
+    vinCheckDigitOk: function (vin) {
+      var v = String(vin || "").toUpperCase();
+      if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(v)) return false;
+      // Транслітерація літер у числа за ISO 3779. Не арифметична: J..R і S..Z
+      // починають відлік заново, тож рахувати її формулою від коду символу —
+      // класичний спосіб отримати «майже правильну» перевірку.
+      var val = {
+        A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
+        J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9,
+        S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
+      };
+      var weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+      var sum = 0;
+      for (var i = 0; i < 17; i++) {
+        var c = v[i];
+        var n = c >= "0" && c <= "9" ? Number(c) : val[c];
+        if (n === undefined) return false;
+        sum += n * weights[i];
+      }
+      var rest = sum % 11;
+      return (rest === 10 ? "X" : String(rest)) === v[8];
+    },
+
+    // Повний VIN, якщо його зчитали з таблички, інакше маска з аукціону.
+    displayVin: function () {
+      return this.currentLot.vinFull || this.currentLot.vin || "";
     },
     // Слова з назви філії лота, за якими шукається рядок довідника.
     // Виділено окремо, щоб matchAuctionLocation і locationMatchIsWeak
@@ -1159,7 +1291,37 @@ window.__createAllMethods = function () {
       if (auction === "copart") return "https://www.copart.com/lot/" + n;
       return "";
     },
+    // Підписи до фото лота: IAAI тримає їх НЕ в JSON, а окремим прихованим
+    // полем у HTML — один рядок через кому, у порядку видачі знімків
+    // («Passenger Front Image,…,Manufacturer VIN Plate,Engine photo,…»).
+    // Саме звідти видно, який знімок є заводською табличкою з повним VIN —
+    // єдиним безкоштовним джерелом останніх 6 символів, бо на самій сторінці
+    // VIN замаскований навіть залогіненому акаунту.
+    parseImageCaptions: function (html) {
+      var m = (html || "").match(
+        /<input[^>]*id="imageCaptions"[^>]*value="([^"]*)"/i,
+      );
+      if (!m) return [];
+      return m[1]
+        .split(",")
+        .map(function (s) {
+          return s.trim();
+        })
+        .filter(Boolean);
+    },
+
+    // Знімок заводської таблички серед фото лота (або null).
+    vinPlateImage: function (images) {
+      var list = images || [];
+      for (var i = 0; i < list.length; i++) {
+        if (/vin\s*plate/i.test(list[i].caption || "")) return list[i];
+      }
+      return null;
+    },
+
     // Витягує HD-фото, 360° та відео з JSON лота (IAAI; Copart — best-effort).
+    // `nd.imageCaptions` підкладає parseAuctionLot із HTML сторінки — воно
+    // лягає в raw_json, тож збережений лот переграється з бази як є.
     collectLotMedia: function (nd) {
       var images = [],
         videos = [],
@@ -1167,7 +1329,8 @@ window.__createAllMethods = function () {
       var iv = nd.inventoryView || {};
       var id = iv.imageDimensions || {};
       var keys = (id.keys && id.keys["$values"]) || [];
-      keys.forEach(function (o) {
+      var captions = nd.imageCaptions || [];
+      keys.forEach(function (o, i) {
         if (!o || !o.k) return;
         var base = "https://vis.iaai.com/resizer?imageKeys=" + o.k;
         images.push({
@@ -1175,6 +1338,7 @@ window.__createAllMethods = function () {
           thumb: base + "&width=" + (o.tw || 188) + "&height=" + (o.th || 141),
           w: o.w || 0,
           h: o.h || 0,
+          caption: captions[i] || "",
         });
       });
       if (id.image360Ind && id.image360Url) image360 = id.image360Url;
@@ -1341,6 +1505,7 @@ window.__createAllMethods = function () {
         saleLane: p(sv("Lane"), a.Lane),
         saleDate: s(sv("AuctionDateTime")),
         images: media.images,
+        imageCaptions: nd.imageCaptions || [],
         image360: media.image360,
         videos: media.videos,
         raw: nd,

@@ -165,7 +165,7 @@
                                     color: #111;
                                     user-select: all;
                                   "
-                                  >{{currentLot.vin}}</span
+                                  >{{displayVin()}}</span
                                 >
                                 <span v-if="currentLot.lotNumber"
                                   >· лот {{currentLot.lotNumber}}</span
@@ -182,6 +182,52 @@
                                   style="margin-left: 6px"
                                   >↗ сторінка лоту</a
                                 >
+                              </div>
+                              <!-- Зняття маски з VIN. IAAI показує лише перші
+                                   11 символів (і незалогіненому скрейпу, і
+                                   залогіненому акаунту — перевірено), а решту
+                                   6 видно тільки на фото заводської таблички,
+                                   яке сам же аукціон і викладає. Тож поруч —
+                                   посилання на це фото і поле, куди хвіст
+                                   переписується один раз і лягає в БД. -->
+                              <div
+                                v-if="currentLot.vin && !currentLot.vinFull"
+                                style="
+                                  font-size: 12px;
+                                  margin-bottom: 8px;
+                                  color: #6b7280;
+                                  display: flex;
+                                  flex-wrap: wrap;
+                                  align-items: center;
+                                  gap: 6px;
+                                "
+                              >
+                                <a
+                                  v-if="currentLot.vinPlate"
+                                  v-bind:href="currentLot.vinPlate"
+                                  target="_blank"
+                                  rel="noopener"
+                                  >🔍 фото VIN-таблички</a
+                                >
+                                <input
+                                  placeholder="останні 6 символів"
+                                  type="text"
+                                  v-model="vinInput"
+                                  v-on:keyup.enter="saveVinFull(vinInput)"
+                                  style="
+                                    width: 190px;
+                                    font-family:
+                                      ui-monospace, Menlo, Consolas, monospace;
+                                    text-transform: uppercase;
+                                  "
+                                />
+                                <button
+                                  type="button"
+                                  v-on:click="saveVinFull(vinInput)"
+                                >
+                                  зберегти VIN
+                                </button>
+                                <span v-if="vinMsg">{{vinMsg}}</span>
                               </div>
                               <!-- ──────────────────────── -->
                               <div class="field-row">

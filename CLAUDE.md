@@ -139,6 +139,36 @@ locations table by **branch name**, not city (the table is named after branches:
 
 - NY (IAAI)`).
 
+### The VIN is masked at the source; the full one comes off a photo
+
+`attributes.VIN` is `WP1AA2A53RL******` — the last 6 characters of the serial are never sent.
+This is **not** a login gate: verified 2026-08-23 on lot 46293657 that a logged-in session
+(`auctionInformation.userLoginStatus: true`) has no unmasked 17-character VIN anywhere in the
+DOM either, so forwarding a session cookie through the proxy buys nothing. Nor is it derivable —
+the check digit sits at position 9, inside the visible part.
+
+The one free source is the factory plate, which IAAI photographs and labels itself. The labels
+are in the page **HTML**, not the lot JSON: a hidden `<input id="imageCaptions">` holding one
+comma-separated list in image order (`Passenger Front Image,…,Manufacturer VIN Plate,Engine
+photo,…`). `parseAuctionLot` lifts it into `nd.imageCaptions` **before** `applyLotJson`, so it
+lands in `raw_json` and a lot replayed from the DB still knows which photo to open;
+`collectLotMedia` hangs it on each image as `caption`, and `vinPlateImage()` picks the plate.
+
+The mask stays in `lots.vin`, the VIN read off the plate lives in `lots.vin_full`, and every page
+shows `vin_full || vin`. `vin_full` is deliberately **absent from the lot UPSERT** — parsing can
+never produce it, so a re-parse has no way to clobber it; it is written only by
+`PUT /api/lots/:id/vin`, which checks the 17-character shape and that every non-`*` position
+matches the auction's mask. The client adds the ISO 3779 check digit (`vinCheckDigitOk`), which
+is the only check that can catch a typo in the hand-copied tail — the mask hides exactly those
+characters. `saveVinFull` accepts either all 17 or just the missing tail.
+
+`scripts/vin-plate.mjs` does the same for lots already in the DB: `--refetch` re-reads each lot
+page for its captions (stored in `lots.image_captions`, since old `raw_json` predates this) and
+prints the plate-photo URL, `--set <id> <VIN|tail>` writes one. Of the 25 stored lots only 7 were
+still live on 2026-08-23 — the other 18 return «not available», and their VINs stay masked
+permanently. Two BMWs (lots 10 and 26) share the mask `3MW5U9J07M8******` and turned out to be
+different cars (`B59684` vs `B56090`), which the UI could not distinguish before.
+
 ### The US departure port is derived, not chosen
 
 `location.toPort` is all `-1`, so the "cheapest port" branch in `onLocationChange()` never fires.
@@ -229,6 +259,8 @@ which is what the deal pill on each card shows. Companion pages read these:
 standing project rules — see memory). The same goes for the lot JSON: `raw_json` holds the whole
 payload, so a parser fix can be replayed over past lots instead of re-scraping —
 `node scripts/backfill-lot-fields.mjs --dry` shows what would change, without `--dry` writes it.
+`scripts/vin-plate.mjs` is the companion for the two columns that cannot come from `raw_json`
+(`vin_full`, `image_captions`) — see the VIN section above.
 It loads the real `market.methods.js` (through the jest ESM transform), so there is no second
 copy of the mapping to keep in sync, and it only fills columns that are currently NULL/empty.
 

@@ -235,7 +235,7 @@
                 r.id +
                 " · " +
                 [r.make, r.model, r.year].filter(Boolean).join(" ") +
-                (r.vin ? " · " + r.vin : "") +
+                (r.vin_full || r.vin ? " · " + (r.vin_full || r.vin) : "") +
                 " · ринок " +
                 fmt(r.market_price) +
                 " (n=" +
@@ -292,8 +292,10 @@
         var head =
           '<div class="lot-head">' +
           (carTitle ? "<b>" + esc(carTitle) + "</b>" : "") +
-          (d.vin
-            ? ' · VIN <span class="vin">' + esc(d.vin) + "</span>"
+          (d.vin_full || d.vin
+            ? ' · VIN <span class="vin">' +
+              esc(d.vin_full || d.vin) +
+              "</span>"
             : ' · <span class="muted">VIN невідомий (пошук без лота)</span>') +
           (d.lot_number
             ? " · " +

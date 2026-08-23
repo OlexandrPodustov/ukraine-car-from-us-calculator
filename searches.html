@@ -235,7 +235,9 @@
                 '</td><td class="vin" title="' +
                 esc(r.lot_number ? "лот " + r.lot_number : "") +
                 '">' +
-                esc(r.vin || "—") +
+                // vin_full — повний VIN, зчитаний з фото заводської таблички;
+                // vin — маска, яку віддає аукціон (останні 6 символів приховані).
+                esc(r.vin_full || r.vin || "—") +
                 "</td><td>" +
                 (eng || "—") +
                 "</td><td>" +

@@ -695,7 +695,10 @@
               " · " +
               (r.image_count || 0) +
               ' фото</div><div class="vin">VIN ' +
-              esc(r.vin || "—") +
+              // vin — маска аукціону (IAAI ховає останні 6 символів навіть
+              // від залогіненого акаунта), vin_full — зчитаний з фото
+              // заводської таблички. Показуємо повний, коли він є.
+              esc(r.vin_full || r.vin || "—") +
               '</div><div class="facts">' +
               facts +
               '</div><span class="pill">' +
@@ -753,13 +756,18 @@
       }
 
       // VIN окремо від row(): моноширинний і виділяється одним кліком —
-      // його зазвичай копіюють у Carfax/страховику.
-      function vinRow(v) {
+      // його зазвичай копіюють у Carfax/страховику. `full` — зчитаний з фото
+      // заводської таблички; якщо його нема, лишається маска аукціону, і тоді
+      // це видно з підпису, а не з мовчазних зірочок.
+      function vinRow(masked, full) {
+        var v = full || masked;
         if (!v) return "";
         return (
           '<tr><td>VIN</td><td><span class="vin" style="font-size:13px">' +
           esc(v) +
-          "</span></td></tr>"
+          "</span>" +
+          (full ? "" : ' <span class="muted">(маска аукціону)</span>') +
+          "</td></tr>"
         );
       }
 
@@ -826,7 +834,7 @@
           row("Збережено", dt(d.ts)) +
           row("Аукціон", (d.auction || "").toUpperCase()) +
           row("Лот №", d.lot_number) +
-          vinRow(d.vin) +
+          vinRow(d.vin, d.vin_full) +
           row(
             "Пробіг",
             d.odometer

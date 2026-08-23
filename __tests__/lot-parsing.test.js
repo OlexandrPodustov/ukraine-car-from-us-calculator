@@ -679,3 +679,111 @@ describe("стан лота в калькуляторі", () => {
     );
   });
 });
+
+/**
+ * Зняття маски з VIN.
+ *
+ * IAAI показує лише перші 11 символів — і незалогіненому скрейпу, і
+ * залогіненому акаунту (перевірено 2026-08-23 на лоті 46293657: у DOM
+ * сторінки під логіном немає жодного повного 17-значного VIN). Останні 6 є
+ * рівно на одному фото, яке аукціон підписує «Manufacturer VIN Plate» у
+ * прихованому полі imageCaptions — у HTML сторінки, а не в JSON лота.
+ */
+describe("VIN за маскою", () => {
+  const CAPTIONS_HTML =
+    '<input id="imageCaptions" type="hidden" value="Passenger Front Image,' +
+    'Dashboard / Odometer,Manufacturer VIN Plate,Engine photo" />';
+
+  it("читає підписи фото з HTML сторінки", () => {
+    const vm = iaaiVm();
+    expect(vm.parseImageCaptions(CAPTIONS_HTML)).toEqual([
+      "Passenger Front Image",
+      "Dashboard / Odometer",
+      "Manufacturer VIN Plate",
+      "Engine photo",
+    ]);
+    expect(vm.parseImageCaptions("<html>без підписів</html>")).toEqual([]);
+  });
+
+  it("розкладає підписи по фото в тому ж порядку і знаходить табличку", () => {
+    const vm = iaaiVm();
+    const nd = JSON.parse(JSON.stringify(LOT));
+    nd.imageCaptions = vm.parseImageCaptions(CAPTIONS_HTML);
+
+    const media = vm.collectLotMedia(nd);
+    expect(media.images[2].caption).toBe("Manufacturer VIN Plate");
+    expect(vm.vinPlateImage(media.images)).toBe(media.images[2]);
+  });
+
+  it("не вигадує табличку, коли підписів немає", () => {
+    const vm = iaaiVm();
+    const media = vm.collectLotMedia(LOT);
+    expect(media.images.length).toBeGreaterThan(0);
+    expect(vm.vinPlateImage(media.images)).toBe(null);
+  });
+
+  it("контрольна цифра ловить одрук у переписаному з фото хвості", () => {
+    const vm = iaaiVm();
+    // Реальний лот 46293657: маска WP1AA2A53RL******, з таблички — B16469.
+    expect(vm.vinCheckDigitOk("WP1AA2A53RLB16469")).toBe(true);
+    expect(vm.vinCheckDigitOk("WP1AA2A53RLB16468")).toBe(false);
+    // I, O, Q у VIN не бувають — саме щоб не плутались з 1 та 0.
+    expect(vm.vinCheckDigitOk("WP1AA2A53RLB1646O")).toBe(false);
+    expect(vm.vinCheckDigitOk("")).toBe(false);
+  });
+
+  it("показує повний VIN, коли він є, і маску, поки його нема", () => {
+    const vm = iaaiVm();
+    vm.currentLot = {
+      auction: "iaai",
+      lotNumber: "1",
+      vin: "WP1AA2A53RL******",
+    };
+    expect(vm.displayVin()).toBe("WP1AA2A53RL******");
+
+    vm.currentLot.vinFull = "WP1AA2A53RLB16469";
+    expect(vm.displayVin()).toBe("WP1AA2A53RLB16469");
+  });
+
+  it("добудовує повний VIN із самого хвоста й не пише на сервер сміття", async () => {
+    const vm = iaaiVm();
+    vm.currentLot = {
+      auction: "iaai",
+      lotNumber: "1",
+      vin: "WP1AA2A53RL******",
+      vinFull: "",
+      lotId: 34,
+      vinPlate: "",
+    };
+    let sent = null;
+    global.fetch = jest.fn((url, init) => {
+      sent = { url, body: JSON.parse(init.body) };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ok: true, vinFull: sent.body.vinFull }),
+      });
+    });
+
+    await vm.saveVinFull("b16469");
+    expect(sent.url).toMatch(/\/api\/lots\/34\/vin$/);
+    expect(sent.body.vinFull).toBe("WP1AA2A53RLB16469");
+    expect(vm.currentLot.vinFull).toBe("WP1AA2A53RLB16469");
+
+    // Одрук навіть не доходить до мережі.
+    global.fetch.mockClear();
+    await vm.saveVinFull("B16468");
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(vm.currentLot.vinFull).toBe("WP1AA2A53RLB16469");
+  });
+
+  it("не губить vin_full при повторному парсингу того самого лота", () => {
+    const vm = iaaiVm();
+    vm.logLot = () => Promise.resolve(true);
+    vm.applyLotJson(LOT, "https://x.iaai.com/1");
+    // Парсинг ніколи не приносить повного VIN — лише маску. Саме тому
+    // vin_full і не входить у UPSERT на сервері.
+    expect(vm.currentLot.vinFull).toBe("");
+    expect(vm.currentLot.vin).toMatch(/\*/);
+  });
+});

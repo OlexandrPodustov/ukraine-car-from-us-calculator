@@ -74,7 +74,7 @@ const LIST_COLS =
   "s.marka_id, s.model_id, s.model_matched, s.market_price, s.sample_count, " +
   "s.arithmetic_mean, s.iq_mean, s.median, s.total_cost, s.repair_cost, " +
   "s.diff, s.category, " +
-  "s.lot_id, l.vin, l.lot_number, l.auction";
+  "s.lot_id, l.vin, l.vin_full, l.lot_number, l.auction";
 
 // VIN зберігається лише в lots, тож у пошуки він приходить через lot_id.
 // LEFT JOIN — старі пошуки без прив'язки до лота лишаються з vin = NULL.
@@ -182,6 +182,17 @@ db.exec(`
   "options TEXT",
   "restraint_system TEXT",
   "who_can_buy TEXT",
+  // IAAI віддає VIN замаскованим (`WP1AA2A53RL******`) — і незалогіненому
+  // скрейпу, і залогіненому акаунту однаково: останні 6 символів серійника
+  // недоступні на сторінці взагалі. Єдине безкоштовне джерело повного VIN —
+  // фото заводської таблички (у `imageCaptions` воно підписане
+  // «Manufacturer VIN Plate»). Тому маска лишається в `vin` як прийшла з
+  // аукціону, а зчитаний з фото повний VIN живе окремо у `vin_full`, і
+  // всі сторінки показують `vin_full || vin`.
+  "vin_full TEXT",
+  // Підписи до фото в порядку їх видачі — саме вони кажуть, який зі знімків
+  // є табличкою з VIN. Лежать не в JSON лота, а в HTML сторінки.
+  "image_captions TEXT",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE lots ADD COLUMN " + col);
@@ -221,7 +232,7 @@ const lotIdLookupStmt = db.prepare(
 );
 
 const LOT_LIST_COLS =
-  "id, ts, url, auction, lot_number, vin, year, make, model, series, " +
+  "id, ts, url, auction, lot_number, vin, vin_full, year, make, model, series, " +
   "body_style, fuel, engine, transmission, color, odometer, primary_damage, " +
   "title_brand, acv, repair_cost, buy_now_price, min_bid, selling_branch, " +
   "branch_state, sale_date, image_count, primary_thumb, primary_hd, " +
@@ -261,11 +272,11 @@ const insertLotStmt = db.prepare(`
      vehicle_state, vehicle_zip, offsite, sale_lane, title_type, title_code,
      starts, catalytic_converter, cat_indicator, cat_text, key_fob,
      title_notes, hybrid, title_sale_doc, wheels, manufactured_in, options,
-     restraint_system, who_can_buy)
+     restraint_system, who_can_buy, image_captions)
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   -- COALESCE, а не голе excluded: повторний парсинг того самого лота
   -- НЕ має стирати поле, якого цього разу в JSON не виявилось. Саме так
   -- уже губились дані — до 2026-08-22 парсер читав неіснуючі ключі
@@ -332,7 +343,8 @@ const insertLotStmt = db.prepare(`
     manufactured_in=COALESCE(excluded.manufactured_in, manufactured_in),
     options=COALESCE(excluded.options, options),
     restraint_system=COALESCE(excluded.restraint_system, restraint_system),
-    who_can_buy=COALESCE(excluded.who_can_buy, who_can_buy)
+    who_can_buy=COALESCE(excluded.who_can_buy, who_can_buy),
+    image_captions=COALESCE(excluded.image_captions, image_captions)
 `);
 
 // У колонку url має потрапляти лише http(s)-посилання: одного разу туди
@@ -409,7 +421,7 @@ const server = http.createServer(function (req, res) {
   // могли звертатись до API на :5500.
   if (route.indexOf("/api/") === 0) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     if (req.method === "OPTIONS") {
       res.writeHead(204);
@@ -423,7 +435,7 @@ const server = http.createServer(function (req, res) {
   if (idMatch && req.method === "GET") {
     var row = db
       .prepare(
-        "SELECT s.*, l.vin, l.lot_number, l.auction" +
+        "SELECT s.*, l.vin, l.vin_full, l.lot_number, l.auction" +
           SEARCH_JOIN +
           "WHERE s.id = ?",
       )
@@ -477,7 +489,77 @@ const server = http.createServer(function (req, res) {
     delete lot.images_json;
     delete lot.videos_json;
     delete lot.raw_json;
+    try {
+      lot.image_captions = lot.image_captions
+        ? JSON.parse(lot.image_captions)
+        : [];
+    } catch (e) {
+      lot.image_captions = [];
+    }
     sendJson(res, 200, lot);
+    return;
+  }
+
+  // PUT /api/lots/:id/vin — дописати повний VIN, зчитаний з фото заводської
+  // таблички. Окремий ендпоінт, а не поле в POST /api/lots: повний VIN не
+  // приходить із парсингу взагалі, тож повторний скрейп лота не має жодного
+  // шансу його затерти (`vin_full` свідомо відсутній і в UPSERT вище).
+  var lotVinMatch = route.match(/^\/api\/lots\/(\d+)\/vin$/);
+  if (lotVinMatch && (req.method === "PUT" || req.method === "POST")) {
+    var vchunks = [];
+    req.on("data", function (c) {
+      vchunks.push(c);
+    });
+    req.on("end", function () {
+      try {
+        var vp = JSON.parse(Buffer.concat(vchunks).toString("utf8") || "{}");
+        var vinId = Number(lotVinMatch[1]);
+        var target = db
+          .prepare("SELECT id, vin FROM lots WHERE id = ?")
+          .get(vinId);
+        if (!target) {
+          sendJson(res, 404, { ok: false, error: "not found" });
+          return;
+        }
+        var full = String(vp.vinFull == null ? "" : vp.vinFull)
+          .trim()
+          .toUpperCase();
+        // Порожній рядок — свідоме стирання помилково введеного VIN.
+        if (!full) {
+          db.prepare("UPDATE lots SET vin_full = NULL WHERE id = ?").run(vinId);
+          sendJson(res, 200, { ok: true, vinFull: null });
+          return;
+        }
+        // I, O та Q у VIN не використовуються (ISO 3779) — саме щоб не
+        // плутались з 1 та 0. Тому вони ж і найкращий сигнал одруку.
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(full)) {
+          sendJson(res, 400, {
+            ok: false,
+            error: "VIN має бути 17 символів без I, O, Q",
+          });
+          return;
+        }
+        // Найнадійніша перевірка — сама маска з аукціону: усе, що IAAI
+        // показав, мусить збігтися символ у символ. Одрук у зчитаному з фото
+        // хвості так не спіймати, але переставлений чи чужий VIN — так.
+        var mask = String(target.vin || "").toUpperCase();
+        if (mask.length === 17) {
+          for (var mi = 0; mi < 17; mi++) {
+            if (mask[mi] !== "*" && mask[mi] !== full[mi]) {
+              sendJson(res, 400, {
+                ok: false,
+                error: "VIN не збігається з маскою аукціону " + target.vin,
+              });
+              return;
+            }
+          }
+        }
+        db.prepare("UPDATE lots SET vin_full = ? WHERE id = ?").run(full, vinId);
+        sendJson(res, 200, { ok: true, vinFull: full });
+      } catch (e) {
+        sendJson(res, 400, { ok: false, error: e.message });
+      }
+    });
     return;
   }
 
@@ -556,8 +638,25 @@ const server = http.createServer(function (req, res) {
             p.options || null,
             p.restraintSystem || null,
             p.whoCanBuy || null,
+            Array.isArray(p.imageCaptions) && p.imageCaptions.length
+              ? JSON.stringify(p.imageCaptions)
+              : null,
           );
-          sendJson(res, 201, { ok: true });
+          // Повертаємо id лота, щоб клієнт одразу знав, кому дописувати
+          // повний VIN, і міг показати вже збережений vin_full.
+          var saved = lotIdLookupStmt.get(
+            p.auction || null,
+            p.lotNumber || null,
+          );
+          sendJson(res, 201, {
+            ok: true,
+            id: saved ? saved.id : null,
+            vinFull: saved
+              ? db
+                  .prepare("SELECT vin_full FROM lots WHERE id = ?")
+                  .get(saved.id).vin_full
+              : null,
+          });
         } catch (e) {
           sendJson(res, 400, { ok: false, error: e.message });
         }
