@@ -167,11 +167,14 @@
           var head =
             "<tr><th>Дата</th><th>Авто</th><th>VIN</th><th>Двигун</th>" +
             "<th>Ринок</th><th>n</th><th>IQ-сер.</th><th>Медіана</th>" +
-            "<th>Наш кошт</th><th>Різниця</th><th>Оцінка</th><th></th></tr>";
+            "<th>Вкладено</th><th>Різниця</th><th>Оцінка</th><th></th></tr>";
           var body = rows
             .map(function (r) {
+              // esc обов'язковий: марка й модель приходять зі скрапленої
+              // сторінки аукціону, як і решта полів рядка. Це було єдине
+              // місце в таблиці, де значення йшло в innerHTML сирим.
               var car =
-                [r.make, r.model, r.year].filter(Boolean).join(" ") +
+                esc([r.make, r.model, r.year].filter(Boolean).join(" ")) +
                 (r.model_matched
                   ? ""
                   : " <span class='muted'>(марка+рік)</span>");
@@ -181,6 +184,18 @@
               ]
                 .filter(Boolean)
                 .join(" ");
+              // «Наш кошт» має збігатися з тим, від чого рахувалась різниця:
+              // ринок мінус розмитнений кошт РАЗОМ із ремонтом.
+              var spent =
+                r.total_cost === null || r.total_cost === undefined
+                  ? null
+                  : r.total_cost + (r.repair_cost || 0);
+              var spentTitle = r.repair_cost
+                ? "розмитнення " +
+                  fmt(r.total_cost) +
+                  " + ремонт " +
+                  fmt(r.repair_cost)
+                : "";
               var diffCls = r.diff > 0 ? "pos" : r.diff < 0 ? "neg" : "";
               var diffTxt =
                 r.diff === null
@@ -205,8 +220,10 @@
                 fmt(r.iq_mean) +
                 "</td><td>" +
                 fmt(r.median) +
-                "</td><td>" +
-                fmt(r.total_cost) +
+                "</td><td title='" +
+                esc(spentTitle) +
+                "'>" +
+                fmt(spent) +
                 "</td><td class='" +
                 diffCls +
                 "'>" +
