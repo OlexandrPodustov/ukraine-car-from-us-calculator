@@ -1336,6 +1336,9 @@ window.__createAllMethods = function () {
         .buyerFee(this.autoPricing.autoPrice);
     },
 
+    // Комісія банку: 0.5% від оплати аукціону + $30 + 0.5% від доставки.
+    // ⚠️ Джерело формули не встановлене, число успадковане з коміту
+    // 2021-07-28 — див. docs/shipping-rates-baseline.md, «Догляд провенансу».
     commissionBank: function () {
       var askss = Math.ceil((this.totalShippingFee() / 100) * 0.5);
       return Math.ceil(
@@ -1352,6 +1355,7 @@ window.__createAllMethods = function () {
     },
 
     // Страхування вантажу: 2% від ціни з молотка + збору, мінімум $100.
+    // ⚠️ Ставка теж із коміту 2021-07-28, без джерела.
     strahovka: function () {
       var strah = Math.ceil(
         ((this.autoPricing.autoPrice + this.auctionFee()) / 100) * 2,
@@ -1502,6 +1506,7 @@ window.__createAllMethods = function () {
     },
 
     // Надбавка за габарит: пікапи/вантажівки займають більше місця.
+    // ⚠️ $300 — оцінка, у коміті 9572538 джерело не вказане.
     oversizeFee: function () {
       return this.autoShipping.vehicleType === window.vehicleType[2].id
         ? 300
