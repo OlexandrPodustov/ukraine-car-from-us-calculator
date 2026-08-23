@@ -542,6 +542,50 @@
                             <div>{{totalCustomsFee()}}</div>
                           </div>
                         </div>
+                        <!-- Розклад — з customsBreakdown(), який і підсумовує
+                             totalCustomsFee(). Мито, акциз і ПДВ залежать від
+                             різних полів форми, тож одним числом не видно,
+                             що саме зробило суму такою. -->
+                        <div
+                          style="
+                            margin: -4px 0 10px;
+                            padding: 8px 12px;
+                            background: #f7f9fb;
+                            border-left: 3px solid #cfd8e3;
+                            border-radius: 4px;
+                          "
+                        >
+                          <div
+                            v-for="row in customsBreakdown()"
+                            v-bind:key="row.key"
+                            style="
+                              display: flex;
+                              justify-content: space-between;
+                              gap: 12px;
+                              font-size: 14px;
+                              color: #555;
+                              padding: 3px 0;
+                            "
+                          >
+                            <div>{{row.label}}</div>
+                            <div style="white-space: nowrap">
+                              ${{row.amount}}
+                            </div>
+                          </div>
+                          <div
+                            style="
+                              margin-top: 8px;
+                              padding-top: 8px;
+                              border-top: 1px solid #e2e8f0;
+                              font-size: 13px;
+                              color: #777;
+                            "
+                          >
+                            Митна вартість (база):
+                            ${{Math.round(customsBase())}} · курс НБУ €/$
+                            {{eurUsd}}
+                          </div>
+                        </div>
                         <!-- Фіксовані збори — з core/state.js (fixedFees).
                              Раніше кожна сума стояла тут числом і ще раз у
                              total(): таблиця й підсумок могли розійтися. -->

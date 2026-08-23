@@ -1567,6 +1567,20 @@ window.__createAllMethods = function () {
       );
     },
 
+    // Базова ставка акцизу, €/л. ПКУ 215.3.5-1: бензин 50 (100 понад 3.0 л),
+    // дизель 75 (150 понад 3.5 л). Винесено окремо, щоб і сума, і підпис у
+    // розкладі бралися з одного числа.
+    exciseRatePerLitre: function () {
+      var volume = Number.parseFloat(this.customs.engineVolume) || 0;
+      return this.customs.engineType === window.engineType.Diesel
+        ? volume <= 3.5
+          ? 75
+          : 150
+        : volume <= 3.0
+          ? 50
+          : 100;
+    },
+
     // Акциз у ЄВРО — ставки в ПКУ задані саме в євро.
     // ДВЗ: ставка за літр × об'єм × коефіцієнт віку.
     // Електро: 1 €/кВт·год БЕЗ коефіцієнта віку (окрема норма).
@@ -1575,15 +1589,26 @@ window.__createAllMethods = function () {
         return 1.0 * (Number.parseInt(this.customs.batteryKwh) || 0);
       }
       var volume = Number.parseFloat(this.customs.engineVolume) || 0;
-      var base =
-        this.customs.engineType === window.engineType.Diesel
-          ? volume <= 3.5
-            ? 75
-            : 150
-          : volume <= 3.0
-            ? 50
-            : 100;
-      return base * volume * this.ageCoefficient();
+      return this.exciseRatePerLitre() * volume * this.ageCoefficient();
+    },
+
+    // Формула акцизу словами — щоб у розкладі було видно, звідки взялась сума
+    // (ставка, об'єм і коефіцієнт віку разом дають розкид у рази).
+    exciseFormula: function () {
+      if (this.isElectricEngine()) {
+        return (
+          "€1/кВт·год × " + (Number.parseInt(this.customs.batteryKwh) || 0)
+        );
+      }
+      var volume = Number.parseFloat(this.customs.engineVolume) || 0;
+      return (
+        "€" +
+        this.exciseRatePerLitre() +
+        "/л × " +
+        volume +
+        " л × " +
+        this.ageCoefficient()
+      );
     },
 
     // Акциз у доларах. Курс євро тягнеться з НБУ (rates.service.js).
@@ -1602,10 +1627,39 @@ window.__createAllMethods = function () {
       return (this.customsBase() + this.importDuty() + this.exciseUsd()) * 0.2;
     },
 
+    // Розклад митних платежів. Той самий принцип, що й shippingBreakdown():
+    // totalCustomsFee() підсумовує саме ці рядки, тож таблиця й підсумок не
+    // можуть розійтися. До цього «Митні платежі» стояли в UI одним числом —
+    // найбільша стаття витрат після самого авто, і без жодного натяку, чому
+    // вона така: мито, акциз і ПДВ реагують на різні поля форми.
+    customsBreakdown: function () {
+      return [
+        {
+          key: "duty",
+          label: this.isElectricEngine()
+            ? "Ввізне мито (0% для електро)"
+            : "Ввізне мито 10%",
+          amount: Math.round(this.importDuty()),
+        },
+        {
+          key: "excise",
+          label: "Акциз (" + this.exciseFormula() + ")",
+          amount: Math.round(this.exciseUsd()),
+        },
+        {
+          key: "vat",
+          label: "ПДВ 20% (вартість + мито + акциз)",
+          amount: Math.round(this.vatFee()),
+        },
+      ];
+    },
+
     // Збір до Пенсійного фонду сюди НЕ входить — він рахується окремо в
     // mreo() і додається в total(). Не дублювати.
     totalCustomsFee: function () {
-      return Math.round(this.importDuty() + this.exciseUsd() + this.vatFee());
+      return this.customsBreakdown().reduce(function (sum, row) {
+        return sum + row.amount;
+      }, 0);
     },
 
     cleanValue: function () {

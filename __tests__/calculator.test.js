@@ -271,13 +271,39 @@ describe("Мито і ПДВ", () => {
     expect(vm.vatFee()).toBeGreaterThan(0);
   });
 
-  test("totalCustomsFee = мито + акциз + ПДВ, без збору до ПФ", () => {
+  test("totalCustomsFee = сума рядків розкладу (UI і сума не розходяться)", () => {
     const vm = createVm();
-    expect(vm.totalCustomsFee()).toBe(
-      Math.round(vm.importDuty() + vm.exciseUsd() + vm.vatFee()),
+    const rows = vm.customsBreakdown();
+    expect(rows.map((r) => r.key)).toEqual(["duty", "excise", "vat"]);
+    expect(vm.totalCustomsFee()).toBe(rows.reduce((s, r) => s + r.amount, 0));
+    // Рядки округлені поокремо, тож від «чесної» суми можна відійти на копійки.
+    expect(vm.totalCustomsFee()).toBeCloseTo(
+      vm.importDuty() + vm.exciseUsd() + vm.vatFee(),
+      -0.5,
     );
     // ПФ рахується окремо в mreo() і додається в total() — тут його бути не має.
     expect(vm.totalCustomsFee()).toBeLessThan(vm.total());
+  });
+
+  test("підпис акцизу показує ставку, об'єм і коефіцієнт віку", () => {
+    const vm = createVm({
+      customs: {
+        engineType: window.engineType.Diesel,
+        engineVolume: "4.0",
+        manufactureYear: window.currentYear - 10,
+      },
+    });
+    expect(vm.exciseRatePerLitre()).toBe(150);
+    expect(vm.exciseFormula()).toBe("€150/л × 4 л × 10");
+    expect(vm.exciseEur()).toBeCloseTo(150 * 4 * 10, 5);
+  });
+
+  test("для електро підпис акцизу — за кВт·год, мито 0%", () => {
+    const vm = createVm({
+      customs: { engineType: window.engineType.Electric, batteryKwh: 77 },
+    });
+    expect(vm.exciseFormula()).toBe("€1/кВт·год × 77");
+    expect(vm.customsBreakdown()[0].amount).toBe(0);
   });
 });
 
