@@ -17,8 +17,11 @@ const PORT = process.env.PORT || 5500;
 const HOST = process.env.HOST || "127.0.0.1";
 
 // ── DB ──────────────────────────────────────────────────────────────
-fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
-const db = new DatabaseSync(path.join(ROOT, "data", "searches.db"));
+// Шлях до бази перекривається змінною оточення — інакше будь-який запуск
+// сервера (зокрема з тесту) чіпав би робочу data/searches.db.
+const DB_PATH = process.env.DB_PATH || path.join(ROOT, "data", "searches.db");
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+const db = new DatabaseSync(DB_PATH);
 db.exec(`
   CREATE TABLE IF NOT EXISTS searches (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,11 +89,6 @@ const insertStmt = db.prepare(`
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
-
-// Знаходить id лота за (аукціон, номер лота), щоб прив'язати до нього пошук.
-const lotIdLookupStmt = db.prepare(
-  "SELECT id FROM lots WHERE auction = ? AND lot_number = ?",
-);
 
 // ── Таблиця лотів (повна інформація + HD-фото/відео + сирий JSON) ─────
 db.exec(`
@@ -204,6 +202,14 @@ db.exec(`
 db.exec(
   "CREATE UNIQUE INDEX IF NOT EXISTS idx_lots_auction_lot " +
     "ON lots(auction, lot_number)",
+);
+
+// Знаходить id лота за (аукціон, номер лота), щоб прив'язати до нього пошук.
+// Готується ПІСЛЯ CREATE TABLE lots: на порожній базі prepare() падає з
+// «no such table», і сервер не піднімався взагалі — не було видно лише тому,
+// що data/searches.db лежить у репозиторії вже створеною.
+const lotIdLookupStmt = db.prepare(
+  "SELECT id FROM lots WHERE auction = ? AND lot_number = ?",
 );
 
 const LOT_LIST_COLS =
@@ -616,6 +622,6 @@ const server = http.createServer(function (req, res) {
 
 server.listen(PORT, HOST, function () {
   console.log("▶ http://" + HOST + ":" + PORT);
-  console.log("  SQLite: " + path.join(ROOT, "data", "searches.db"));
+  console.log("  SQLite: " + DB_PATH);
   console.log("  Перегляд логів: http://localhost:" + PORT + "/api/searches");
 });

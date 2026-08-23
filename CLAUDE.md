@@ -12,6 +12,7 @@ server (`server.js`) serves the static files and logs every lookup to SQLite.
 ## Commands
 
 ```bash
+DB_PATH=/tmp/x.db PORT=5599 npm start   # інша база й порт — для перевірок, робочу БД не чіпає
 npm start            # Node server on 127.0.0.1:5500 — static files + /api SQLite logging. Needs Node 24+ (node:sqlite).
 #                      Localhost only on purpose: it serves config.js (AUTO.RIA key, proxy URL) and an
 #                      unauthenticated /api. HOST=0.0.0.0 npm start to expose it deliberately.
@@ -196,7 +197,11 @@ percentiles / classifieds) and `lots` (full parsed lot incl. HD photo URLs, 360�
 re-parsing the same lot updates rather than duplicates — with `COALESCE(excluded.col, col)`, so a
 re-parse that comes back thinner than the first one does not blank the columns it could not fill
 (`ts` and `offsite` are always sent, so they overwrite outright). A search links to its lot via `lot_id`.
-Schema migrations are done with try/catch `ALTER TABLE ADD COLUMN`. `GET /api/lots` also
+Schema migrations are done with try/catch `ALTER TABLE ADD COLUMN`. Every `db.prepare(...)` must
+come **after** the `CREATE TABLE` it names — `lotIdLookupStmt` sat above `CREATE TABLE lots` until
+2026-08-23, so the server threw «no such table: lots» on any empty database and only ever worked
+because `data/searches.db` ships in the repo. `DB_PATH` overrides the database file, which is how
+`__tests__/server.test.js` drives the real server against a throwaway copy. `GET /api/lots` also
 LEFT JOINs the most recent search per lot (`market_price` / `total_cost` / `diff` / `category`),
 which is what the deal pill on each card shows. Companion pages read these:
 `lots.html`, `searches.html`, and `stats.html` (draws distribution charts from the stored
