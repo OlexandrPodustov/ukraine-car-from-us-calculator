@@ -72,7 +72,28 @@ describe("влучання в кеш ринкової ціни", () => {
     expect(logged[0].filtersApplied).toContain("кеш");
   });
 
-  it("рядок з кешу несе той самий кошт із ремонтом, що й свіжий", async () => {
+  it("категорія з кешу не переїжджає на інший лот", async () => {
+    // Ключ кешу — модель/рік/пробіг/коробка, а не лот. Збережена категорія
+    // належала авто з іншою ставкою, тож вердикт мусить рахуватись заново:
+    // на екрані інакше виходило «✅ Вигідна» поруч із мінусовою різницею.
+    const vm = marketVm({ autoPricing: { autoPrice: 30000 } });
+    vm.currentLot = { auction: "iaai", lotNumber: "1", vin: "" };
+    vm.logSearch = () => Promise.resolve(true);
+    vm.writeMarketCache(vm.getMarketCacheKey(vm.normalizeMarketTarget()), {
+      ts: Date.now(),
+      medianPrice: 20000,
+      sampleCount: 7,
+      marketCategory: "underpriced",
+    });
+
+    await vm.lookupUkrainianPrice();
+
+    expect(vm.marketPriceDifference()).toBe(20000 - vm.total());
+    expect(vm.marketPriceDifference()).toBeLessThan(0);
+    expect(vm.customs.marketCategory).toBe("overpriced");
+  });
+
+  it("рядок з кешу несе той самий кошт, що й свіжий", async () => {
     const vm = marketVm({ repairCost: 4000 });
     vm.currentLot = { auction: "iaai", lotNumber: "1", vin: "" };
     let payload = null;
@@ -90,8 +111,10 @@ describe("влучання в кеш ринкової ціни", () => {
     await vm.lookupUkrainianPrice();
 
     expect(payload.totalCost).toBe(vm.total());
+    // Кошторис ремонту з аукціону їде в БД окремою колонкою, але у вигідність
+    // не входить: це ціни США (див. marketPriceDifference).
     expect(payload.repairCost).toBe(4000);
-    expect(payload.diff).toBe(40000 - vm.total() - 4000);
+    expect(payload.diff).toBe(40000 - vm.total());
   });
 });
 

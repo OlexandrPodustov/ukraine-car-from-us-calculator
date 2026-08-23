@@ -281,21 +281,23 @@
           return x > 0;
         });
         var p = d.percentiles || {};
-        // «Наш кошт» на графіку — це те, у що авто обійдеться ПОЛАГОДЖЕНИМ:
-        // ряд цін з AUTO.RIA — це ціни цілих авто, тож розмитнений салведж
-        // без ремонту стояв би на цій шкалі не на своєму місці.
+        // «Наш кошт» на графіку — фінальна ціна авто на українських номерах.
+        // Кошторис ремонту з лота сюди не додається: це оцінка американського
+        // аукціону в цінах США (див. marketPriceDifference у калькуляторі), і
+        // на шкалі українських оголошень вона нічого не означає.
         var repair = d.repair_cost || 0;
-        var lot = d.total_cost == null ? null : d.total_cost + repair;
+        var lot = d.total_cost == null ? null : d.total_cost;
         var market = d.market_price;
+        // Різницю перераховуємо: у збереженому diff до 2026-08-23 сидів
+        // ринок − (кошт + ремонт).
+        var diff = lot == null || market == null ? null : market - lot;
 
         var carTitle = [d.year, d.make, d.model].filter(Boolean).join(" ");
         var head =
           '<div class="lot-head">' +
           (carTitle ? "<b>" + esc(carTitle) + "</b>" : "") +
           (d.vin_full || d.vin
-            ? ' · VIN <span class="vin">' +
-              esc(d.vin_full || d.vin) +
-              "</span>"
+            ? ' · VIN <span class="vin">' + esc(d.vin_full || d.vin) + "</span>"
             : ' · <span class="muted">VIN невідомий (пошук без лота)</span>') +
           (d.lot_number
             ? " · " +
@@ -312,10 +314,13 @@
           card("IQ-середнє", fmt(d.iq_mean)) +
           card("Медіана", fmt(d.median || pct(p, "50.0"))) +
           card("Ринок (оцінка)", fmt(market)) +
-          card(repair ? "Наш кошт + ремонт" : "Наш кошт", fmt(lot)) +
+          card("Наш кошт", fmt(lot)) +
+          (repair ? card("Ремонт (США, довідково)", fmt(repair)) : "") +
           card(
             "Різниця",
-            (d.diff > 0 ? "+" : "") + fmt(d.diff).replace("$-", "-$"),
+            diff === null
+              ? "—"
+              : (diff > 0 ? "+" : "") + fmt(diff).replace("$-", "-$"),
           ) +
           "</div>";
 

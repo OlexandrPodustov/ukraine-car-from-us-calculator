@@ -850,9 +850,10 @@
                           v-bind:style="benefit()>=0?{color:'#1a7a1a'}:{color:'#c00000'}"
                         >
                           <div class="values_title">
-                            Вигода угоди
+                            Вигода за ACV (США)
                             <span style="font-size: 12px; font-weight: 400"
-                              >(ACV−ремонт − підсумок)</span
+                              >(ACV−ремонт − підсумок) — довідково, це
+                              американські цифри</span
                             >
                           </div>
                           <div class="price">
@@ -901,8 +902,8 @@
                         </div>
                         <!-- Стеля за українським ринком. ACV — це оцінка
                              страховика в США; для перепродажу тут вирішує ціна,
-                             за яку авто піде на AUTO.RIA, а ремонт входить у
-                             витрати окремо (ринкова ціна — це ціна ЦІЛОГО авто). -->
+                             за яку авто піде на AUTO.RIA. Американський
+                             кошторис ремонту в цю стелю не входить. -->
                         <div
                           class="valuess total"
                           v-if="customs.ukrainianMarketPrice > 0"
@@ -917,7 +918,7 @@
                             Макс. ставка за укр. ринком
                             <div style="font-size: 12px; font-weight: 400">
                               ринок ${{customs.ukrainianMarketPrice}} ×
-                              {{riskCoefficient}} − ремонт − інші витрати
+                              {{riskCoefficient}} − інші витрати
                             </div>
                           </div>
                           <div class="price">
@@ -1039,14 +1040,21 @@
                               "
                             >
                               <div class="values_title" style="font-size: 13px">
-                                Різниця (укр. ринок − вкладено)
+                                Різниця (укр. ринок − фінальна ціна)
                                 <div style="font-size: 12px; font-weight: 400">
-                                  вкладено = підсумок ${{total()}}<span
-                                    v-if="repairCost > 0"
-                                  >
-                                    + ремонт ${{repairCost}} =
-                                    ${{totalWithRepair()}}</span
-                                  >
+                                  ринок ${{customs.ukrainianMarketPrice}} −
+                                  фінальна ціна на укр. номерах ${{total()}}
+                                </div>
+                                <div
+                                  v-if="repairCost > 0"
+                                  style="
+                                    font-size: 12px;
+                                    font-weight: 400;
+                                    opacity: 0.75;
+                                  "
+                                >
+                                  ремонт ${{repairCost}} — кошторис аукціону в
+                                  цінах США, у розрахунок не входить
                                 </div>
                               </div>
                               <div class="price">

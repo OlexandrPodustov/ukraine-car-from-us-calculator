@@ -207,31 +207,44 @@ priced on Copart's fee schedule, matched against Copart branches (a different in
 to copart.com, and its next price search failed to find the lot by `(auction, lot_number)` and was
 stored with no `lot_id` at all.
 
-### `total()` is the landed cost; the deal metrics net out the repair
+### The deal verdict is a Ukrainian-side subtraction; `repairCost` is a US number
 
-`total()` = everything it takes to put the car on Ukrainian soil, customs cleared. It deliberately
-does **not** include the repair bill. Every metric that compares the car against a *whole* car's
-value adds it back:
+`total()` = everything it takes to put the car on Ukrainian plates, customs cleared — the
+«Фінальна ціна авто на українських номерах» line. The headline verdict is
 
-- `benefit()` = `(ACV − repair) − total()`
-- `totalWithRepair()` = `total() + repair`, and `marketPriceDifference()` = AUTO.RIA price −
-  `totalWithRepair()`
+- `marketPriceDifference()` = AUTO.RIA price − `total()`
+- `maxBidForMarket()` solves `totalForPrice(bid) ≤ AUTO.RIA price × riskCoefficient`
+
+Both sides of that subtraction are Ukrainian: what the car sells for here, and what it cost to
+get it here. **`repairCost` is deliberately not in either.** It is filled from the auction's own
+estimate — a US insurer's cost to restore the car at US labour rates with OEM parts — and it has
+no bearing on what the same repair costs in Ukraine. On a real lot (Audi S5 2024, IAAI) that
+estimate is $38,711 against a $49,150 Ukrainian market price, so subtracting it turned a
+$25,961 margin into −$12,750 and marked the lot as a loss. Between 2026-08-23 and the fix on the
+same day the repair *was* subtracted, and every salvage lot in the app read as hopeless.
+
+The ACV-side metrics stay, clearly labelled as US reference figures and out of the verdict path:
+
+- `cleanValue()` = `ACV − repair`, `benefit()` = `cleanValue() − total()` — «Вигода за ACV (США)»
 - `maxBid()` solves `totalForPrice(bid) ≤ (ACV − repair) × riskCoefficient`
-- `maxBidForMarket()` solves `totalForPrice(bid) + repair ≤ AUTO.RIA price × riskCoefficient` —
-  the ceiling that matters for a resale, since ACV is a US insurer's number and runs well above
-  what the car fetches here (on a $45k-ACV / $9k-repair lot against a $38k Ukrainian price the two
-  ceilings come out $12,275 and $6,961). Both go through `solveMaxBid(target, extraCost)`.
 
-Until 2026-08-23 `marketPriceDifference()` subtracted the bare `total()`, so the headline
-«Різниця» and the deal pill on every `lots.html` card overstated the margin by the whole repair
-estimate — on a $9k-repair salvage the number came out ~3.7× too optimistic, and practically every
-lot read as «Вигідна». `benefit()` had always been right, so the two headline figures on the same
-screen contradicted each other.
+Both ceilings go through `solveMaxBid(target, extraCost)`; `extraCost` is now always 0, kept
+because a *Ukrainian* repair estimate is exactly what would go there if one is ever added — and
+that, not the auction's figure, is the honest way to net out the repair.
 
-In the DB the two halves stay separate: `searches.total_cost` is the landed cost, the new
-`searches.repair_cost` is the repair estimate at search time, and `diff` is market − (both). In
-`GET /api/lots` the joined column is aliased `search_repair_cost`, because `lots.repair_cost`
-(the auction's own estimate) is already in that row.
+In the DB the two halves stay separate: `searches.total_cost` is the landed cost,
+`searches.repair_cost` is the auction's repair estimate at search time (stored, not used in the
+verdict), and `diff` is market − `total_cost`. In `GET /api/lots` the joined column is aliased
+`search_repair_cost`, because `lots.repair_cost` (the auction's own estimate) is already in that
+row. Rows written before the fix carry the old `diff`, so `lots.html`, `searches.html` and
+`stats.html` **recompute it** from the stored `market_price − total_cost` instead of trusting the
+column — which also re-derives the deal pill's category, so old cards stop showing a stale verdict.
+
+The verdict is also **never** taken from the market cache. `writeMarketCache` still stores
+`marketCategory`, but the cache-hit branch of `lookupUkrainianPrice` now passes `null` to
+`applyMarketResult` and recomputes: the cache key is model/year/mileage/gearbox, not the lot, so
+the stored category belonged to a car bought at a different price — which is how «✅ Вигідна»
+ended up sitting next to a negative «Різниця» computed on the same screen.
 
 ### Two external integrations
 

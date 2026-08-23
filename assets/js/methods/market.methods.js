@@ -591,23 +591,22 @@ window.__createAllMethods = function () {
         return r.value;
       });
     },
-    // Скільки грошей реально вкладено в авто: розмитнений кошт ПЛЮС ремонт.
-    // Для салведж-лота це різні речі — total() доводить розбите авто до
-    // України, а продати його можна лише полагодженим.
-    totalWithRepair: function () {
-      var repair = Number(this.repairCost) || 0;
-      return this.total() + (repair > 0 ? repair : 0);
-    },
-    // Ринкова ціна на AUTO.RIA — це ціна ЦІЛОГО авто, тож віднімати від неї
-    // треба весь вкладений кошт разом із ремонтом. Раніше тут стояв
-    // total() без ремонту: на типовому салведжі ($9k ремонту) різниця
-    // виходила втричі оптимістичнішою за реальну, і кожен лот виглядав
-    // вигідним. `benefit()` рахував це правильно з самого початку
-    // (ACV − ремонт − total), тож дві головні цифри на екрані ще й
-    // суперечили одна одній.
+    // ГОЛОВНА цифра вигідності: ціна на українському ринку мінус фінальна
+    // ціна авто на українських номерах (`total()`). Обидві — гривневий, тобто
+    // український, бік угоди: за скільки авто тут продається і в скільки воно
+    // тут обійшлося.
+    //
+    // Ремонт сюди НЕ входить свідомо. `repairCost` підставляється з лота —
+    // це оцінка американського аукціону (страхова вартість відновлення за
+    // цінами США, оригінальні деталі, американська нормо-година). До вартості
+    // ремонту в Україні вона стосунку не має: на Audi S5 2024 аукціон малює
+    // $38 711 при ринковій ціні авто $49 150, і будь-яка арифметика з цим
+    // числом робить кожен лот безнадійно збитковим. Доки в калькуляторі немає
+    // окремої української оцінки ремонту, чесніше не віднімати нічого, ніж
+    // віднімати завідомо чужу цифру.
     marketPriceDifference: function () {
       return Math.round(
-        (this.customs.ukrainianMarketPrice || 0) - this.totalWithRepair(),
+        (this.customs.ukrainianMarketPrice || 0) - this.total(),
       );
     },
     // Ключ кешу мусить містити ВСЕ, що впливає на запит до RIA. Пробіг і
@@ -1039,8 +1038,7 @@ window.__createAllMethods = function () {
       this.marketTarget = this.marketSignature();
       this.customs.ukrainianMarketPrice = price;
       var diff = this.marketPriceDifference();
-      var cat =
-        category || this.getMarketCategoryByDiff(diff, this.totalWithRepair());
+      var cat = category || this.getMarketCategoryByDiff(diff, this.total());
       this.customs.marketCategory = cat;
       return cat;
     },
@@ -1065,8 +1063,9 @@ window.__createAllMethods = function () {
         iqMean: r.iqMean || 0,
         median: r.median || 0,
         // total_cost — розмитнений кошт БЕЗ ремонту, repair_cost окремо:
-        // так у БД видно обидві складові, а diff (ринок − усе разом)
-        // лишається тим самим числом, що й на екрані.
+        // так у БД видно обидві складові. diff = ринок − total_cost, тобто
+        // те саме число, що й на екрані (американський кошторис ремонту у
+        // вигідність не входить — див. marketPriceDifference).
         totalCost: this.total(),
         repairCost: Number(this.repairCost) || 0,
         diff: this.marketPriceDifference(),
@@ -1214,11 +1213,14 @@ window.__createAllMethods = function () {
         return false;
       }
       try {
-        var res = await vm.apiFetch("/api/lots/" + vm.currentLot.lotId + "/vin", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vinFull: full }),
-        });
+        var res = await vm.apiFetch(
+          "/api/lots/" + vm.currentLot.lotId + "/vin",
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ vinFull: full }),
+          },
+        );
         var body = await res.json();
         vm.currentLot.vinFull = body.vinFull || "";
         // currentLot під жодним watcher-ом не ходить — зберігаємо явно,
@@ -1243,9 +1245,29 @@ window.__createAllMethods = function () {
       // починають відлік заново, тож рахувати її формулою від коду символу —
       // класичний спосіб отримати «майже правильну» перевірку.
       var val = {
-        A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
-        J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9,
-        S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
+        A: 1,
+        B: 2,
+        C: 3,
+        D: 4,
+        E: 5,
+        F: 6,
+        G: 7,
+        H: 8,
+        J: 1,
+        K: 2,
+        L: 3,
+        M: 4,
+        N: 5,
+        P: 7,
+        R: 9,
+        S: 2,
+        T: 3,
+        U: 4,
+        V: 5,
+        W: 6,
+        X: 7,
+        Y: 8,
+        Z: 9,
       };
       var weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
       var sum = 0;
@@ -1623,10 +1645,12 @@ window.__createAllMethods = function () {
         var cacheKey = vm.getMarketCacheKey(target);
         var cached = vm.readMarketCache(cacheKey);
         if (cached) {
-          var cachedCategory = vm.applyMarketResult(
-            cached.medianPrice,
-            cached.marketCategory,
-          );
+          // Категорію рахуємо заново, а НЕ беремо `cached.marketCategory`:
+          // ключ кешу — це модель/рік/пробіг/коробка, а не лот. Вердикт же
+          // залежить від ціни ЦЬОГО лота, тож збережена категорія належала
+          // іншому авто — на екрані виходило «✅ Вигідна» поруч із мінусовою
+          // різницею, порахованою тут-таки.
+          var cachedCategory = vm.applyMarketResult(cached.medianPrice, null);
           vm.marketStatus = "ok";
           vm.marketMsg =
             "✅ " +
@@ -2236,16 +2260,12 @@ window.__createAllMethods = function () {
     // ACV — це оцінка страховика в США, і на типовому лоті вона на тисячі
     // доларів вища за те, скільки за таке авто дадуть тут.
     //
-    // Ремонт входить у витрати окремим доданком: ринкова ціна — це ціна
-    // ЦІЛОГО авто, а totalForPrice() доводить до України розбите.
+    // Американський кошторис ремонту сюди не додається — з тієї ж причини,
+    // що й у marketPriceDifference(): це ціни США, а не України.
     maxBidForMarket: function () {
       var market = this.customs.ukrainianMarketPrice || 0;
       if (!(market > 0)) return 0;
-      var repair = Number(this.repairCost) || 0;
-      return this.solveMaxBid(
-        market * this.riskCoefficient,
-        repair > 0 ? repair : 0,
-      );
+      return this.solveMaxBid(market * this.riskCoefficient, 0);
     },
 
     // Найбільша ціна з молотка, за якої totalForPrice(ціна) + extraCost ще

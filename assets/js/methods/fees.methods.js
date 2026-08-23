@@ -35,7 +35,6 @@ window.feesMethodNames = [
   "recalcMaxBid",
   "fixedFeesTotal",
   "total",
-  "totalWithRepair",
 ];
 
 window.createFeesMethods = function () {

@@ -210,23 +210,31 @@
               ]
                 .filter(Boolean)
                 .join(" ");
-              // «Наш кошт» має збігатися з тим, від чого рахувалась різниця:
-              // ринок мінус розмитнений кошт РАЗОМ із ремонтом.
+              // «Наш кошт» — фінальна ціна авто на українських номерах, від
+              // неї ж рахується різниця. Кошторис ремонту з аукціону сюди не
+              // додається: це ціни США (див. marketPriceDifference), тож він
+              // лишається довідковим числом у підказці.
               var spent =
                 r.total_cost === null || r.total_cost === undefined
                   ? null
-                  : r.total_cost + (r.repair_cost || 0);
+                  : r.total_cost;
               var spentTitle = r.repair_cost
-                ? "розмитнення " +
-                  fmt(r.total_cost) +
-                  " + ремонт " +
+                ? "ремонт за кошторисом аукціону (США, не враховано) " +
                   fmt(r.repair_cost)
                 : "";
-              var diffCls = r.diff > 0 ? "pos" : r.diff < 0 ? "neg" : "";
+              // Різницю перераховуємо, а не читаємо збережений diff: до
+              // 2026-08-23 у ньому стояв ринок − (кошт + ремонт).
+              var diff =
+                spent === null ||
+                r.market_price === null ||
+                r.market_price === undefined
+                  ? null
+                  : r.market_price - spent;
+              var diffCls = diff > 0 ? "pos" : diff < 0 ? "neg" : "";
               var diffTxt =
-                r.diff === null
+                diff === null
                   ? "—"
-                  : (r.diff > 0 ? "+" : "") + fmt(r.diff).replace("$-", "-$");
+                  : (diff > 0 ? "+" : "") + fmt(diff).replace("$-", "-$");
               return (
                 "<tr><td>" +
                 dt(r.ts) +

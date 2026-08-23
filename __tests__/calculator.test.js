@@ -486,55 +486,52 @@ describe("Наземне плече", () => {
 });
 
 describe("Порівняння з українським ринком", () => {
-  test("вкладено = розмитнений кошт + ремонт", () => {
-    const vm = createVm({ repairCost: 9000 });
-    expect(vm.totalWithRepair()).toBe(vm.total() + 9000);
-  });
-
-  test("від'ємний ремонт не зменшує вкладене", () => {
-    const vm = createVm({ repairCost: -500 });
-    expect(vm.totalWithRepair()).toBe(vm.total());
-  });
-
-  test("різниця з ринком враховує ремонт", () => {
-    // Ціна на AUTO.RIA — це ціна ЦІЛОГО авто. Салведж, який коштує $9000
-    // полагодити, не можна порівнювати з нею за самим лише розмитненим
-    // коштом: саме так кожен лот і виглядав вигідним.
+  // Вигідність міряється двома українськими цифрами: за скільки авто
+  // продається на AUTO.RIA і в скільки воно обійшлося на українських
+  // номерах. `repairCost` у цю арифметику не входить — його підставляє
+  // аукціон, і це кошторис відновлення за американськими цінами.
+  test("різниця з ринком = ринок − фінальна ціна на укр. номерах", () => {
     const vm = createVm({
       autoPricing: { autoPrice: 12000 },
       repairCost: 9000,
       customs: { ukrainianMarketPrice: 38000 },
     });
-    expect(vm.marketPriceDifference()).toBe(38000 - vm.total() - 9000);
-    expect(vm.marketPriceDifference()).toBe(38000 - vm.totalWithRepair());
+    expect(vm.marketPriceDifference()).toBe(38000 - vm.total());
   });
 
-  test("ремонт може перевернути вердикт із вигідного на невигідний", () => {
+  test("американський кошторис ремонту не рухає різницю", () => {
+    const base = { autoPricing: { autoPrice: 12000 } };
     const cheapRepair = createVm({
-      autoPricing: { autoPrice: 12000 },
+      ...base,
       repairCost: 0,
       customs: { ukrainianMarketPrice: 30000 },
     });
     const dearRepair = createVm({
+      ...base,
+      repairCost: 12000,
+      customs: { ukrainianMarketPrice: 30000 },
+    });
+    expect(dearRepair.marketPriceDifference()).toBe(
+      cheapRepair.marketPriceDifference(),
+    );
+  });
+
+  test("категорія угоди рахується від фінальної ціни, не від ціни з ремонтом", () => {
+    const vm = createVm({
       autoPricing: { autoPrice: 12000 },
       repairCost: 12000,
       customs: { ukrainianMarketPrice: 30000 },
     });
-    expect(
-      cheapRepair.getMarketCategoryByDiff(
-        cheapRepair.marketPriceDifference(),
-        cheapRepair.totalWithRepair(),
-      ),
-    ).toBe("underpriced");
-    expect(
-      dearRepair.getMarketCategoryByDiff(
-        dearRepair.marketPriceDifference(),
-        dearRepair.totalWithRepair(),
-      ),
-    ).toBe("overpriced");
+    const diff = vm.marketPriceDifference();
+    expect(vm.getMarketCategoryByDiff(diff, vm.total())).toBe(
+      diff > 0 ? "underpriced" : "overpriced",
+    );
+    expect(vm.applyMarketResult(30000)).toBe(
+      vm.getMarketCategoryByDiff(diff, vm.total()),
+    );
   });
 
-  test("макс. ставка за ринком: витрати з ремонтом вкладаються в ринок × ризик", () => {
+  test("макс. ставка за ринком: витрати вкладаються в ринок × ризик", () => {
     const vm = createVm({
       repairCost: 6000,
       riskCoefficient: 0.7,
@@ -544,9 +541,9 @@ describe("Порівняння з українським ринком", () => {
     const limit = 40000 * 0.7;
 
     expect(bid).toBeGreaterThan(0);
-    expect(vm.totalForPrice(bid) + 6000).toBeLessThanOrEqual(limit);
+    expect(vm.totalForPrice(bid)).toBeLessThanOrEqual(limit);
     // І це саме МАКСИМУМ: на долар більше — вже за межею.
-    expect(vm.totalForPrice(bid + 1) + 6000).toBeGreaterThan(limit);
+    expect(vm.totalForPrice(bid + 1)).toBeGreaterThan(limit);
   });
 
   test("без знайденої ринкової ціни ставки за ринком немає", () => {
@@ -554,7 +551,7 @@ describe("Порівняння з українським ринком", () => {
     expect(vm.maxBidForMarket()).toBe(0);
   });
 
-  test("дорожчий ремонт опускає стелю за ринком", () => {
+  test("дорожчий ремонт не опускає стелю за ринком", () => {
     const cheap = createVm({
       repairCost: 1000,
       customs: { ukrainianMarketPrice: 40000 },
@@ -563,21 +560,21 @@ describe("Порівняння з українським ринком", () => {
       repairCost: 9000,
       customs: { ukrainianMarketPrice: 40000 },
     });
-    expect(dear.maxBidForMarket()).toBeLessThan(cheap.maxBidForMarket());
+    expect(dear.maxBidForMarket()).toBe(cheap.maxBidForMarket());
   });
 
-  test("ставка = 0, коли ремонт з витратами вже перевищує ринок × ризик", () => {
+  test("ставка = 0, коли самі лише витрати перевищують ринок × ризик", () => {
     const vm = createVm({
-      repairCost: 20000,
       riskCoefficient: 0.5,
-      customs: { ukrainianMarketPrice: 15000 },
+      customs: { ukrainianMarketPrice: 3000 },
     });
+    expect(vm.totalForPrice(0)).toBeGreaterThan(3000 * 0.5);
     expect(vm.maxBidForMarket()).toBe(0);
   });
 
-  test("дві стелі збігаються, коли ACV−ремонт дорівнює ринку×… з тим самим ремонтом", () => {
-    // maxBid рахує від (ACV − ремонт), maxBidForMarket — від ринку, віднімаючи
-    // ремонт з іншого боку. При ACV − ремонт == ринок обидві мають дати те саме.
+  test("дві стелі збігаються, коли ACV−ремонт дорівнює ринковій ціні", () => {
+    // maxBid рахує від (ACV − ремонт), maxBidForMarket — від ринку. Обидві
+    // віднімають ті самі супутні витрати, тож при рівних базах збігаються.
     const vm = createVm({
       acv: 36000,
       repairCost: 6000,
@@ -585,19 +582,18 @@ describe("Порівняння з українським ринком", () => {
       customs: { ukrainianMarketPrice: 30000 },
     });
     expect(vm.cleanValue()).toBe(30000);
-    // Різниця лише в тому, що ринкова стеля ще й віднімає ремонт із витрат.
-    expect(vm.maxBidForMarket()).toBeLessThan(vm.maxBid());
+    expect(vm.maxBidForMarket()).toBe(vm.maxBid());
   });
 
-  test("benefit і різниця з ринком міряють те саме, лише різні бази", () => {
-    // benefit = ACV − ремонт − total; різниця = ринок − total − ремонт.
-    // Обидві нетять ремонт, тож при ACV == ринковій ціні мають збігатися.
+  test("benefit лишається американською довідкою і розходиться з ринковою різницею на ремонт", () => {
+    // benefit = ACV − ремонт − total (обидві складові — цифри США);
+    // різниця = ринок − total. При ACV == ринку вони різняться рівно на ремонт.
     const vm = createVm({
       acv: 30000,
       repairCost: 5000,
       customs: { ukrainianMarketPrice: 30000 },
     });
-    expect(vm.marketPriceDifference()).toBe(vm.benefit());
+    expect(vm.marketPriceDifference() - vm.benefit()).toBe(5000);
   });
 });
 

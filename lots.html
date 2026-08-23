@@ -496,33 +496,48 @@
       // Останній пошук ринкової ціни по цьому лоту (сервер підмішує його в
       // /api/lots). Різниця «укр. ринок − наш кошт» — це і є те, заради чого
       // лот узагалі дивляться, тож вона має бути видна на картці.
+      // Вигідність перераховуємо тут із market_price − total_cost, а не беремо
+      // збережений `diff`: до 2026-08-23 у ньому стояв ринок − (кошт + ремонт),
+      // де ремонт — кошторис американського аукціону (ціни США, оригінальні
+      // деталі). Старі рядки лишаються в БД із тією формулою, тож перерахунок
+      // вирівнює і їх, і категорію угоди під ним.
+      function dealDiff(r) {
+        if (
+          !r.total_cost ||
+          r.market_price === null ||
+          r.market_price === undefined
+        )
+          return null;
+        return r.market_price - r.total_cost;
+      }
+
+      function dealCategory(r, diff) {
+        if (!r.total_cost) return "";
+        if (Math.abs(diff / r.total_cost) <= 0.05) return "fair";
+        return diff > 0 ? "underpriced" : "overpriced";
+      }
+
       function dealPill(r) {
-        if (r.diff === null || r.diff === undefined || !r.total_cost) return "";
-        // diff = ринок − (розмитнений кошт + ремонт), тож у підказці має
-        // стояти та сама сума, інакше числа на картці не сходяться.
-        var spent = r.total_cost + (r.search_repair_cost || 0);
-        var good = r.diff > 0;
+        var diff = dealDiff(r);
+        if (diff === null) return "";
+        var cat = dealCategory(r, diff);
         var cls =
-          r.category === "underpriced"
-            ? "good"
-            : r.category === "overpriced"
-              ? "bad"
-              : "";
+          cat === "underpriced" ? "good" : cat === "overpriced" ? "bad" : "";
         var few = r.sample_count && r.sample_count < 5 ? " ⚠" : "";
         return (
           '<span class="pill ' +
           cls +
-          '" title="вкладено ' +
-          esc(fmt(spent)) +
-          (r.search_repair_cost
-            ? " (з них ремонт " + esc(fmt(r.search_repair_cost)) + ")"
-            : "") +
+          '" title="фінальна ціна ' +
+          esc(fmt(r.total_cost)) +
           " · ринок " +
           esc(fmt(r.market_price)) +
+          (r.search_repair_cost
+            ? " · ремонт (США, не враховано) " + esc(fmt(r.search_repair_cost))
+            : "") +
           (r.sample_count ? " · n=" + r.sample_count : "") +
           '">' +
-          (good ? "+" : "−") +
-          esc(fmt(Math.abs(r.diff))) +
+          (diff > 0 ? "+" : "−") +
+          esc(fmt(Math.abs(diff))) +
           few +
           "</span>"
         );
@@ -604,7 +619,7 @@
           return r.id;
         }, true),
         deal: by(function (r) {
-          return r.diff;
+          return dealDiff(r);
         }, true),
         price: by(function (r) {
           return cardPrice(r) || null;
@@ -623,8 +638,7 @@
         var onlyDeals = $("onlyDeals").checked;
 
         var rows = ALL_LOTS.filter(function (r) {
-          if (onlyDeals && (r.diff === null || r.diff === undefined))
-            return false;
+          if (onlyDeals && dealDiff(r) === null) return false;
           if (!q) return true;
           return q.split(/\s+/).every(function (w) {
             return r.__hay.indexOf(w) !== -1;
