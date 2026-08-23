@@ -12,7 +12,9 @@ server (`server.js`) serves the static files and logs every lookup to SQLite.
 ## Commands
 
 ```bash
-npm start            # Node server on :5500 — static files + /api SQLite logging. Needs Node 24+ (node:sqlite).
+npm start            # Node server on 127.0.0.1:5500 — static files + /api SQLite logging. Needs Node 24+ (node:sqlite).
+#                      Localhost only on purpose: it serves config.js (AUTO.RIA key, proxy URL) and an
+#                      unauthenticated /api. HOST=0.0.0.0 npm start to expose it deliberately.
 npm run start:py     # python3 static server on :5500 — NO API/DB logging (parsing/lookup still work, just not persisted)
 npm test             # jest (jsdom)
 npx jest -t "name"   # run a single test by name

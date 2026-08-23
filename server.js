@@ -8,6 +8,13 @@ const { DatabaseSync } = require("node:sqlite");
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 5500;
+// Тільки локальний інтерфейс. Сервер роздає всю теку проєкту, зокрема
+// config.js із ключем AUTO.RIA і адресою CORS-проксі, а /api приймає POST
+// без жодної автентифікації і відповідає з Access-Control-Allow-Origin: *.
+// На 0.0.0.0 (типовий дефолт http.listen) усе це видно кожному в тій самій
+// Wi-Fi мережі. HOST=0.0.0.0 npm start — свідомо відкрити, напр. для
+// перевірки з телефона.
+const HOST = process.env.HOST || "127.0.0.1";
 
 // ── DB ──────────────────────────────────────────────────────────────
 fs.mkdirSync(path.join(ROOT, "data"), { recursive: true });
@@ -299,8 +306,10 @@ function serveStatic(req, res) {
   var urlPath = decodeURIComponent(req.url.split("?")[0]);
   if (urlPath === "/") urlPath = "/index.html";
   var filePath = path.join(ROOT, urlPath);
-  // Захист від path traversal
-  if (!filePath.startsWith(ROOT)) {
+  // Захист від path traversal. Порівнювати треба з ROOT + роздільник, а не з
+  // самим ROOT: сусідня тека, чия назва починається так само («…-calculator»
+  // → «…-calculator-private»), проходила голий startsWith і роздавалась.
+  if (filePath !== ROOT && !filePath.startsWith(ROOT + path.sep)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
@@ -547,8 +556,8 @@ const server = http.createServer(function (req, res) {
   serveStatic(req, res);
 });
 
-server.listen(PORT, function () {
-  console.log("▶ http://localhost:" + PORT);
+server.listen(PORT, HOST, function () {
+  console.log("▶ http://" + HOST + ":" + PORT);
   console.log("  SQLite: " + path.join(ROOT, "data", "searches.db"));
   console.log("  Перегляд логів: http://localhost:" + PORT + "/api/searches");
 });

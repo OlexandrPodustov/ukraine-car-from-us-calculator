@@ -7,7 +7,9 @@ http://calc.pp.ua
 ## Як запустити
 
 ```bash
-npm start          # Node-сервер на :5500 — статика + /api з логуванням у SQLite. Потрібен Node 24+ (node:sqlite)
+npm start          # Node-сервер на 127.0.0.1:5500 — статика + /api з логуванням у SQLite. Потрібен Node 24+ (node:sqlite)
+#                    Тільки локально: сервер роздає config.js із ключем AUTO.RIA і має /api без
+#                    автентифікації. Щоб відкрити назовні свідомо — HOST=0.0.0.0 npm start
 ```
 
 Це **єдиний** варіант, який піднімає `/api`. Сторінки `lots.html`, `searches.html` і `stats.html`
