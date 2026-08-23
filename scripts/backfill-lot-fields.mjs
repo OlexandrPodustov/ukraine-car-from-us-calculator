@@ -100,6 +100,12 @@ const FIELD_MAP = {
   cat_text: "catText",
   key_fob: "keyFob",
   title_notes: "titleNotes",
+  title_sale_doc: "titleSaleDoc",
+  wheels: "wheels",
+  manufactured_in: "manufacturedIn",
+  options: "options",
+  restraint_system: "restraintSystem",
+  who_can_buy: "whoCanBuy",
 };
 
 // Прапорці 0/1: «порожньо» для них — це NULL, а не нуль, тож заповнюємо лише

@@ -389,6 +389,9 @@ window.__createAllMethods = function () {
           cat: lotData.catIndicator ? "True" : "",
           keyFob: lotData.keyFob || "",
           titleNotes: lotData.titleNotes || "",
+          titleSaleDoc: lotData.titleSaleDoc || "",
+          wheels: lotData.wheels || "",
+          whoCanBuy: lotData.whoCanBuy || "",
         };
         if (save) vm.logLot(lotData);
 
@@ -499,8 +502,12 @@ window.__createAllMethods = function () {
               (c.odometerBrand ? " (" + c.odometerBrand + ")" : "")
             : "",
         },
+        { label: "Колеса", value: c.wheels },
         { label: "Тайтл", value: c.titleCode },
+        { label: "Документ на авто", value: c.titleSaleDoc },
         { label: "Примітка до тайтла", value: c.titleNotes },
+        // Порожній список = обмежень немає; показуємо лише коли вони є.
+        { label: "Купувати може", value: c.whoCanBuy },
       ].filter(function (r) {
         return r.value;
       });
@@ -873,6 +880,9 @@ window.__createAllMethods = function () {
         cat: "",
         keyFob: "",
         titleNotes: "",
+        titleSaleDoc: "",
+        wheels: "",
+        whoCanBuy: "",
       };
       this.acv = 0;
       this.repairCost = 0;
@@ -1181,14 +1191,50 @@ window.__createAllMethods = function () {
       }
       return { images: images, image360: image360, videos: videos };
     },
+    // inventoryView несе ТРИ списки key/value, а парсер читав лише перший:
+    //   saleInformation    — де і коли продають (ACV, ремонт, філія, лейн);
+    //   vehicleInformation — стан (тайтл із штатом, колеса, старт, ключі);
+    //   vehicleDescription — опис і комплектація (де вироблено, опції,
+    //                        перелік подушок).
+    lotKeyValues: function (nd, branch) {
+      return ((nd.inventoryView || {})[branch] || {})["$values"] || [];
+    },
+
+    // Категорії ліцензій IAA, яким дозволено купувати лот (DEA — дилер,
+    // EXP — експортер тощо). Порожньо = обмежень немає; так у 22 з 24
+    // збережених лотів. Якщо список є, а потрібної ліцензії в брокера немає,
+    // ставку просто не приймуть — це рішення «дивитись чи ні», а не деталь.
+    lotWhoCanBuy: function (nd) {
+      var w =
+        (((nd.auctionInformation || {}).biddingInformation || {}).whoCanBuy ||
+          {})["$values"] || [];
+      return w
+        .filter(Boolean)
+        .join(",")
+        .split(",")
+        .map(function (x) {
+          return x.trim();
+        })
+        .filter(Boolean)
+        .join(", ");
+    },
+
     // Збирає повний набір даних про лот для збереження в БД.
     collectLotData: function (nd, attrs, saleValues, lotUrl) {
       var vm = this;
       var inv = nd.inventory || {};
       var a = attrs || {};
       var media = vm.collectLotMedia(nd);
+      var vehInfo = vm.lotKeyValues(nd, "vehicleInformation");
+      var vehDesc = vm.lotKeyValues(nd, "vehicleDescription");
       function sv(key) {
         return vm.getVal(saleValues, key);
+      }
+      function viv(key) {
+        return vm.getVal(vehInfo, key);
+      }
+      function vdv(key) {
+        return vm.getVal(vehDesc, key);
       }
       function s(v) {
         return (v == null ? "" : v).toString().trim();
@@ -1258,6 +1304,18 @@ window.__createAllMethods = function () {
         titleNotes: p(a.TitleNotes, sv("Notes")),
         // IAAI має явний прапорець гібрида — надійніше за розбір назви палива.
         hybrid: p(a.HybridIndicator) === "True" ? 1 : 0,
+        // «SALVAGE (Missouri)», «REBUILDABLE (Florida)», «Wait Title» — стан
+        // документа зі штатом. TitleCode («SAL», «OTH») цього не показує, а
+        // «Wait Title» означає, що тайтла ще нема на руках: відправка чекає.
+        titleSaleDoc: p(viv("TitleSaleDoc")),
+        // «Spare Tire Missing,Alloy Wheels» — запаска й тип дисків.
+        wheels: p(viv("Wheel")),
+        manufacturedIn: p(vdv("ManufacturedIn")),
+        options: p(vdv("Options")),
+        // Перелік подушок. Разом з AirbagState=Deployed це і є оцінка
+        // «скільки подушок міняти».
+        restraintSystem: p(vdv("RestraintSystem")),
+        whoCanBuy: vm.lotWhoCanBuy(nd),
         titleBrand: p(a.TitleBrand, inv.titleBrand),
         // Тип документа (BillOfSale / Certificate of Title…) і його код —
         // окремо від бренду тайтла: для імпорту це різні речі.

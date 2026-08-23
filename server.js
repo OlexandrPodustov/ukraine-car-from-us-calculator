@@ -174,6 +174,14 @@ db.exec(`
   "key_fob TEXT",
   "title_notes TEXT",
   "hybrid INTEGER",
+  // Другий і третій списки key/value з inventoryView (vehicleInformation /
+  // vehicleDescription) — парсер до 2026-08-23 читав лише saleInformation.
+  "title_sale_doc TEXT",
+  "wheels TEXT",
+  "manufactured_in TEXT",
+  "options TEXT",
+  "restraint_system TEXT",
+  "who_can_buy TEXT",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE lots ADD COLUMN " + col);
@@ -219,7 +227,8 @@ const LOT_LIST_COLS =
   "branch_state, sale_date, image_count, primary_thumb, primary_hd, " +
   "image360_url, run_and_drive, has_keys, airbags, vehicle_grade, " +
   "vehicle_city, vehicle_state, offsite, title_code, title_type, loss_type, " +
-  "starts, catalytic_converter, cat_indicator, key_fob, title_notes, hybrid";
+  "starts, catalytic_converter, cat_indicator, key_fob, title_notes, hybrid, " +
+  "title_sale_doc, wheels, manufactured_in, who_can_buy";
 
 // Той самий список колонок, але з префіксом l. — для запиту з JOIN на пошуки.
 const LOT_LIST_SQL =
@@ -251,11 +260,12 @@ const insertLotStmt = db.prepare(`
      loss_type, run_and_drive, has_keys, airbags, vehicle_grade, vehicle_city,
      vehicle_state, vehicle_zip, offsite, sale_lane, title_type, title_code,
      starts, catalytic_converter, cat_indicator, cat_text, key_fob,
-     title_notes, hybrid)
+     title_notes, hybrid, title_sale_doc, wheels, manufactured_in, options,
+     restraint_system, who_can_buy)
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-     ?, ?, ?, ?, ?, ?, ?, ?)
+     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   -- COALESCE, а не голе excluded: повторний парсинг того самого лота
   -- НЕ має стирати поле, якого цього разу в JSON не виявилось. Саме так
   -- уже губились дані — до 2026-08-22 парсер читав неіснуючі ключі
@@ -316,7 +326,13 @@ const insertLotStmt = db.prepare(`
     cat_text=COALESCE(excluded.cat_text, cat_text),
     key_fob=COALESCE(excluded.key_fob, key_fob),
     title_notes=COALESCE(excluded.title_notes, title_notes),
-    hybrid=excluded.hybrid
+    hybrid=excluded.hybrid,
+    title_sale_doc=COALESCE(excluded.title_sale_doc, title_sale_doc),
+    wheels=COALESCE(excluded.wheels, wheels),
+    manufactured_in=COALESCE(excluded.manufactured_in, manufactured_in),
+    options=COALESCE(excluded.options, options),
+    restraint_system=COALESCE(excluded.restraint_system, restraint_system),
+    who_can_buy=COALESCE(excluded.who_can_buy, who_can_buy)
 `);
 
 // У колонку url має потрапляти лише http(s)-посилання: одного разу туди
@@ -534,6 +550,12 @@ const server = http.createServer(function (req, res) {
             p.keyFob || null,
             p.titleNotes || null,
             p.hybrid ? 1 : 0,
+            p.titleSaleDoc || null,
+            p.wheels || null,
+            p.manufacturedIn || null,
+            p.options || null,
+            p.restraintSystem || null,
+            p.whoCanBuy || null,
           );
           sendJson(res, 201, { ok: true });
         } catch (e) {

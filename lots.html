@@ -569,6 +569,8 @@
           // Щоб «гібрид» і «cat» працювали як фільтри в пошуковому рядку.
           r.hybrid ? "гібрид hybrid" : "",
           r.cat_indicator ? "cat повінь" : "",
+          r.title_sale_doc,
+          r.manufactured_in,
         ]
           .filter(Boolean)
           .join(" ")
@@ -663,6 +665,7 @@
               r.title_code ? "тайтл " + r.title_code : "",
               r.hybrid ? "гібрид" : "",
               r.cat_indicator ? "⚠ CAT" : "",
+              r.who_can_buy ? "⚠ ліцензія: " + r.who_can_buy : "",
               lotLocation(r),
             ]
               .filter(Boolean)
@@ -878,7 +881,15 @@
             "Документ",
             [d.title_type, d.title_code].filter(Boolean).join(" · "),
           ) +
+          row("Документ на авто", d.title_sale_doc) +
           row("Примітка до тайтла", d.title_notes) +
+          row("Колеса", d.wheels) +
+          row("Вироблено в", d.manufactured_in) +
+          row("Комплектація", d.options) +
+          row("Подушки (перелік)", d.restraint_system) +
+          // Порожній список = обмежень немає, тож рядок з'являється лише
+          // тоді, коли лот справді доступний не всім.
+          row("Купувати може", d.who_can_buy) +
           row("ACV", d.acv ? fmt(d.acv) : "") +
           row("Оцінка ремонту", d.repair_cost ? fmt(d.repair_cost) : "") +
           row("Buy Now", d.buy_now_price ? fmt(d.buy_now_price) : "") +

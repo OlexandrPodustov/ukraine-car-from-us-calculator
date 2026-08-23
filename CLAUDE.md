@@ -114,6 +114,15 @@ lots all three differ, so the wrong one both breaks the rebuilt link and forks t
 `(auction, lot_number)` dedup key on re-parse. `scripts/backfill-lot-fields.mjs` renumbers old
 rows.
 
+`inventoryView` carries **three** key/value lists, and until 2026-08-23 the parser read only the
+first: `saleInformation` (where and when it sells), `vehicleInformation` (`TitleSaleDoc` —
+«SALVAGE (Missouri)», «Wait Title» — plus `Wheel`, `StartCode`, `KeySlashFob`) and
+`vehicleDescription` (`ManufacturedIn`, `Options`, `RestraintSystem` — the airbag inventory that,
+next to `AirbagState: Deployed`, is the repair estimate). `lotKeyValues(nd, branch)` reads any of
+them. `auctionInformation.biddingInformation.whoCanBuy` lists the IAA licence categories allowed to
+bid — empty on 22 of 24 stored lots, and when it is not empty a broker without that licence cannot
+bid at all.
+
 A scan of the 25 stored `raw_json` payloads (2026-08-23) turned up more fields the parser was
 walking past, all filled on 23–24 of 24 lots: `StartsDesc` («Starts» — *not* the same as
 `RunAndDrive`; «starts but does not drive» is a different repair bill), `CatalyticConverter`

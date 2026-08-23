@@ -1,8 +1,11 @@
 /**
  * Розбір лота IAAI: імена полів у JSON аукціону та наслідки для розрахунку.
  *
- * Фікстура — реальний лот 46380419 (2012 Porsche 911 Carrera S), збережений у
- * data/searches.db 2026-08-17. На ньому видно всі три граблі одразу:
+ * Фікстура — реальний лот 46380419 (2012 Porsche 911 Carrera S), узятий
+ * ЦІЛКОМ із raw_json у data/searches.db (зріз 2026-08-23). До цього тут лежала
+ * обрізана копія на 67 атрибутів із чотирьох гілок inventoryView замість 209
+ * із тридцяти трьох — тобто тести бачили не ту структуру, що прод, і цілі
+ * гілки (vehicleInformation, vehicleDescription) були для них невидимі. На ньому видно всі три граблі одразу:
  * порожні поля приходять пробілом, потрібні значення лежать під іншими іменами
  * (ODOValue, а не Odometer), а філія продажу — в іншому штаті, ніж саме авто.
  */
@@ -210,6 +213,48 @@ describe("поля стану, які IAAI віддає окремими атр�
   });
 });
 
+describe("другий і третій списки key/value з inventoryView", () => {
+  const vm = iaaiVm();
+  const data = vm.collectLotData(LOT, ATTRS, SALE, "https://x.iaai.com/1");
+
+  it("читає стан документа зі штатом, а не самий лише код тайтла", () => {
+    // TitleCode = «CLR» нічого не каже про штат і про те, чи тайтл на руках.
+    // «Wait Title» означає, що відправка чекає документа.
+    expect(data.titleCode).toBe("CLR");
+    expect(data.titleSaleDoc).toBe("CLEAR (New York)");
+  });
+
+  it("читає країну виробництва й перелік подушок", () => {
+    expect(data.manufacturedIn).toBe("Germany");
+    expect(data.restraintSystem).toMatch(/airbag/i);
+  });
+
+  it("список ліцензій, яким дозволено купувати, склеюється в рядок", () => {
+    expect(data.whoCanBuy).toBe("DEA, DIS, EXP, LBU, REB, SCR");
+  });
+
+  it("порожній whoCanBuy означає «обмежень немає»", () => {
+    const open = JSON.parse(JSON.stringify(LOT));
+    open.auctionInformation.biddingInformation.whoCanBuy.$values = [];
+    expect(vm.lotWhoCanBuy(open)).toBe("");
+    // І рядка в блоці стану для нього немає.
+    const form = iaaiVm();
+    form.logLot = () => Promise.resolve(true);
+    form.applyLotJson(open, "https://x.iaai.com/1", { save: false });
+    expect(form.lotConditionRows().map((r) => r.label)).not.toContain(
+      "Купувати може",
+    );
+  });
+
+  it("lotKeyValues не падає на чужій структурі", () => {
+    expect(vm.lotKeyValues({}, "vehicleInformation")).toEqual([]);
+    expect(
+      vm.lotKeyValues({ inventoryView: {} }, "vehicleDescription"),
+    ).toEqual([]);
+    expect(vm.lotWhoCanBuy({})).toBe("");
+  });
+});
+
 describe("matchAuctionLocation", () => {
   const vm = iaaiVm();
 
@@ -314,10 +359,14 @@ describe("гібриди", () => {
   // Для митниці гібрид — це його ДВЗ: ПКУ 215.3.5-1 бере базову ставку
   // відповідного бензинового/дизельного двигуна (docs/customs-rates-baseline.md).
   // Для AUTO.RIA це окремий fuel_id і окремий ціновий сегмент.
+  // HybridIndicator тут прибираємо навмисно: це запасна гілка для лотів, де
+  // явного прапорця немає (Copart, старі записи). Перевага самого прапорця
+  // перевіряється окремими тестами нижче.
   function parseWithFuel(fuel) {
     const vm = iaaiVm();
     vm.logLot = () => Promise.resolve(true);
     const lot = JSON.parse(JSON.stringify(LOT));
+    delete lot.inventoryView.attributes.HybridIndicator;
     lot.inventoryView.attributes.FuelTypeCode = fuel;
     lot.inventoryView.attributes.FuelTypeDesc = fuel;
     vm.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
