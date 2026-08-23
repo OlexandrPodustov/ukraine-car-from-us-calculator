@@ -29,6 +29,8 @@ window.feesMethodNames = [
   "cleanValue",
   "benefit",
   "maxBid",
+  "maxBidForMarket",
+  "solveMaxBid",
   "totalForPrice",
   "recalcMaxBid",
   "fixedFeesTotal",

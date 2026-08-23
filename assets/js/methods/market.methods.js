@@ -1893,17 +1893,41 @@ window.__createAllMethods = function () {
     // total() зростає з ціною монотонно, але сходинками (тарифні сітки
     // аукціонів), тож розв'язуємо бінарним пошуком, а не аналітично.
     maxBid: function () {
-      var target = this.cleanValue() * this.riskCoefficient;
+      return this.solveMaxBid(this.cleanValue() * this.riskCoefficient, 0);
+    },
+
+    // Та сама задача, але стеля — не американський ACV, а ціна, за яку авто
+    // піде на українському ринку. Для перепродажу саме вона й вирішує:
+    // ACV — це оцінка страховика в США, і на типовому лоті вона на тисячі
+    // доларів вища за те, скільки за таке авто дадуть тут.
+    //
+    // Ремонт входить у витрати окремим доданком: ринкова ціна — це ціна
+    // ЦІЛОГО авто, а totalForPrice() доводить до України розбите.
+    maxBidForMarket: function () {
+      var market = this.customs.ukrainianMarketPrice || 0;
+      if (!(market > 0)) return 0;
+      var repair = Number(this.repairCost) || 0;
+      return this.solveMaxBid(
+        market * this.riskCoefficient,
+        repair > 0 ? repair : 0,
+      );
+    },
+
+    // Найбільша ціна з молотка, за якої totalForPrice(ціна) + extraCost ще
+    // вкладається в target. total() зростає з ціною монотонно, але сходинками
+    // (тарифні сітки аукціонів), тож розв'язуємо бінарним пошуком.
+    solveMaxBid: function (target, extraCost) {
+      var extra = extraCost || 0;
       if (!(target > 0)) return 0;
       // Навіть за нульової ставки супутні витрати можуть перевищити ліміт —
       // тоді лот не проходить ні за якою ціною.
-      if (this.totalForPrice(0) > target) return 0;
+      if (this.totalForPrice(0) + extra > target) return 0;
 
       var lo = 0;
       var hi = target;
       for (var i = 0; i < 40; i++) {
         var mid = (lo + hi) / 2;
-        if (this.totalForPrice(mid) <= target) lo = mid;
+        if (this.totalForPrice(mid) + extra <= target) lo = mid;
         else hi = mid;
       }
       return Math.floor(lo);

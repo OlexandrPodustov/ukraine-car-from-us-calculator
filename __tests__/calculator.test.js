@@ -513,6 +513,61 @@ describe("Порівняння з українським ринком", () => {
     ).toBe("overpriced");
   });
 
+  test("макс. ставка за ринком: витрати з ремонтом вкладаються в ринок × ризик", () => {
+    const vm = createVm({
+      repairCost: 6000,
+      riskCoefficient: 0.7,
+      customs: { ukrainianMarketPrice: 40000 },
+    });
+    const bid = vm.maxBidForMarket();
+    const limit = 40000 * 0.7;
+
+    expect(bid).toBeGreaterThan(0);
+    expect(vm.totalForPrice(bid) + 6000).toBeLessThanOrEqual(limit);
+    // І це саме МАКСИМУМ: на долар більше — вже за межею.
+    expect(vm.totalForPrice(bid + 1) + 6000).toBeGreaterThan(limit);
+  });
+
+  test("без знайденої ринкової ціни ставки за ринком немає", () => {
+    const vm = createVm({ customs: { ukrainianMarketPrice: 0 } });
+    expect(vm.maxBidForMarket()).toBe(0);
+  });
+
+  test("дорожчий ремонт опускає стелю за ринком", () => {
+    const cheap = createVm({
+      repairCost: 1000,
+      customs: { ukrainianMarketPrice: 40000 },
+    });
+    const dear = createVm({
+      repairCost: 9000,
+      customs: { ukrainianMarketPrice: 40000 },
+    });
+    expect(dear.maxBidForMarket()).toBeLessThan(cheap.maxBidForMarket());
+  });
+
+  test("ставка = 0, коли ремонт з витратами вже перевищує ринок × ризик", () => {
+    const vm = createVm({
+      repairCost: 20000,
+      riskCoefficient: 0.5,
+      customs: { ukrainianMarketPrice: 15000 },
+    });
+    expect(vm.maxBidForMarket()).toBe(0);
+  });
+
+  test("дві стелі збігаються, коли ACV−ремонт дорівнює ринку×… з тим самим ремонтом", () => {
+    // maxBid рахує від (ACV − ремонт), maxBidForMarket — від ринку, віднімаючи
+    // ремонт з іншого боку. При ACV − ремонт == ринок обидві мають дати те саме.
+    const vm = createVm({
+      acv: 36000,
+      repairCost: 6000,
+      riskCoefficient: 0.6,
+      customs: { ukrainianMarketPrice: 30000 },
+    });
+    expect(vm.cleanValue()).toBe(30000);
+    // Різниця лише в тому, що ринкова стеля ще й віднімає ремонт із витрат.
+    expect(vm.maxBidForMarket()).toBeLessThan(vm.maxBid());
+  });
+
   test("benefit і різниця з ринком міряють те саме, лише різні бази", () => {
     // benefit = ACV − ремонт − total; різниця = ринок − total − ремонт.
     // Обидві нетять ремонт, тож при ACV == ринковій ціні мають збігатися.

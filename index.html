@@ -805,7 +805,7 @@
                       "
                     >
                       <div class="values_title">
-                        Макс. ставка
+                        Макс. ставка за ACV
                         <div style="font-size: 12px; font-weight: 400">
                           (ACV − ремонт) × {{riskCoefficient}} − інші витрати
                         </div>
@@ -822,6 +822,50 @@
                             height: 24px;
                             padding: 0 8px;
                             border: 1px solid #d6c48a;
+                            background: #fff;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 12px;
+                            white-space: nowrap;
+                          "
+                        >
+                          ⤒ у ціну
+                        </button>
+                      </div>
+                    </div>
+                    <!-- Стеля за українським ринком. ACV — це оцінка
+                         страховика в США; для перепродажу тут вирішує ціна,
+                         за яку авто піде на AUTO.RIA, а ремонт входить у
+                         витрати окремо (ринкова ціна — це ціна ЦІЛОГО авто). -->
+                    <div
+                      class="valuess total"
+                      v-if="customs.ukrainianMarketPrice > 0"
+                      style="
+                        background: #eef6ff;
+                        padding: 8px 4px;
+                        border-radius: 6px;
+                        margin-top: 6px;
+                      "
+                    >
+                      <div class="values_title">
+                        Макс. ставка за укр. ринком
+                        <div style="font-size: 12px; font-weight: 400">
+                          ринок ${{customs.ukrainianMarketPrice}} ×
+                          {{riskCoefficient}} − ремонт − інші витрати
+                        </div>
+                      </div>
+                      <div class="price">
+                        <div>$</div>
+                        <div>{{maxBidForMarket()}}</div>
+                        <button
+                          type="button"
+                          v-on:click="autoPricing.autoPrice = maxBidForMarket()"
+                          title="Підставити цю ставку в поле «Ціна авто»"
+                          style="
+                            margin-left: 8px;
+                            height: 24px;
+                            padding: 0 8px;
+                            border: 1px solid #a8c7e8;
                             background: #fff;
                             border-radius: 4px;
                             cursor: pointer;

@@ -156,6 +156,10 @@ value adds it back:
 - `totalWithRepair()` = `total() + repair`, and `marketPriceDifference()` = AUTO.RIA price −
   `totalWithRepair()`
 - `maxBid()` solves `totalForPrice(bid) ≤ (ACV − repair) × riskCoefficient`
+- `maxBidForMarket()` solves `totalForPrice(bid) + repair ≤ AUTO.RIA price × riskCoefficient` —
+  the ceiling that matters for a resale, since ACV is a US insurer's number and runs well above
+  what the car fetches here (on a $45k-ACV / $9k-repair lot against a $38k Ukrainian price the two
+  ceilings come out $12,275 and $6,961). Both go through `solveMaxBid(target, extraCost)`.
 
 Until 2026-08-23 `marketPriceDifference()` subtracted the bare `total()`, so the headline
 «Різниця» and the deal pill on every `lots.html` card overstated the margin by the whole repair
