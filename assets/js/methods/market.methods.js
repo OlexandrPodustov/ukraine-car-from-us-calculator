@@ -455,6 +455,7 @@ window.__createAllMethods = function () {
         // після, а не до.
         vm.currentLot.lotId = row.id || Number(id) || null;
         vm.currentLot.vinFull = row.vin_full || "";
+        vm.saveToLocalStorage();
         return true;
       } catch (e) {
         vm.auctionStatus = "error";
@@ -462,6 +463,47 @@ window.__createAllMethods = function () {
           "❌ Не вдалося завантажити лот із БД (" +
           e.message +
           "). Запущено `npm start`?";
+        return false;
+      }
+    },
+    // Перечитує рядок поточного лота з БД і бере звідти те, чого парсинг
+    // принести не може: `vin_full` — повний VIN, зчитаний з фото заводської
+    // таблички. У localStorage він міг і не потрапити (VIN пишеться окремим
+    // PUT після того, як стан уже збережено), а з БД він є завжди — тож при
+    // старті сторінки джерелом правди для VIN вважаємо базу, не сховище.
+    // Заразом підтягується lotId: без нього кнопка «зберегти VIN» не має
+    // куди писати.
+    refreshLotFromDb: async function () {
+      var vm = this;
+      var lot = vm.currentLot || {};
+      if (!lot.lotId && !(lot.auction && lot.lotNumber)) return false;
+      try {
+        var row = null;
+        if (lot.lotId) {
+          row = await (await vm.apiFetch("/api/lots/" + lot.lotId)).json();
+        } else {
+          // Лот зберігся ще до того, як клієнт почав запам'ятовувати id
+          // (або id загубився разом зі сховищем) — шукаємо в списку за тим
+          // самим ключем, за яким лоти дедупляться в БД.
+          var rows = await (await vm.apiFetch("/api/lots")).json();
+          row =
+            (Array.isArray(rows) ? rows : []).filter(function (r) {
+              return (
+                r.auction === lot.auction &&
+                String(r.lot_number) === String(lot.lotNumber)
+              );
+            })[0] || null;
+        }
+        if (!row || !row.id) return false;
+        vm.currentLot.lotId = row.id;
+        if (row.vin_full) vm.currentLot.vinFull = row.vin_full;
+        if (!vm.currentLot.vin && row.vin) vm.currentLot.vin = row.vin;
+        vm.saveToLocalStorage();
+        return true;
+      } catch (e) {
+        // Статичний сервер без /api — не привід сипати помилкою в UI:
+        // маска VIN лишається на екрані, решта калькулятора працює.
+        console.warn("[api] лот не перечитано з БД:", e.message);
         return false;
       }
     },
@@ -1100,6 +1142,10 @@ window.__createAllMethods = function () {
           vm.dbMsg = "";
           if (body && body.id) vm.currentLot.lotId = body.id;
           if (body && body.vinFull) vm.currentLot.vinFull = body.vinFull;
+          // Відповідь приходить уже після saveToLocalStorage() в applyLotJson,
+          // тож без цього рядка id лота й повний VIN у сховище не потрапляли
+          // взагалі — після F5 VIN знову показувався маскою.
+          vm.saveToLocalStorage();
           return true;
         })
         .catch(function (e) {
@@ -1142,6 +1188,9 @@ window.__createAllMethods = function () {
         });
         var body = await res.json();
         vm.currentLot.vinFull = body.vinFull || "";
+        // currentLot під жодним watcher-ом не ходить — зберігаємо явно,
+        // інакше щойно введений VIN зникав на першому ж перезавантаженні.
+        vm.saveToLocalStorage();
         vm.vinInput = "";
         vm.vinMsg = body.vinFull ? "✔ VIN збережено." : "VIN очищено.";
         return true;

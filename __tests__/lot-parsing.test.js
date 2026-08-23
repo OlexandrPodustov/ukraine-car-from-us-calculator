@@ -613,6 +613,29 @@ describe("applyLotJson / loadSavedLot", () => {
     expect(vm.autoPricing.auctions.selected).toBe("iaai");
   });
 
+  it("з БД тягне повний VIN, якого в сирому JSON немає за визначенням", async () => {
+    const vm = iaaiVm();
+    vm.logLot = () => Promise.resolve(true);
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            id: 29,
+            auction: "iaai",
+            url: "https://www.iaai.com/VehicleDetail/46380419~US",
+            vin_full: "WP0AB2A99CS721234",
+            raw: LOT,
+          }),
+      }),
+    );
+
+    await vm.loadSavedLot(29);
+    expect(vm.currentLot.vinFull).toBe("WP0AB2A99CS721234");
+    expect(vm.displayVin()).toBe("WP0AB2A99CS721234");
+  });
+
   it("каже, коли лот із БД не дістати", async () => {
     const vm = iaaiVm();
     global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 404 }));
@@ -785,5 +808,79 @@ describe("VIN за маскою", () => {
     // vin_full і не входить у UPSERT на сервері.
     expect(vm.currentLot.vinFull).toBe("");
     expect(vm.currentLot.vin).toMatch(/\*/);
+  });
+});
+
+// Повний VIN живе ЛИШЕ в колонці lots.vin_full: парсинг його не приносить
+// (IAAI віддає маску), а в localStorage він міг і не потрапити — PUT з VIN
+// відбувається вже після того, як стан збережено. Тому при старті сторінки
+// джерело правди для VIN — база.
+describe("refreshLotFromDb", () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  function lotVm(currentLot) {
+    const vm = createVm();
+    vm.saveToLocalStorage = () => {};
+    Object.assign(vm.currentLot, currentLot);
+    return vm;
+  }
+
+  it("бере vin_full за id лота", async () => {
+    const vm = lotVm({
+      lotId: 29,
+      auction: "iaai",
+      lotNumber: "46380419",
+      vin: "WP0AB2A99CS******",
+    });
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: 29, vin_full: "WP0AB2A99CS721234" }),
+      }),
+    );
+
+    await expect(vm.refreshLotFromDb()).resolves.toBe(true);
+    expect(global.fetch.mock.calls[0][0]).toMatch(/\/api\/lots\/29$/);
+    expect(vm.displayVin()).toBe("WP0AB2A99CS721234");
+  });
+
+  it("без id знаходить лот у списку за парою (аукціон, номер)", async () => {
+    const vm = lotVm({
+      lotId: null,
+      auction: "iaai",
+      lotNumber: "46380419",
+      vin: "WP0AB2A99CS******",
+    });
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve([
+            { id: 7, auction: "copart", lot_number: "46380419" },
+            { id: 29, auction: "iaai", lot_number: 46380419, vin_full: "X" },
+          ]),
+      }),
+    );
+
+    await expect(vm.refreshLotFromDb()).resolves.toBe(true);
+    expect(global.fetch.mock.calls[0][0]).toMatch(/\/api\/lots$/);
+    // lotId потрібен кнопці «зберегти VIN» — без нього писати нікуди.
+    expect(vm.currentLot.lotId).toBe(29);
+  });
+
+  it("мовчить, коли лота нема або /api недоступне", async () => {
+    const empty = lotVm({});
+    await expect(empty.refreshLotFromDb()).resolves.toBe(false);
+
+    const vm = lotVm({ lotId: 29, vin: "WP0AB2A99CS******" });
+    global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 404 }));
+    await expect(vm.refreshLotFromDb()).resolves.toBe(false);
+    // Маска лишається на екрані — решта калькулятора працює далі.
+    expect(vm.displayVin()).toBe("WP0AB2A99CS******");
   });
 });

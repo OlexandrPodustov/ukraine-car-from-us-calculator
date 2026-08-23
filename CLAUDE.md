@@ -162,6 +162,14 @@ matches the auction's mask. The client adds the ISO 3779 check digit (`vinCheckD
 is the only check that can catch a typo in the hand-copied tail — the mask hides exactly those
 characters. `saveVinFull` accepts either all 17 or just the missing tail.
 
+On page load the DB — not localStorage — is the source of truth for the VIN: `refreshLotFromDb()`
+(called from `mounted()` when there is no `?lot=`) re-reads the lot row by `lotId`, or by
+`(auction, lot_number)` from `GET /api/lots` when the id is missing, and takes `vin_full` and the
+id from it. Before that, a typed VIN survived only until F5: `currentLot` has no watcher, and both
+the `PUT …/vin` response and the `POST /api/lots` response (which carries the id and any known
+`vin_full`) land *after* `applyLotJson` has already called `saveToLocalStorage()`. Those two
+callbacks now save explicitly as well.
+
 `scripts/vin-plate.mjs` does the same for lots already in the DB: `--refetch` re-reads each lot
 page for its captions (stored in `lots.image_captions`, since old `raw_json` predates this) and
 prints the plate-photo URL, `--set <id> <VIN|tail>` writes one. Of the 25 stored lots only 7 were

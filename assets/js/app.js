@@ -63,6 +63,11 @@ function initializeApp() {
       var lotParam = new URLSearchParams(location.search).get("lot");
       if (lotParam && /^\d+$/.test(lotParam)) {
         vm.loadSavedLot(lotParam);
+      } else {
+        // Без ?lot= стан прийшов зі сховища, а повний VIN живе тільки в БД
+        // (колонка vin_full) — перечитуємо його звідти, інакше після F5 на
+        // екрані знову маска WP1AA2A53RL******.
+        vm.refreshLotFromDb();
       }
 
       // Порт відправлення виводиться зі штату локації (див. ports.js). Робимо
