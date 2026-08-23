@@ -278,7 +278,13 @@ window.__createAllMethods = function () {
           vm.$nextTick(function () {
             vm.onLocationChange();
           });
-          filled.push("локація " + locFound.name);
+          filled.push(
+            "локація " +
+              locFound.name +
+              (vm.locationMatchIsWeak(attrs, locFound)
+                ? " ⚠ (підібрано лише за штатом — звірте філію)"
+                : ""),
+          );
         }
         // Offsite: філія і місце зберігання різні — попереджаємо, бо саме
         // звідси рахується доставка до порту.
@@ -895,6 +901,33 @@ window.__createAllMethods = function () {
     logLot: function (payload) {
       return this.postToApi("/api/lots", payload, "Лот");
     },
+    // Слова з назви філії лота, за якими шукається рядок довідника.
+    // Виділено окремо, щоб matchAuctionLocation і locationMatchIsWeak
+    // токенізували однаково.
+    locationHintWords: function (attrs) {
+      var a = attrs || {};
+      var stateCode = this.pickAttr(a.State, a.BranchState).toUpperCase();
+      return this.pickAttr(a.BranchName, a.Name, a.City)
+        .toUpperCase()
+        .replace(/\([^)]*\)/g, " ") // «Long Island (NY)» → «Long Island»
+        .split(/[^A-Z0-9]+/)
+        .filter(function (w) {
+          return w.length > 2 && w !== stateCode;
+        });
+    },
+
+    // true, якщо з назвою філії не збіглося жодне слово і локація взята
+    // просто як перша в штаті. Наземне плече до порту в межах одного штату
+    // різниться до $375 (найгірше — IL: $1500…$1875), тож мовчки підставляти
+    // сусідню філію не можна: цифра виглядає так само впевнено, як зматчена.
+    locationMatchIsWeak: function (attrs, loc) {
+      if (!loc) return false;
+      var name = (loc.name || "").toUpperCase();
+      return !this.locationHintWords(attrs).some(function (w) {
+        return name.indexOf(w) !== -1;
+      });
+    },
+
     // Довідник локацій названий по філіях («NY LONG ISLAND - NY (IAAI)»),
     // а не по містах, тож збіг шукаємо саме по BranchName («Long Island (NY)»)
     // з відкатом на місто; серед кандидатів того ж штату виграє той, у кого
@@ -911,13 +944,7 @@ window.__createAllMethods = function () {
       });
       if (!inState.length) return null;
 
-      var hintWords = this.pickAttr(a.BranchName, a.Name, a.City)
-        .toUpperCase()
-        .replace(/\([^)]*\)/g, " ") // «Long Island (NY)» → «Long Island»
-        .split(/[^A-Z0-9]+/)
-        .filter(function (w) {
-          return w.length > 2 && w !== stateCode;
-        });
+      var hintWords = this.locationHintWords(a);
 
       var best = null,
         bestScore = 0;

@@ -126,6 +126,20 @@ describe("matchAuctionLocation", () => {
     expect(vm.matchAuctionLocation({ State: "ZZ" })).toBeNull();
     expect(vm.matchAuctionLocation({})).toBeNull();
   });
+
+  it("позначає збіг як слабкий, коли з філією не зійшлось жодне слово", () => {
+    // Плече до порту в межах штату різниться до $375, тож «перша філія в
+    // штаті» має виглядати інакше, ніж справжній збіг.
+    const attrs = { State: "IL", BranchName: "Нема такої філії" };
+    const loc = vm.matchAuctionLocation(attrs);
+    expect(loc).not.toBeNull();
+    expect(vm.locationMatchIsWeak(attrs, loc)).toBe(true);
+
+    const good = { State: "IL", BranchName: "Chicago-West (IL)" };
+    expect(vm.locationMatchIsWeak(good, vm.matchAuctionLocation(good))).toBe(
+      false,
+    );
+  });
 });
 
 describe("порт відправлення", () => {
