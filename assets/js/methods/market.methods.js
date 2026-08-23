@@ -1447,12 +1447,6 @@ window.__createAllMethods = function () {
       return strah < 100 ? 100 : strah;
     },
 
-    totalAutoFee: function () {
-      return Math.round(
-        this.autoPricing.autoPrice + this.auctionFee() + this.anzFee(),
-      );
-    },
-
     getCurrentLocation: function () {
       return window.autoLocation.filter(
         (loc) => loc.id === this.autoShipping.location.selected,
@@ -1546,10 +1540,6 @@ window.__createAllMethods = function () {
       return window.shippingPorts.filter(function (port) {
         return loc.toPort[port.id] > 0;
       });
-    },
-
-    transportFee: function (port) {
-      return this.getCurrentLocation().toPort[port.id];
     },
 
     // Обраний порт призначення (Одеса / Клайпеда / Гданськ).

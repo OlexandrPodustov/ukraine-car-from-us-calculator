@@ -171,22 +171,15 @@ function iaaiInternetBidFee(price) {
   return tableLookup(IAAI_INTERNET_BID_TABLE, price);
 }
 
-function inRange(min, max, val) {
-  return function (num) {
-    return num >= min && num <= max ? val : 0;
-  };
-}
 export {
   auctions,
   calculateCopartFee,
   calculateIaaIFee,
   getAuctionById,
   iaaiInternetBidFee,
-  inRange,
 };
 window.auctions = auctions;
 window.calculateCopartFee = calculateCopartFee;
 window.calculateIaaIFee = calculateIaaIFee;
-window.inRange = inRange;
 window.getAuctionById = getAuctionById;
 window.iaaiInternetBidFee = iaaiInternetBidFee;

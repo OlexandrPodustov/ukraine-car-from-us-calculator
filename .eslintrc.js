@@ -21,7 +21,6 @@ module.exports = {
     CONFIG: "readonly",
     calculateCopartFee: "readonly",
     calculateIaaIFee: "readonly",
-    inRange: "readonly",
     Vue: "readonly",
     __createAllMethods: "readonly",
   },
