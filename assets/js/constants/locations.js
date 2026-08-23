@@ -4615,5 +4615,13 @@ autoLocation.sort(function (a, b) {
   }
   return 0;
 });
-export { autoLocation };
+// Найдорожче наземне плече в довіднику. Потрібне лише як запасне значення
+// для локації без ставки: помилятись у цей бік безпечніше, ніж занижувати.
+// Станом на 2026-08-23 ставку мають усі 354 локації (діапазон $1150–2300).
+var maxInlandRate = autoLocation.reduce(function (max, loc) {
+  return Math.max(max, loc.iaai || 0, loc.copart || 0);
+}, 0);
+
+export { autoLocation, maxInlandRate };
 window.autoLocation = autoLocation;
+window.maxInlandRate = maxInlandRate;

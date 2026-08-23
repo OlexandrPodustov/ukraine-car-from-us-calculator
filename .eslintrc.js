@@ -11,6 +11,7 @@ module.exports = {
   globals: {
     auctions: "readonly",
     autoLocation: "readonly",
+    maxInlandRate: "readonly",
     shippingPorts: "readonly",
     destinationPorts: "readonly",
     vehicleType: "readonly",

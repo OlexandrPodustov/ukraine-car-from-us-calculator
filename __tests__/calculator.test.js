@@ -464,6 +464,26 @@ describe("Підсумок", () => {
   });
 });
 
+describe("Наземне плече", () => {
+  test("береться ставка обраного аукціону для обраної локації", () => {
+    const loc = window.autoLocation.filter((l) => /IAAI/.test(l.name))[0];
+    const vm = createVm({
+      autoPricing: { auctions: { selected: "iaai" } },
+      autoShipping: { location: { selected: loc.id } },
+    });
+    expect(vm.inlandUsFee()).toBe(loc.iaai);
+  });
+
+  test("локація без ставки падає на найдорожчу, а не на дешевшу за всі", () => {
+    // Колишні $1100 були нижчі за ВСЮ таблицю ($1150–2300): невідома локація
+    // мовчки виходила дешевшою за будь-яку відому.
+    const vm = createVm();
+    vm.getCurrentLocation = () => ({ name: "XX НЕВІДОМА", iaai: 0, copart: 0 });
+    expect(vm.inlandUsFee()).toBe(window.maxInlandRate);
+    expect(window.maxInlandRate).toBeGreaterThanOrEqual(2300);
+  });
+});
+
 describe("Порівняння з українським ринком", () => {
   test("вкладено = розмитнений кошт + ремонт", () => {
     const vm = createVm({ repairCost: 9000 });

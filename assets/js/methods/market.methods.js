@@ -1730,9 +1730,21 @@ window.__createAllMethods = function () {
     },
 
     // Наземна доставка від аукціону до порту США.
+    //
+    // Запасне значення — найдорожча ставка довідника, а не колишні $1100:
+    // ті $1100 лежали НИЖЧЕ за всю таблицю ($1150–2300), тобто локація без
+    // ставки мовчки виходила дешевшою за будь-яку відому. Зараз ставку мають
+    // усі 354 локації, тож гілка не спрацьовує — але як спрацює, це буде
+    // видно в консолі, а помилка піде в бік обережності.
     inlandUsFee: function () {
       var location = this.getCurrentLocation();
-      return (location && location[this.autoPricing.auctions.selected]) || 1100;
+      var rate = location && location[this.autoPricing.auctions.selected];
+      if (rate > 0) return rate;
+      console.warn(
+        "[inland] немає ставки для локації:",
+        (location && location.name) || "(не обрано)",
+      );
+      return window.maxInlandRate;
     },
 
     // Надбавка за габарит. Сама ставка живе поруч із типом кузова
