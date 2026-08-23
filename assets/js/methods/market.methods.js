@@ -53,16 +53,20 @@ window.__createAllMethods = function () {
       // console.log('[proxies length] ###' + proxies.length);
 
       for (var pi = 0; pi < proxies.length && !html; pi++) {
+        // let, а не var: колбек таймера замикається саме на своєму ctrl.
+        // З var усі ітерації ділили б одну змінну, і таймер першої проксі
+        // обірвав би запит наступної.
+        let ctrl = new AbortController();
+        // Таймер знімається у finally: при винятку в fetch (обрив, CORS) він
+        // раніше лишався жити й через 13 с смикав abort() уже нікому.
+        let tid = setTimeout(function () {
+          ctrl.abort();
+        }, 13000);
         try {
-          var ctrl = new AbortController();
-          var tid = setTimeout(function () {
-            ctrl.abort();
-          }, 13000);
           var fullUrl = proxies[pi] + encodeURIComponent(url);
           // console.log('[proxy] ###' + pi + ' fetching:', fullUrl);
 
           var resp = await fetch(fullUrl, { signal: ctrl.signal });
-          clearTimeout(tid);
 
           if (resp.ok) {
             var txt = await resp.text();
@@ -92,6 +96,8 @@ window.__createAllMethods = function () {
           }
         } catch (e) {
           console.warn("[proxy] #" + pi + " ❌ exception:", e.message);
+        } finally {
+          clearTimeout(tid);
         }
       }
 
@@ -412,6 +418,16 @@ window.__createAllMethods = function () {
           return false;
         }
         vm.auctionUrl = vm.sanitizeLotUrl(row.url);
+        // Аукціон беремо з рядка БД. Без цього збережений лот розбирався під
+        // тим аукціоном, який лишився в сховищі (за замовчуванням Copart):
+        // сітка зборів, локація й наземне плече бралися чужі, посилання
+        // «сторінка лоту» вело на copart.com, а наступний пошук ціни не
+        // знаходив лот за парою (аукціон, номер) і лишався без прив'язки.
+        if (
+          row.auction &&
+          window.getAuctionById(row.auction).id === row.auction
+        )
+          vm.autoPricing.auctions.selected = row.auction;
         vm.applyLotJson(row.raw, row.url, { save: false });
         return true;
       } catch (e) {

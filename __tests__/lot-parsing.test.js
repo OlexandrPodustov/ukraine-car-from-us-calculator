@@ -516,6 +516,54 @@ describe("applyLotJson / loadSavedLot", () => {
     expect(vm.customs.carrierInfo.model).toBe("911");
   });
 
+  it("бере аукціон із рядка БД, а не зі сховища", async () => {
+    // Калькулятор міг стояти на Copart (це дефолт), а лот у БД — IAAI.
+    // Тоді збережений лот рахувався за чужою сіткою зборів, локація й наземне
+    // плече бралися з філій іншого аукціону, посилання «сторінка лоту» вело
+    // на copart.com, а пошук ціни не знаходив лот за (аукціон, номер).
+    const vm = createVm();
+    vm.autoPricing.auctions.selected = "copart";
+    vm.logLot = () => Promise.resolve(true);
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            id: 29,
+            auction: "iaai",
+            url: "https://www.iaai.com/VehicleDetail/46380419~US",
+            raw: LOT,
+          }),
+      }),
+    );
+
+    await expect(vm.loadSavedLot(29)).resolves.toBe(true);
+
+    expect(vm.autoPricing.auctions.selected).toBe("iaai");
+    expect(vm.currentLot.auction).toBe("iaai");
+    expect(vm.getCurrentLocation().name).toContain("(IAAI)");
+    expect(
+      vm.canonicalLotUrl(vm.currentLot.auction, vm.currentLot.lotNumber),
+    ).toBe("https://www.iaai.com/VehicleDetail/46380419~US");
+  });
+
+  it("невідомий аукціон у рядку БД не збиває поточний вибір", async () => {
+    const vm = iaaiVm();
+    vm.logLot = () => Promise.resolve(true);
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({ id: 1, auction: "manheim", url: "", raw: LOT }),
+      }),
+    );
+
+    await vm.loadSavedLot(1);
+    expect(vm.autoPricing.auctions.selected).toBe("iaai");
+  });
+
   it("каже, коли лот із БД не дістати", async () => {
     const vm = iaaiVm();
     global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 404 }));

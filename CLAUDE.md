@@ -144,7 +144,12 @@ form lives in `applyLotJson(nd, url, {save})`. The same JSON is already in `lots
 `/index.html?lot=<id>` (the "🧮 Порахувати в калькуляторі" button in the lots.html modal) calls
 `loadSavedLot(id)` → `applyLotJson(..., {save: false})` and re-prices a lot whose auction page may
 already be gone. `save: false` matters — otherwise loading from the DB would write straight back
-to it.
+to it. `loadSavedLot` must also **set the auction from the stored row**: `collectLotData` and
+`matchAuctionLocation` both read `autoPricing.auctions.selected`, and until 2026-08-23 that was
+whatever was left in localStorage (Copart by default) — so an IAAI lot opened from `lots.html` was
+priced on Copart's fee schedule, matched against Copart branches (a different inland rate), linked
+to copart.com, and its next price search failed to find the lot by `(auction, lot_number)` and was
+stored with no `lot_id` at all.
 
 ### `total()` is the landed cost; the deal metrics net out the repair
 

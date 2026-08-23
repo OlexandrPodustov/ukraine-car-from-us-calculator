@@ -170,13 +170,28 @@
                                 <span v-if="currentLot.lotNumber"
                                   >· лот {{currentLot.lotNumber}}</span
                                 >
+                                <!-- Посилання назад на сторінку лота: воно
+                                     збирається з аукціону й номера, тож
+                                     працює і для лота, відкритого з БД
+                                     (?lot=…), де поле URL порожнє. -->
+                                <a
+                                  v-if="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
+                                  v-bind:href="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
+                                  target="_blank"
+                                  rel="noopener"
+                                  style="margin-left: 6px"
+                                  >↗ сторінка лоту</a
+                                >
                               </div>
                               <!-- ──────────────────────── -->
                               <div class="field-row">
                                 <div class="title">Ціна авто</div>
+                                <!-- min=0, а не 1000: максимальна ставка на
+                                     важкому лоті буває й нижчою, і поле
+                                     підсвічувалось як невалідне. -->
                                 <input
                                   max="2000000"
-                                  min="1000"
+                                  min="0"
                                   name="car-price"
                                   type="number"
                                   v-model.number="autoPricing.autoPrice"
