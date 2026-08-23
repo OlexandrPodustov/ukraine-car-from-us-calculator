@@ -176,6 +176,15 @@ The port now comes from `portByState` (`constants/ports.js`) and sets `currentCo
 ocean-freight rate. A manual pick in the UI sets `shippingPortManual` and is not overwritten by a
 later location change. See `docs/shipping-rates-baseline.md`.
 
+The **destination** port is a real choice, but only between Gdansk (default) and Klaipeda.
+Odesa was dropped on 2026-08-23: container lines have not taken cargo into Ukrainian ports since
+2022, so it priced a shipment that cannot happen — and being first in the list, it was the
+default. Its rates ($2500/3000/2700, undated, from commit `33b5526`) survive only as a record in
+the baseline doc. Both remaining routes currently total the same to the border (east 2050, west
+2700, gulf 2150 = freight + truck to the border), so the pick moves no number today; it will the
+moment either rate is re-measured. A stored `destinationPort: "odessa"` fails `hasId` in
+`applyPersistedState` and silently falls back to the default.
+
 ### Re-pricing a saved lot without scraping
 
 `parseAuctionLot` only fetches the page and digs out the embedded JSON; everything that fills the

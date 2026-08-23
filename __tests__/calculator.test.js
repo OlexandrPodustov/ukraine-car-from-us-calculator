@@ -307,15 +307,13 @@ describe("Митна вартість", () => {
     );
   });
 
-  test("дешевший маршрут → менша база → менше мито", () => {
-    const odessa = createVm({
-      autoShipping: { destinationPort: { selected: "odessa" } },
+  test("дорожча доставка → більша база → більше мито", () => {
+    const cheap = createVm();
+    const dear = createVm({
+      oceanFreightOverride: cheap.oceanFreightFee() + 1000,
     });
-    const klaipeda = createVm({
-      autoShipping: { destinationPort: { selected: "klaipeda" } },
-    });
-    expect(klaipeda.totalShippingFee()).toBeLessThan(odessa.totalShippingFee());
-    expect(klaipeda.importDuty()).toBeLessThan(odessa.importDuty());
+    expect(dear.totalShippingFee()).toBeGreaterThan(cheap.totalShippingFee());
+    expect(dear.importDuty()).toBeGreaterThan(cheap.importDuty());
   });
 });
 
@@ -326,24 +324,27 @@ describe("Доставка", () => {
     expect(vm.totalShippingFee()).toBe(sum);
   });
 
-  test("для Одеси немає плеча «порт → кордон»", () => {
-    const vm = createVm({
-      autoShipping: { destinationPort: { selected: "odessa" } },
-    });
-    expect(vm.toUkraineFee()).toBe(0);
-    expect(vm.shippingBreakdown().some((r) => r.key === "toUkraine")).toBe(
-      false,
-    );
+  // Одеса як порт призначення прибрана 2026-08-23: в Україну не возять,
+  // війна. Якщо вона колись повернеться в довідник — має повернутись
+  // свідомо, разом зі ставками, а не випадково.
+  test("Одеси серед портів призначення немає", () => {
+    expect(window.destinationPorts.map((p) => p.id)).toEqual([
+      "gdansk",
+      "klaipeda",
+    ]);
+    expect(window.oceanFreightRates.odessa).toBeUndefined();
   });
 
-  test("для Клайпеди плече «порт → кордон» присутнє окремим рядком", () => {
-    const vm = createVm({
-      autoShipping: { destinationPort: { selected: "klaipeda" } },
+  test("у кожного порту призначення є плече «порт → кордон»", () => {
+    window.destinationPorts.forEach((port) => {
+      const vm = createVm({
+        autoShipping: { destinationPort: { selected: port.id } },
+      });
+      expect(vm.toUkraineFee()).toBeGreaterThan(0);
+      expect(vm.shippingBreakdown().some((r) => r.key === "toUkraine")).toBe(
+        true,
+      );
     });
-    expect(vm.toUkraineFee()).toBeGreaterThan(0);
-    expect(vm.shippingBreakdown().some((r) => r.key === "toUkraine")).toBe(
-      true,
-    );
   });
 });
 
