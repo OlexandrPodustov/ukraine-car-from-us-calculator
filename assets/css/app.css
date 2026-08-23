@@ -2,6 +2,14 @@ body {
   overflow-x: hidden;
   font-family: sans-serif;
   font-size: 18px;
+
+  /* Сторінка по центру з обмеженою шириною. Було margin-left: 10% — на
+     широкому моніторі рядки «підпис … сума» розтягувались на весь екран,
+     і сума виявлялась за півметра від того, що вона означає. */
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 40px;
+  box-sizing: border-box;
 }
 
 input {
@@ -97,6 +105,34 @@ input::-webkit-inner-spin-button {
   justify-content: end;
 }
 
+/* Рядок посилання на лот — на всю ширину сторінки: URL лота IAAI не влазив
+   у ліву колонку форми, і кінця посилання не було видно. */
+.lot-bar {
+  margin: 24px 0 8px;
+}
+
+.lot-bar input[type="url"] {
+  font-size: 15px;
+}
+
+/* Аналіз угоди: ліворуч ввід, праворуч розрахунок. */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 40px;
+  align-items: start;
+}
+
+.analysis-col {
+  min-width: 0;
+}
+
+@media only screen and (width < 900px) {
+  .analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .t-input-group {
   margin-bottom: 25px;
 }
@@ -125,21 +161,24 @@ input::-webkit-inner-spin-button {
 
 @media only screen and (width >= 992px) {
   .container {
-    display: flex;
-    width: 800px;
-    justify-content: space-between;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 40px;
+    width: 100%;
+    align-items: start;
   }
 
   .values {
     margin-top: 39px;
-    margin-left: 50px;
+    margin-left: 0;
   }
 }
 
 .valuess {
   display: flex;
+  gap: 16px;
   justify-content: space-between;
+  align-items: baseline;
   padding-bottom: 20px;
 }
 
@@ -154,8 +193,11 @@ input::-webkit-inner-spin-button {
 /* stylelint-disable no-duplicate-selectors */
 .price {
   display: flex;
-  justify-content: space-between;
-  width: 100px;
+  gap: 4px;
+  justify-content: flex-end;
+  align-items: baseline;
+  min-width: 100px;
+  white-space: nowrap;
 }
 
 /* ── Спільне навігаційне меню ─────────────────────────────────── */

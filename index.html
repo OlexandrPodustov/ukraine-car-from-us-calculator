@@ -33,7 +33,7 @@
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
   </head>
 
-  <body class="t-body" style="margin: 0; margin-left: 10%">
+  <body class="t-body">
     <nav class="app-nav">
       <a href="/index.html" class="active">🧮 Калькулятор</a>
       <a href="/lots.html">🚗 Лоти</a>
@@ -65,171 +65,159 @@
                 <div class="t-container" id="shippingApp">
                   <div>
                     <!-- auto prices, auction -->
+                    <!-- Посилання на лот — на всю ширину сторінки, а не в
+                         лівій колонці форми: у колонку не влазить навіть
+                         типовий URL IAAI, і кінця посилання не видно. -->
+                    <div class="lot-bar">
+                      <!-- ── Auction URL parser ── -->
+                      <div style="display: flex; gap: 8px; align-items: center">
+                        <input
+                          type="url"
+                          v-model="auctionUrl"
+                          placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
+                          autocomplete="off"
+                          v-on:paste="$nextTick(onAuctionUrlPaste)"
+                          v-on:keyup.enter="parseAuctionLot"
+                          style="margin-bottom: 0; flex: 1; min-width: 0"
+                        />
+                        <button
+                          type="button"
+                          v-on:click="parseAuctionLot"
+                          v-bind:disabled="auctionStatus==='loading'"
+                          style="
+                            height: 30px;
+                            padding: 0 13px;
+                            margin-bottom: 0;
+                            background: #111;
+                            color: #fff;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                            font-size: 14px;
+                            white-space: nowrap;
+                            flex-shrink: 0;
+                          "
+                        >
+                          <span v-if="auctionStatus!=='loading'"
+                            >↓ Заповнити</span
+                          >
+                          <span v-else>⏳…</span>
+                        </button>
+                      </div>
+                      <div
+                        v-if="auctionMsg"
+                        style="
+                          font-size: 13px;
+                          margin-top: 6px;
+                          margin-bottom: 4px;
+                          line-height: 1.4;
+                        "
+                        v-bind:style="auctionStatus==='ok'?{color:'#1a7a1a'}:auctionStatus==='error'?{color:'#c00000'}:auctionStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
+                      >
+                        {{auctionMsg}}
+                      </div>
+                      <!-- Запис у локальну SQLite. Мовчазний збій тут
+                             означає, що лот нікуди не зберігся. -->
+                      <div
+                        v-if="dbMsg"
+                        style="
+                          font-size: 13px;
+                          margin-bottom: 4px;
+                          line-height: 1.4;
+                          color: #a06000;
+                        "
+                      >
+                        {{dbMsg}}
+                      </div>
+                      <!-- VIN зчитаного лота. Показуємо тут, бо це
+                             єдиний ідентифікатор авто, який потрібно
+                             копіювати в Carfax/страховику; user-select:all
+                             виділяє весь VIN одним кліком. -->
+                      <div
+                        v-if="currentLot.vin"
+                        style="font-size: 13px; margin-bottom: 6px; color: #555"
+                      >
+                        VIN:
+                        <span
+                          style="
+                            font-family:
+                              ui-monospace, Menlo, Consolas, monospace;
+                            font-weight: 600;
+                            letter-spacing: 0.02em;
+                            color: #111;
+                            user-select: all;
+                          "
+                          >{{displayVin()}}</span
+                        >
+                        <span v-if="currentLot.lotNumber"
+                          >· лот {{currentLot.lotNumber}}</span
+                        >
+                        <!-- Посилання назад на сторінку лота: воно
+                               збирається з аукціону й номера, тож
+                               працює і для лота, відкритого з БД
+                               (?lot=…), де поле URL порожнє. -->
+                        <a
+                          v-if="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
+                          v-bind:href="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
+                          target="_blank"
+                          rel="noopener"
+                          style="margin-left: 6px"
+                          >↗ сторінка лоту</a
+                        >
+                      </div>
+                      <!-- Зняття маски з VIN. IAAI показує лише перші
+                             11 символів (і незалогіненому скрейпу, і
+                             залогіненому акаунту — перевірено), а решту
+                             6 видно тільки на фото заводської таблички,
+                             яке сам же аукціон і викладає. Тож поруч —
+                             посилання на це фото і поле, куди хвіст
+                             переписується один раз і лягає в БД. -->
+                      <div
+                        v-if="currentLot.vin && !currentLot.vinFull"
+                        style="
+                          font-size: 12px;
+                          margin-bottom: 8px;
+                          color: #6b7280;
+                          display: flex;
+                          flex-wrap: wrap;
+                          align-items: center;
+                          gap: 6px;
+                        "
+                      >
+                        <a
+                          v-if="currentLot.vinPlate"
+                          v-bind:href="currentLot.vinPlate"
+                          target="_blank"
+                          rel="noopener"
+                          >🔍 фото VIN-таблички</a
+                        >
+                        <input
+                          placeholder="останні 6 символів"
+                          type="text"
+                          v-model="vinInput"
+                          v-on:keyup.enter="saveVinFull(vinInput)"
+                          style="
+                            width: 190px;
+                            font-family:
+                              ui-monospace, Menlo, Consolas, monospace;
+                            text-transform: uppercase;
+                          "
+                        />
+                        <button
+                          type="button"
+                          v-on:click="saveVinFull(vinInput)"
+                        >
+                          зберегти VIN
+                        </button>
+                        <span v-if="vinMsg">{{vinMsg}}</span>
+                      </div>
+                    </div>
                     <div class="container">
                       <div>
                         <form onsubmit="return false;">
                           <div id="section-input">
                             <div class="titlet">Дані для розрахунку</div>
                             <div data-input-lid="1495646533382">
-                              <!-- ── Auction URL parser ── -->
-                              <!-- <div style="border:1px solid #d0d0d0;border-radius:8px;padding:14px 14px 6px;margin-bottom:22px;background:#f7f8fa;"> -->
-                              <!-- <div class="title" style="font-weight:600;margin-bottom:10px;">🔗 Посилання на лот аукціону</div> -->
-                              <div
-                                style="
-                                  display: flex;
-                                  gap: 8px;
-                                  align-items: center;
-                                "
-                              >
-                                <input
-                                  type="url"
-                                  v-model="auctionUrl"
-                                  placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
-                                  autocomplete="off"
-                                  v-on:paste="$nextTick(onAuctionUrlPaste)"
-                                  style="
-                                    margin-bottom: 0;
-                                    flex: 1;
-                                    min-width: 0;
-                                  "
-                                />
-                                <button
-                                  type="button"
-                                  v-on:click="parseAuctionLot"
-                                  v-bind:disabled="auctionStatus==='loading'"
-                                  style="
-                                    height: 30px;
-                                    padding: 0 13px;
-                                    margin-bottom: 0;
-                                    background: #111;
-                                    color: #fff;
-                                    border: none;
-                                    border-radius: 5px;
-                                    cursor: pointer;
-                                    font-size: 14px;
-                                    white-space: nowrap;
-                                    flex-shrink: 0;
-                                  "
-                                >
-                                  <span v-if="auctionStatus!=='loading'"
-                                    >↓ Заповнити</span
-                                  >
-                                  <span v-else>⏳…</span>
-                                </button>
-                              </div>
-                              <div
-                                v-if="auctionMsg"
-                                style="
-                                  font-size: 13px;
-                                  margin-top: 6px;
-                                  margin-bottom: 4px;
-                                  line-height: 1.4;
-                                "
-                                v-bind:style="auctionStatus==='ok'?{color:'#1a7a1a'}:auctionStatus==='error'?{color:'#c00000'}:auctionStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
-                              >
-                                {{auctionMsg}}
-                                <!-- </div> -->
-                              </div>
-                              <!-- Запис у локальну SQLite. Мовчазний збій тут
-                                   означає, що лот нікуди не зберігся. -->
-                              <div
-                                v-if="dbMsg"
-                                style="
-                                  font-size: 13px;
-                                  margin-bottom: 4px;
-                                  line-height: 1.4;
-                                  color: #a06000;
-                                "
-                              >
-                                {{dbMsg}}
-                              </div>
-                              <!-- VIN зчитаного лота. Показуємо тут, бо це
-                                   єдиний ідентифікатор авто, який потрібно
-                                   копіювати в Carfax/страховику; user-select:all
-                                   виділяє весь VIN одним кліком. -->
-                              <div
-                                v-if="currentLot.vin"
-                                style="
-                                  font-size: 13px;
-                                  margin-bottom: 6px;
-                                  color: #555;
-                                "
-                              >
-                                VIN:
-                                <span
-                                  style="
-                                    font-family:
-                                      ui-monospace, Menlo, Consolas, monospace;
-                                    font-weight: 600;
-                                    letter-spacing: 0.02em;
-                                    color: #111;
-                                    user-select: all;
-                                  "
-                                  >{{displayVin()}}</span
-                                >
-                                <span v-if="currentLot.lotNumber"
-                                  >· лот {{currentLot.lotNumber}}</span
-                                >
-                                <!-- Посилання назад на сторінку лота: воно
-                                     збирається з аукціону й номера, тож
-                                     працює і для лота, відкритого з БД
-                                     (?lot=…), де поле URL порожнє. -->
-                                <a
-                                  v-if="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
-                                  v-bind:href="canonicalLotUrl(currentLot.auction, currentLot.lotNumber)"
-                                  target="_blank"
-                                  rel="noopener"
-                                  style="margin-left: 6px"
-                                  >↗ сторінка лоту</a
-                                >
-                              </div>
-                              <!-- Зняття маски з VIN. IAAI показує лише перші
-                                   11 символів (і незалогіненому скрейпу, і
-                                   залогіненому акаунту — перевірено), а решту
-                                   6 видно тільки на фото заводської таблички,
-                                   яке сам же аукціон і викладає. Тож поруч —
-                                   посилання на це фото і поле, куди хвіст
-                                   переписується один раз і лягає в БД. -->
-                              <div
-                                v-if="currentLot.vin && !currentLot.vinFull"
-                                style="
-                                  font-size: 12px;
-                                  margin-bottom: 8px;
-                                  color: #6b7280;
-                                  display: flex;
-                                  flex-wrap: wrap;
-                                  align-items: center;
-                                  gap: 6px;
-                                "
-                              >
-                                <a
-                                  v-if="currentLot.vinPlate"
-                                  v-bind:href="currentLot.vinPlate"
-                                  target="_blank"
-                                  rel="noopener"
-                                  >🔍 фото VIN-таблички</a
-                                >
-                                <input
-                                  placeholder="останні 6 символів"
-                                  type="text"
-                                  v-model="vinInput"
-                                  v-on:keyup.enter="saveVinFull(vinInput)"
-                                  style="
-                                    width: 190px;
-                                    font-family:
-                                      ui-monospace, Menlo, Consolas, monospace;
-                                    text-transform: uppercase;
-                                  "
-                                />
-                                <button
-                                  type="button"
-                                  v-on:click="saveVinFull(vinInput)"
-                                >
-                                  зберегти VIN
-                                </button>
-                                <span v-if="vinMsg">{{vinMsg}}</span>
-                              </div>
-                              <!-- ──────────────────────── -->
                               <div class="field-row">
                                 <div class="title">Ціна авто</div>
                                 <!-- min=0, а не 1000: максимальна ставка на
@@ -729,327 +717,344 @@
                       </div>
                       <div></div>
                     </div>
-                    <div
-                      style="
-                        border: 1px solid #c8dff5;
-                        border-radius: 8px;
-                        padding: 14px 14px 6px;
-                        margin-bottom: 22px;
-                        background: #f0f7ff;
-                      "
-                    >
-                      <div
-                        class="title"
-                        style="font-weight: 600; margin-bottom: 10px"
-                      >
-                        Дані для аналізу
-                      </div>
-                      <div class="field-row">
-                        <div class="title">ACV (ринкова ціна)</div>
-                        <input
-                          type="number"
-                          v-model.number="acv"
-                          style="margin-bottom: 0; flex: 1"
-                        /><span style="margin-left: 4px; line-height: 30px"
-                          >$</span
-                        >
-                      </div>
-                      <div class="field-row">
-                        <div class="title">Buy Now Price</div>
-                        <input
-                          type="number"
-                          v-model.number="buyNowPrice"
-                          style="margin-bottom: 0; flex: 1"
-                        /><span style="margin-left: 4px; line-height: 30px"
-                          >$</span
-                        >
-                      </div>
-                      <!-- Стан авто зі зчитаного лота: саме з нього
-                           оцінюють вартість ремонту, тож він має бути перед
-                           очима, а не тільки в БД. -->
-                      <div
-                        v-if="lotConditionRows().length"
-                        style="
-                          margin: 4px 0 10px;
-                          padding: 8px 10px;
-                          background: #f7f8fa;
-                          border: 1px solid #e5e7eb;
-                          border-radius: 6px;
-                          font-size: 13px;
-                          line-height: 1.5;
-                        "
-                      >
-                        <div style="font-weight: 600; margin-bottom: 2px">
-                          Стан лота
-                        </div>
+                    <!-- Дві колонки: ліворуч те, що вводиться руками,
+                         праворуч те, що з цього рахується. В один
+                         стовпчик на всю ширину сторінки підпис і сума
+                         роз'їжджались на пів екрана. -->
+                    <div class="analysis-grid">
+                      <div class="analysis-col">
                         <div
-                          v-for="row in lotConditionRows()"
-                          style="display: flex; gap: 8px"
+                          style="
+                            border: 1px solid #c8dff5;
+                            border-radius: 8px;
+                            padding: 14px 14px 6px;
+                            margin-bottom: 22px;
+                            background: #f0f7ff;
+                          "
                         >
-                          <span style="color: #6b7280; min-width: 118px"
-                            >{{row.label}}</span
-                          >
-                          <span>{{row.value}}</span>
-                        </div>
-                      </div>
-                      <div class="field-row">
-                        <div class="title">
-                          Вартість ремонту
                           <div
+                            class="title"
+                            style="font-weight: 600; margin-bottom: 10px"
+                          >
+                            Дані для аналізу
+                          </div>
+                          <div class="field-row">
+                            <div class="title">ACV (ринкова ціна)</div>
+                            <input
+                              type="number"
+                              v-model.number="acv"
+                              style="margin-bottom: 0; flex: 1"
+                            /><span style="margin-left: 4px; line-height: 30px"
+                              >$</span
+                            >
+                          </div>
+                          <div class="field-row">
+                            <div class="title">Buy Now Price</div>
+                            <input
+                              type="number"
+                              v-model.number="buyNowPrice"
+                              style="margin-bottom: 0; flex: 1"
+                            /><span style="margin-left: 4px; line-height: 30px"
+                              >$</span
+                            >
+                          </div>
+                          <!-- Стан авто зі зчитаного лота: саме з нього
+                               оцінюють вартість ремонту, тож він має бути перед
+                               очима, а не тільки в БД. -->
+                          <div
+                            v-if="lotConditionRows().length"
                             style="
-                              font-size: 12px;
-                              font-weight: 400;
-                              color: #666;
+                              margin: 4px 0 10px;
+                              padding: 8px 10px;
+                              background: #f7f8fa;
+                              border: 1px solid #e5e7eb;
+                              border-radius: 6px;
+                              font-size: 13px;
+                              line-height: 1.5;
                             "
                           >
-                            з лоту підставляється оцінка аукціону (ціни США) —
-                            заміни на свою
-                          </div>
-                        </div>
-                        <input
-                          type="number"
-                          v-model.number="repairCost"
-                          style="margin-bottom: 0; flex: 1"
-                        /><span style="margin-left: 4px; line-height: 30px"
-                          >$</span
-                        >
-                      </div>
-                      <div class="field-row">
-                        <div class="title">Коефіцієнт ризику</div>
-                        <input
-                          type="number"
-                          min="0.5"
-                          max="1.0"
-                          step="0.05"
-                          v-model.number="riskCoefficient"
-                          style="margin-bottom: 0; flex: 1"
-                        />
-                        <span
-                          style="
-                            margin-left: 6px;
-                            font-size: 13px;
-                            color: #666;
-                            line-height: 30px;
-                          "
-                          >(0.5–1.0)</span
-                        >
-                      </div>
-                    </div>
-                    <div class="valuess">
-                      <div class="values_title">ACV − ремонт</div>
-                      <div class="price">
-                        <div>$</div>
-                        <div>{{cleanValue()}}</div>
-                      </div>
-                    </div>
-                    <div class="valuess" v-if="buyNowPrice > 0">
-                      <div class="values_title">Buy Now Price</div>
-                      <div class="price">
-                        <div>$</div>
-                        <div>{{buyNowPrice}}</div>
-                      </div>
-                    </div>
-                    <div
-                      class="valuess total"
-                      v-bind:style="benefit()>=0?{color:'#1a7a1a'}:{color:'#c00000'}"
-                    >
-                      <div class="values_title">
-                        Вигода угоди
-                        <span style="font-size: 12px; font-weight: 400"
-                          >(ACV−ремонт − підсумок)</span
-                        >
-                      </div>
-                      <div class="price">
-                        <div>{{benefit()&gt;=0?'+':''}}$</div>
-                        <div>{{benefit()}}</div>
-                      </div>
-                    </div>
-                    <div
-                      class="valuess total"
-                      style="
-                        background: #fffbe6;
-                        padding: 8px 4px;
-                        border-radius: 6px;
-                        margin-top: 6px;
-                      "
-                    >
-                      <div class="values_title">
-                        Макс. ставка за ACV
-                        <div style="font-size: 12px; font-weight: 400">
-                          (ACV − ремонт) × {{riskCoefficient}} − інші витрати
-                        </div>
-                      </div>
-                      <div class="price">
-                        <div>$</div>
-                        <div>{{maxBid()}}</div>
-                        <button
-                          type="button"
-                          v-on:click="recalcMaxBid()"
-                          title="Підставити цю ставку в поле «Ціна авто»"
-                          style="
-                            margin-left: 8px;
-                            height: 24px;
-                            padding: 0 8px;
-                            border: 1px solid #d6c48a;
-                            background: #fff;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-size: 12px;
-                            white-space: nowrap;
-                          "
-                        >
-                          ⤒ у ціну
-                        </button>
-                      </div>
-                    </div>
-                    <!-- Стеля за українським ринком. ACV — це оцінка
-                         страховика в США; для перепродажу тут вирішує ціна,
-                         за яку авто піде на AUTO.RIA, а ремонт входить у
-                         витрати окремо (ринкова ціна — це ціна ЦІЛОГО авто). -->
-                    <div
-                      class="valuess total"
-                      v-if="customs.ukrainianMarketPrice > 0"
-                      style="
-                        background: #eef6ff;
-                        padding: 8px 4px;
-                        border-radius: 6px;
-                        margin-top: 6px;
-                      "
-                    >
-                      <div class="values_title">
-                        Макс. ставка за укр. ринком
-                        <div style="font-size: 12px; font-weight: 400">
-                          ринок ${{customs.ukrainianMarketPrice}} ×
-                          {{riskCoefficient}} − ремонт − інші витрати
-                        </div>
-                      </div>
-                      <div class="price">
-                        <div>$</div>
-                        <div>{{maxBidForMarket()}}</div>
-                        <button
-                          type="button"
-                          v-on:click="autoPricing.autoPrice = maxBidForMarket()"
-                          title="Підставити цю ставку в поле «Ціна авто»"
-                          style="
-                            margin-left: 8px;
-                            height: 24px;
-                            padding: 0 8px;
-                            border: 1px solid #a8c7e8;
-                            background: #fff;
-                            border-radius: 4px;
-                            cursor: pointer;
-                            font-size: 12px;
-                            white-space: nowrap;
-                          "
-                        >
-                          ⤒ у ціну
-                        </button>
-                      </div>
-                    </div>
-                    <!-- Ukrainian Market Price Section -->
-                    <div
-                      id="section-market"
-                      style="
-                        border-top: 2px solid #ccc;
-                        margin-top: 20px;
-                        padding-top: 14px;
-                      "
-                    >
-                      <div
-                        class="valuess"
-                        style="
-                          border-bottom: 1px solid #ddd;
-                          padding-bottom: 10px;
-                        "
-                      >
-                        <div class="values_title" style="font-weight: 700">
-                          Ціна на українському ринку
-                        </div>
-                        <button
-                          type="button"
-                          v-on:click="lookupUkrainianPrice()"
-                          v-bind:disabled="marketStatus==='loading' || !autoPricing.autoPrice"
-                          style="
-                            height: 30px;
-                            padding: 0 13px;
-                            background: #0066cc;
-                            color: #fff;
-                            border: none;
-                            border-radius: 5px;
-                            cursor: pointer;
-                            font-size: 14px;
-                            white-space: nowrap;
-                            flex-shrink: 0;
-                          "
-                        >
-                          <span v-if="marketStatus!=='loading'">🔍 Шукати</span>
-                          <span v-else>⏳…</span>
-                        </button>
-                      </div>
-                      <div
-                        v-if="marketMsg"
-                        style="
-                          font-size: 13px;
-                          margin: 8px 0 4px 0;
-                          line-height: 1.4;
-                        "
-                        v-bind:style="marketStatus==='ok'?{color:'#1a7a1a'}:marketStatus==='error'?{color:'#c00000'}:marketStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
-                      >
-                        {{marketMsg}}
-                      </div>
-                      <div
-                        v-if="customs.ukrainianMarketPrice > 0"
-                        style="margin-top: 12px"
-                      >
-                        <div class="valuess">
-                          <div class="values_title">
-                            Ціна на укр. ринку (медіана)
-                          </div>
-                          <div class="price">
-                            <div>$</div>
-                            <div>{{customs.ukrainianMarketPrice}}</div>
-                          </div>
-                        </div>
-                        <div class="valuess" v-if="customs.marketCategory">
-                          <div class="values_title">Категорія угоди</div>
-                          <div
-                            class="price"
-                            v-bind:style="customs.marketCategory==='underpriced'?{color:'#1a7a1a',fontWeight:'bold'}:customs.marketCategory==='overpriced'?{color:'#c00000',fontWeight:'bold'}:{color:'#a06000',fontWeight:'bold'}"
-                          >
-                            <div v-if="customs.marketCategory==='underpriced'">
-                              ✅ Вигідна
+                            <div style="font-weight: 600; margin-bottom: 2px">
+                              Стан лота
                             </div>
                             <div
-                              v-else-if="customs.marketCategory==='overpriced'"
+                              v-for="row in lotConditionRows()"
+                              style="display: flex; gap: 8px"
                             >
-                              ❌ Невигідна
+                              <span style="color: #6b7280; min-width: 118px"
+                                >{{row.label}}</span
+                              >
+                              <span>{{row.value}}</span>
                             </div>
-                            <div v-else>⚠️ Нейтральна</div>
+                          </div>
+                          <div class="field-row">
+                            <div class="title">
+                              Вартість ремонту
+                              <div
+                                style="
+                                  font-size: 12px;
+                                  font-weight: 400;
+                                  color: #666;
+                                "
+                              >
+                                з лоту підставляється оцінка аукціону (ціни США)
+                                — заміни на свою
+                              </div>
+                            </div>
+                            <input
+                              type="number"
+                              v-model.number="repairCost"
+                              style="margin-bottom: 0; flex: 1"
+                            /><span style="margin-left: 4px; line-height: 30px"
+                              >$</span
+                            >
+                          </div>
+                          <div class="field-row">
+                            <div class="title">Коефіцієнт ризику</div>
+                            <input
+                              type="number"
+                              min="0.5"
+                              max="1.0"
+                              step="0.05"
+                              v-model.number="riskCoefficient"
+                              style="margin-bottom: 0; flex: 1"
+                            />
+                            <span
+                              style="
+                                margin-left: 6px;
+                                font-size: 13px;
+                                color: #666;
+                                line-height: 30px;
+                              "
+                              >(0.5–1.0)</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                      <div class="analysis-col">
+                        <div class="valuess">
+                          <div class="values_title">ACV − ремонт</div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{cleanValue()}}</div>
+                          </div>
+                        </div>
+                        <div class="valuess" v-if="buyNowPrice > 0">
+                          <div class="values_title">Buy Now Price</div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{buyNowPrice}}</div>
                           </div>
                         </div>
                         <div
                           class="valuess total"
-                          v-bind:style="marketPriceDifference()>=0?{color:'#1a7a1a',background:'#e8f5e9'}:{color:'#c00000',background:'#ffebee'}"
+                          v-bind:style="benefit()>=0?{color:'#1a7a1a'}:{color:'#c00000'}"
+                        >
+                          <div class="values_title">
+                            Вигода угоди
+                            <span style="font-size: 12px; font-weight: 400"
+                              >(ACV−ремонт − підсумок)</span
+                            >
+                          </div>
+                          <div class="price">
+                            <div>{{benefit()&gt;=0?'+':''}}$</div>
+                            <div>{{benefit()}}</div>
+                          </div>
+                        </div>
+                        <div
+                          class="valuess total"
                           style="
+                            background: #fffbe6;
                             padding: 8px 4px;
                             border-radius: 6px;
                             margin-top: 6px;
                           "
                         >
-                          <div class="values_title" style="font-size: 13px">
-                            Різниця (укр. ринок − вкладено)
+                          <div class="values_title">
+                            Макс. ставка за ACV
                             <div style="font-size: 12px; font-weight: 400">
-                              вкладено = підсумок ${{total()}}<span
-                                v-if="repairCost > 0"
-                              >
-                                + ремонт ${{repairCost}} =
-                                ${{totalWithRepair()}}</span
-                              >
+                              (ACV − ремонт) × {{riskCoefficient}} − інші
+                              витрати
                             </div>
                           </div>
                           <div class="price">
-                            <div>{{marketPriceDifference()&gt;=0?'+':''}}$</div>
-                            <div>{{marketPriceDifference()}}</div>
+                            <div>$</div>
+                            <div>{{maxBid()}}</div>
+                            <button
+                              type="button"
+                              v-on:click="recalcMaxBid()"
+                              title="Підставити цю ставку в поле «Ціна авто»"
+                              style="
+                                margin-left: 8px;
+                                height: 24px;
+                                padding: 0 8px;
+                                border: 1px solid #d6c48a;
+                                background: #fff;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                white-space: nowrap;
+                              "
+                            >
+                              ⤒ у ціну
+                            </button>
+                          </div>
+                        </div>
+                        <!-- Стеля за українським ринком. ACV — це оцінка
+                             страховика в США; для перепродажу тут вирішує ціна,
+                             за яку авто піде на AUTO.RIA, а ремонт входить у
+                             витрати окремо (ринкова ціна — це ціна ЦІЛОГО авто). -->
+                        <div
+                          class="valuess total"
+                          v-if="customs.ukrainianMarketPrice > 0"
+                          style="
+                            background: #eef6ff;
+                            padding: 8px 4px;
+                            border-radius: 6px;
+                            margin-top: 6px;
+                          "
+                        >
+                          <div class="values_title">
+                            Макс. ставка за укр. ринком
+                            <div style="font-size: 12px; font-weight: 400">
+                              ринок ${{customs.ukrainianMarketPrice}} ×
+                              {{riskCoefficient}} − ремонт − інші витрати
+                            </div>
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{maxBidForMarket()}}</div>
+                            <button
+                              type="button"
+                              v-on:click="autoPricing.autoPrice = maxBidForMarket()"
+                              title="Підставити цю ставку в поле «Ціна авто»"
+                              style="
+                                margin-left: 8px;
+                                height: 24px;
+                                padding: 0 8px;
+                                border: 1px solid #a8c7e8;
+                                background: #fff;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                white-space: nowrap;
+                              "
+                            >
+                              ⤒ у ціну
+                            </button>
+                          </div>
+                        </div>
+                        <!-- Ukrainian Market Price Section -->
+                        <div
+                          id="section-market"
+                          style="
+                            border-top: 2px solid #ccc;
+                            margin-top: 20px;
+                            padding-top: 14px;
+                          "
+                        >
+                          <div
+                            class="valuess"
+                            style="
+                              border-bottom: 1px solid #ddd;
+                              padding-bottom: 10px;
+                            "
+                          >
+                            <div class="values_title" style="font-weight: 700">
+                              Ціна на українському ринку
+                            </div>
+                            <button
+                              type="button"
+                              v-on:click="lookupUkrainianPrice()"
+                              v-bind:disabled="marketStatus==='loading' || !autoPricing.autoPrice"
+                              style="
+                                height: 30px;
+                                padding: 0 13px;
+                                background: #0066cc;
+                                color: #fff;
+                                border: none;
+                                border-radius: 5px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                white-space: nowrap;
+                                flex-shrink: 0;
+                              "
+                            >
+                              <span v-if="marketStatus!=='loading'"
+                                >🔍 Шукати</span
+                              >
+                              <span v-else>⏳…</span>
+                            </button>
+                          </div>
+                          <div
+                            v-if="marketMsg"
+                            style="
+                              font-size: 13px;
+                              margin: 8px 0 4px 0;
+                              line-height: 1.4;
+                            "
+                            v-bind:style="marketStatus==='ok'?{color:'#1a7a1a'}:marketStatus==='error'?{color:'#c00000'}:marketStatus==='warn'?{color:'#a06000'}:{color:'#555'}"
+                          >
+                            {{marketMsg}}
+                          </div>
+                          <div
+                            v-if="customs.ukrainianMarketPrice > 0"
+                            style="margin-top: 12px"
+                          >
+                            <div class="valuess">
+                              <div class="values_title">
+                                Ціна на укр. ринку (медіана)
+                              </div>
+                              <div class="price">
+                                <div>$</div>
+                                <div>{{customs.ukrainianMarketPrice}}</div>
+                              </div>
+                            </div>
+                            <div class="valuess" v-if="customs.marketCategory">
+                              <div class="values_title">Категорія угоди</div>
+                              <div
+                                class="price"
+                                v-bind:style="customs.marketCategory==='underpriced'?{color:'#1a7a1a',fontWeight:'bold'}:customs.marketCategory==='overpriced'?{color:'#c00000',fontWeight:'bold'}:{color:'#a06000',fontWeight:'bold'}"
+                              >
+                                <div
+                                  v-if="customs.marketCategory==='underpriced'"
+                                >
+                                  ✅ Вигідна
+                                </div>
+                                <div
+                                  v-else-if="customs.marketCategory==='overpriced'"
+                                >
+                                  ❌ Невигідна
+                                </div>
+                                <div v-else>⚠️ Нейтральна</div>
+                              </div>
+                            </div>
+                            <div
+                              class="valuess total"
+                              v-bind:style="marketPriceDifference()>=0?{color:'#1a7a1a',background:'#e8f5e9'}:{color:'#c00000',background:'#ffebee'}"
+                              style="
+                                padding: 8px 4px;
+                                border-radius: 6px;
+                                margin-top: 6px;
+                              "
+                            >
+                              <div class="values_title" style="font-size: 13px">
+                                Різниця (укр. ринок − вкладено)
+                                <div style="font-size: 12px; font-weight: 400">
+                                  вкладено = підсумок ${{total()}}<span
+                                    v-if="repairCost > 0"
+                                  >
+                                    + ремонт ${{repairCost}} =
+                                    ${{totalWithRepair()}}</span
+                                  >
+                                </div>
+                              </div>
+                              <div class="price">
+                                <div>
+                                  {{marketPriceDifference()&gt;=0?'+':''}}$
+                                </div>
+                                <div>{{marketPriceDifference()}}</div>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
