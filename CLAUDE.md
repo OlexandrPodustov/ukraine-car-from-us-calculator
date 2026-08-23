@@ -167,8 +167,13 @@ In the DB the two halves stay separate: `searches.total_cost` is the landed cost
    API tier is hourly rate-limited — caching in localStorage is mandatory.** The cache key must
    list every parameter that reaches the query (`getMarketCacheKey`: make/model/year/fuel/volume/
    kWh + a 10 000-km mileage bucket + gearbox) — mileage and gearbox are real filters, so a key
-   without them served one price to two cars of the same model-year. See the `autoria-api` skill
-   before touching this code.
+   without them served one price to two cars of the same model-year. A **cache hit still writes a
+   row to `searches`** (`buildSearchPayload` builds the same row for both paths, with `кеш` appended
+   to `filters_json`): the key is keyed on the model, not the lot, so the second lot of the same
+   model-year used to read the price from cache, log nothing, and show up on `lots.html` with no
+   deal pill at all. The cache therefore stores `prices` / `percentiles` too — enough to replay a
+   full row for the histogram — but not `classifieds`, which is the heavy part of the response.
+   See the `autoria-api` skill before touching this code.
 
 ### Persistence (server.js + SQLite at `data/searches.db`)
 

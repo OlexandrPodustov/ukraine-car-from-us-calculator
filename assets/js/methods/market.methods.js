@@ -535,8 +535,7 @@ window.__createAllMethods = function () {
       };
     },
     // Записи попередньої версії ключа (без пробігу) вже ніколи не збігуться —
-    // прибираємо їх, щоб не займали місце в localStorage: у кожному лежить
-    // список оголошень із цінами.
+    // прибираємо їх, щоб не займали місце в localStorage.
     purgeLegacyMarketCache: function () {
       try {
         var doomed = [];
@@ -882,6 +881,40 @@ window.__createAllMethods = function () {
       this.customs.marketCategory = cat;
       return cat;
     },
+    // Один формат рядка searches для обох шляхів — свіжого запиту й
+    // влучання в кеш. Доки він існував лише всередині гілки запиту, кеш не
+    // писав у БД нічого.
+    buildSearchPayload: function (target, r) {
+      return {
+        auction: this.currentLot.auction,
+        lotNumber: this.currentLot.lotNumber,
+        make: target.make,
+        model: target.model,
+        year: target.year,
+        engineType: target.engineType,
+        engineVolume: target.engineVolume,
+        markaId: r.markaId,
+        modelId: r.modelId,
+        modelMatched: r.modelMatched,
+        marketPrice: r.price,
+        sampleCount: r.total,
+        arithmeticMean: r.arithmeticMean || 0,
+        iqMean: r.iqMean || 0,
+        median: r.median || 0,
+        // total_cost — розмитнений кошт БЕЗ ремонту, repair_cost окремо:
+        // так у БД видно обидві складові, а diff (ринок − усе разом)
+        // лишається тим самим числом, що й на екрані.
+        totalCost: this.total(),
+        repairCost: Number(this.repairCost) || 0,
+        diff: this.marketPriceDifference(),
+        category: r.category,
+        prices: r.prices || [],
+        percentiles: r.percentiles || null,
+        classifieds: r.classifieds || [],
+        filtersApplied: r.filtersApplied || [],
+      };
+    },
+
     // Лог результату пошуку в локальну SQLite (через server.js).
     logSearch: function (payload) {
       return this.postToApi("/api/searches", payload, "Пошук");
@@ -1187,7 +1220,10 @@ window.__createAllMethods = function () {
         var cacheKey = vm.getMarketCacheKey(target);
         var cached = vm.readMarketCache(cacheKey);
         if (cached) {
-          vm.applyMarketResult(cached.medianPrice, cached.marketCategory);
+          var cachedCategory = vm.applyMarketResult(
+            cached.medianPrice,
+            cached.marketCategory,
+          );
           vm.marketStatus = "ok";
           vm.marketMsg =
             "✅ " +
@@ -1196,6 +1232,25 @@ window.__createAllMethods = function () {
             cached.sampleCount +
             " оголошень, ціна $" +
             cached.medianPrice;
+          // Влучання в кеш теж має лишати рядок у БД. Ключ кешу — це модель,
+          // рік, пробіг і коробка, а не лот: другий лот тієї самої моделі
+          // читав ціну з кешу, не писав нічого в searches — і на lots.html
+          // лишався взагалі без плашки угоди, ніби його ніхто не оцінював.
+          vm.logSearch(
+            vm.buildSearchPayload(target, {
+              price: cached.medianPrice,
+              total: cached.sampleCount,
+              category: cachedCategory,
+              markaId: cached.markaId || null,
+              modelId: cached.modelId || null,
+              modelMatched: cached.modelMatched === true,
+              prices: cached.prices || [],
+              percentiles: cached.percentiles || null,
+              classifieds: [],
+              filtersApplied: (cached.filtersApplied || []).concat("кеш"),
+            }),
+          );
+          vm.saveToLocalStorage();
           return;
         }
 
@@ -1300,44 +1355,51 @@ window.__createAllMethods = function () {
           price +
           (model ? "" : " (модель «" + target.model + "» не зматчилась)");
 
+        // У кеш кладемо не лише ціну, а й розподіл: із нього наступне
+        // влучання відтворює повноцінний рядок у searches (гістограма на
+        // stats.html будується саме з prices/percentiles). Оголошення
+        // (classifieds) не кешуємо — це найважча частина відповіді, а для
+        // графіка вона не потрібна.
         vm.writeMarketCache(cacheKey, {
           ts: Date.now(),
           medianPrice: price,
           sampleCount: total,
           marketCategory: category,
-        });
-        vm.saveToLocalStorage();
-
-        vm.logSearch({
-          auction: vm.currentLot.auction,
-          lotNumber: vm.currentLot.lotNumber,
-          make: target.make,
-          model: target.model,
-          year: target.year,
-          engineType: target.engineType,
-          engineVolume: target.engineVolume,
           markaId: mark.value,
           modelId: model ? model.value : null,
           modelMatched: !!model && !resolved.base,
-          marketPrice: price,
-          sampleCount: total,
           arithmeticMean: Math.round(data.arithmeticMean || 0),
           iqMean: Math.round(data.interQuartileMean || 0),
           median: Math.round(
             (data.percentiles && data.percentiles["50.0"]) || 0,
           ),
-          // total_cost — розмитнений кошт БЕЗ ремонту, repair_cost окремо:
-          // так у БД видно обидві складові, а diff (ринок − усе разом)
-          // лишається тим самим числом, що й на екрані.
-          totalCost: vm.total(),
-          repairCost: Number(vm.repairCost) || 0,
-          diff: vm.marketPriceDifference(),
-          category: category,
           prices: Array.isArray(data.prices) ? data.prices : [],
           percentiles: data.percentiles || null,
-          classifieds: Array.isArray(data.classifieds) ? data.classifieds : [],
           filtersApplied: appliedLabels,
         });
+        vm.saveToLocalStorage();
+
+        vm.logSearch(
+          vm.buildSearchPayload(target, {
+            price: price,
+            total: total,
+            category: category,
+            markaId: mark.value,
+            modelId: model ? model.value : null,
+            modelMatched: !!model && !resolved.base,
+            arithmeticMean: Math.round(data.arithmeticMean || 0),
+            iqMean: Math.round(data.interQuartileMean || 0),
+            median: Math.round(
+              (data.percentiles && data.percentiles["50.0"]) || 0,
+            ),
+            prices: Array.isArray(data.prices) ? data.prices : [],
+            percentiles: data.percentiles || null,
+            classifieds: Array.isArray(data.classifieds)
+              ? data.classifieds
+              : [],
+            filtersApplied: appliedLabels,
+          }),
+        );
       } catch (err) {
         if (err && err.rateLimited) {
           vm.marketStatus = "warn";
