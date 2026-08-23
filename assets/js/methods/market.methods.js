@@ -404,8 +404,7 @@ window.__createAllMethods = function () {
       vm.auctionStatus = "loading";
       vm.auctionMsg = "⏳ Завантаження збереженого лота №" + id + "…";
       try {
-        var res = await fetch(vm.apiBase() + "/api/lots/" + id);
-        if (!res.ok) throw new Error("HTTP " + res.status);
+        var res = await vm.apiFetch("/api/lots/" + id);
         var row = await res.json();
         if (!row || !row.raw) {
           vm.auctionStatus = "error";
@@ -959,13 +958,13 @@ window.__createAllMethods = function () {
     // лише на lots.html, через дні.
     postToApi: function (route, payload, what) {
       var vm = this;
-      return fetch(vm.apiBase() + route, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-        .then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
+      return vm
+        .apiFetch(route, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+        .then(function () {
           vm.dbMsg = "";
           return true;
         })
@@ -980,10 +979,45 @@ window.__createAllMethods = function () {
           return false;
         });
     },
-    // База API: node-сервер на :5500. Якщо сторінку відкрито з іншого порту
-    // (Live Server) — пишемо в :5500 напряму (на сервері дозволено CORS).
+    // Бази API у порядку спроби. Сторінку віддає або сам node-сервер — тоді
+    // працює відносний шлях, і байдуже, на якому він порту, — або Live Server
+    // чи file://, і тоді потрібна абсолютна адреса :5500 (CORS для /api там
+    // дозволено). Раніше тут стояло `port === "5500" ? "" : ":5500"`, тож
+    // будь-який інший PORT робив усі /api-виклики мертвими: сторінка з :8080
+    // стукала в :5500, де ніхто не слухає.
+    apiBaseCandidates: function () {
+      var list = location.protocol === "file:" ? [] : [""];
+      if (list.indexOf("http://localhost:5500") === -1)
+        list.push("http://localhost:5500");
+      return list;
+    },
+
+    // Остання база, що спрацювала. Далі всі виклики йдуть одразу в неї.
     apiBase: function () {
-      return location.port === "5500" ? "" : "http://localhost:5500";
+      return window.__apiBaseResolved != null
+        ? window.__apiBaseResolved
+        : this.apiBaseCandidates()[0];
+    },
+
+    // fetch, що перебирає кандидатів, поки хтось не відповість, і запам'ятовує
+    // переможця. Ціна помилки — один зайвий запит на першому виклику.
+    apiFetch: async function (route, init) {
+      var bases =
+        window.__apiBaseResolved != null
+          ? [window.__apiBaseResolved]
+          : this.apiBaseCandidates();
+      var lastErr = null;
+      for (var i = 0; i < bases.length; i++) {
+        try {
+          var resp = await fetch(bases[i] + route, init);
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          window.__apiBaseResolved = bases[i];
+          return resp;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("API недоступне");
     },
     // Лог повного лота (всі поля + HD-фото/відео + сирий JSON) у SQLite.
     logLot: function (payload) {

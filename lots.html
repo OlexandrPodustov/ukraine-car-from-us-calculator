@@ -401,7 +401,33 @@
     <script>
       // API на node-сервері (:5500). Якщо сторінку відкрито з іншого порту
       // (Live Server :5501) чи з файлу — б'ємо в :5500 напряму (CORS дозволено).
-      var API = location.port === "5500" ? "" : "http://localhost:5500";
+      // Сторінку віддає або сам node-сервер (тоді працює відносний шлях, і
+      // байдуже, на якому він порту), або Live Server / file:// — тоді
+      // потрібна абсолютна адреса :5500. Пробуємо по черзі й запам'ятовуємо
+      // ту, що спрацювала: захардкоджене «не 5500 → localhost:5500» ламалось
+      // на будь-якому іншому PORT.
+      var API_BASES = (location.protocol === "file:" ? [] : [""]).concat(
+        "http://localhost:5500",
+      );
+      var API_RESOLVED = null;
+      function apiFetch(route) {
+        var bases = API_RESOLVED === null ? API_BASES : [API_RESOLVED];
+        var i = 0;
+        function attempt() {
+          return fetch(bases[i] + route)
+            .then(function (r) {
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              API_RESOLVED = bases[i];
+              return r;
+            })
+            .catch(function (e) {
+              i += 1;
+              if (i < bases.length) return attempt();
+              throw e;
+            });
+        }
+        return attempt();
+      }
       // Поточна галерея відкритого лота: список фото + активний індекс.
       var LB = { images: [], index: 0 };
       function $(id) {
@@ -667,7 +693,7 @@
         });
       }
 
-      fetch(API + "/api/lots")
+      apiFetch("/api/lots")
         .then(function (r) {
           return r.json();
         })
@@ -696,7 +722,7 @@
 
       // ── Деталі лота ──────────────────────────────────────────────
       function openLot(id) {
-        fetch(API + "/api/lots/" + id)
+        apiFetch("/api/lots/" + id)
           .then(function (r) {
             return r.json();
           })

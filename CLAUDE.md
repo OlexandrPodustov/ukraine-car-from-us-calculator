@@ -26,8 +26,12 @@ make lint            # runs lint-js + lint-css + lint-html together
 `make start` is **not** the same as `npm start` — the Makefile target runs the python static
 server (no DB). Use `npm start` when you need the SQLite logging / `/api` endpoints.
 
-You can also open the pages via VS Code Live Server (:5501); API calls auto-target :5500 (see
-`apiBase()`), and the Node server sends permissive CORS for `/api/*`.
+You can also open the pages via VS Code Live Server (:5501). Every page resolves its API base by
+**trying same-origin first and falling back to `http://localhost:5500`**, remembering whichever
+answered (`apiBase()` / `apiFetch()` in the calculator, a small `apiFetch` in each companion page);
+the Node server sends permissive CORS for `/api/*`. The old rule was `port === "5500" ? "" :
+"http://localhost:5500"`, so serving the app on any other `PORT` left every `/api` call pointing at
+a port nothing was listening on.
 
 ## Configuration (required for the two integrations)
 
