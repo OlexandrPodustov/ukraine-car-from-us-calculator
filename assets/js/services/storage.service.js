@@ -48,6 +48,7 @@ window.pickPersistedState = function (vm) {
       engineVolume: vm.customs.engineVolume,
       manufactureYear: vm.customs.manufactureYear,
       engineType: vm.customs.engineType,
+      isHybrid: vm.customs.isHybrid,
       batteryKwh: vm.customs.batteryKwh,
       ukrainianMarketPrice: vm.customs.ukrainianMarketPrice,
       marketCategory: vm.customs.marketCategory,
@@ -92,6 +93,7 @@ function migrateLegacy(saved) {
       engineVolume: customs.engineVolume,
       manufactureYear: customs.manufactureYear,
       engineType: customs.engineType,
+      isHybrid: customs.isHybrid,
       batteryKwh: customs.batteryKwh,
       // До v2 ціну писали і в customs, і в корінь — беремо будь-яку наявну.
       ukrainianMarketPrice:
@@ -168,6 +170,7 @@ window.applyPersistedState = function (vm, rawSaved) {
     vm.customs.manufactureYear = customs.manufactureYear;
   if (knownEngines.indexOf(customs.engineType) !== -1)
     vm.customs.engineType = customs.engineType;
+  vm.customs.isHybrid = customs.isHybrid === true;
   if (isNum(customs.batteryKwh)) vm.customs.batteryKwh = customs.batteryKwh;
   if (isNum(customs.ukrainianMarketPrice))
     vm.customs.ukrainianMarketPrice = customs.ukrainianMarketPrice;

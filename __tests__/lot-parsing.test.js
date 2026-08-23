@@ -192,6 +192,73 @@ describe("порт відправлення", () => {
   });
 });
 
+describe("гібриди", () => {
+  // Для митниці гібрид — це його ДВЗ: ПКУ 215.3.5-1 бере базову ставку
+  // відповідного бензинового/дизельного двигуна (docs/customs-rates-baseline.md).
+  // Для AUTO.RIA це окремий fuel_id і окремий ціновий сегмент.
+  function parseWithFuel(fuel) {
+    const vm = iaaiVm();
+    vm.logLot = () => Promise.resolve(true);
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes.FuelTypeCode = fuel;
+    lot.inventoryView.attributes.FuelTypeDesc = fuel;
+    vm.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
+    return vm;
+  }
+
+  it.each([
+    ["HYBRID", "petrol", true],
+    ["GAS/ELECTRIC", "petrol", true],
+    ["PLUG-IN HYBRID", "petrol", true],
+    ["DIESEL HYBRID", "diesel", true],
+    ["GASOLINE", "petrol", false],
+    ["DIESEL", "diesel", false],
+    ["ELECTRIC", "electric", false],
+  ])("%s → %s, гібрид=%s", (fuel, engine, hybrid) => {
+    const vm = parseWithFuel(fuel);
+    expect(vm.customs.engineType).toBe(engine);
+    expect(vm.customs.isHybrid).toBe(hybrid);
+  });
+
+  it("GAS/ELECTRIC не стає електромобілем — акцизу за батарею тут немає", () => {
+    const vm = parseWithFuel("GAS/ELECTRIC");
+    expect(vm.isElectricEngine()).toBe(false);
+    expect(vm.exciseFormula()).toMatch(/л ×/);
+  });
+
+  it("акциз гібрида такий самий, як у бензинового з тим самим об'ємом", () => {
+    const hybrid = createVm({
+      customs: { engineType: "petrol", isHybrid: true, engineVolume: "2.5" },
+    });
+    const petrol = createVm({
+      customs: { engineType: "petrol", isHybrid: false, engineVolume: "2.5" },
+    });
+    expect(hybrid.exciseEur()).toBe(petrol.exciseEur());
+  });
+
+  it("на AUTO.RIA гібрид фільтрується окремо і не ділить кеш із бензином", async () => {
+    const vm = createVm({
+      customs: { engineType: "petrol", isHybrid: true },
+    });
+    vm.getRiaFuels = async () => [
+      { value: 1, name: "Бензин" },
+      { value: 5, name: "Гібрид" },
+    ];
+    vm.getRiaGearboxes = async () => [];
+    const target = vm.normalizeMarketTarget();
+    expect(target.isHybrid).toBe(true);
+
+    const filters = await vm.buildRiaFilters(target);
+    expect(filters.fuel).toBe("&fuel_id%5B0%5D=5");
+    expect(filters.fuelLabel).toBe("гібрид");
+
+    const asPetrol = Object.assign({}, target, { isHybrid: false });
+    expect(vm.getMarketCacheKey(target)).not.toBe(
+      vm.getMarketCacheKey(asPetrol),
+    );
+  });
+});
+
 describe("ключ кешу ринкової ціни", () => {
   const vm = createVm();
   const base = {

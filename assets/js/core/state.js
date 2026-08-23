@@ -73,6 +73,12 @@ window.createInitialState = function () {
       manufactureYear: window.currentYear,
       manYearOptions: window.manYearOptions,
       engineType: window.engineType.Petrol,
+      // Гібрид — це НЕ окремий тип палива для митниці: ПКУ 215.3.5-1 обкладає
+      // 8703 40/50/60/70 базовою ставкою відповідного ДВЗ, тобто акциз
+      // рахується так само, як для бензину/дизеля відповідного об'єму
+      // (docs/customs-rates-baseline.md). А от на AUTO.RIA «Гібрид» — окремий
+      // fuel_id і окремий ціновий сегмент, тож прапорець тримаємо збоку.
+      isHybrid: false,
       batteryKwh: 77,
       // Ukrainian market comparison
       ukrainianMarketPrice: 0,

@@ -201,20 +201,33 @@ window.__createAllMethods = function () {
         }
 
         // ── Тип пального ───────────────────────────────────────────
+        // Порядок перевірок важливий: IAAI пише гібриди як «HYBRID»,
+        // «GAS/ELECTRIC», «PLUG-IN HYBRID». «GAS/ELECTRIC» містить і gas, і
+        // electric, тож без окремої гілки лот міг стати то бензиновим (за
+        // збігом правильно), то електричним (акциз за неіснуючу батарею).
         var fuelRaw = (
           attrs.FuelTypeCode ||
           attrs.FuelTypeDesc ||
           ""
         ).toLowerCase();
-        if (/gasoline|gas/.test(fuelRaw)) {
-          vm.customs.engineType = "petrol";
-          filled.push("бензин");
+        var isHybrid =
+          /hybrid|hev|gas\s*\/\s*electric|electric\s*\/\s*gas/.test(fuelRaw);
+        vm.customs.isHybrid = isHybrid;
+        if (isHybrid) {
+          // Для митниці гібрид — це його ДВЗ (ПКУ 215.3.5-1), тож ставимо
+          // бензин/дизель за об'ємом. Для AUTO.RIA це окремий сегмент —
+          // туди прапорець isHybrid іде фільтром «Гібрид».
+          vm.customs.engineType = /diesel/.test(fuelRaw) ? "diesel" : "petrol";
+          filled.push("гібрид (акциз за ДВЗ)");
+        } else if (/electric|^ev$|\bev\b/.test(fuelRaw)) {
+          vm.customs.engineType = "electric";
+          filled.push("електро");
         } else if (/diesel/.test(fuelRaw)) {
           vm.customs.engineType = "diesel";
           filled.push("дизель");
-        } else if (/electric|ev/.test(fuelRaw)) {
-          vm.customs.engineType = "electric";
-          filled.push("електро");
+        } else if (/gasoline|gas/.test(fuelRaw)) {
+          vm.customs.engineType = "petrol";
+          filled.push("бензин");
         }
 
         // ── Об'єм двигуна ──────────────────────────────────────────
@@ -484,6 +497,7 @@ window.__createAllMethods = function () {
         (target.model || "").toLowerCase(),
         target.year || "",
         (target.engineType || "").toLowerCase(),
+        target.isHybrid ? "hybrid" : "",
         target.engineVolume || "",
         target.batteryKwh || "",
         km,
@@ -503,6 +517,7 @@ window.__createAllMethods = function () {
       var engineType = (this.customs.engineType || "").toLowerCase();
       var engineVolume = parseFloat(this.customs.engineVolume || 0);
       var batteryKwh = parseInt(this.customs.batteryKwh || 0);
+      var isHybrid = this.customs.isHybrid === true;
       var mileage = parseInt((this.customs.carrierInfo || {}).mileage || 0);
       var transmission = ((this.customs.carrierInfo || {}).transmission || "")
         .toString()
@@ -512,6 +527,7 @@ window.__createAllMethods = function () {
         model: model,
         year: isNaN(year) ? 0 : year,
         engineType: engineType,
+        isHybrid: isHybrid,
         engineVolume: isNaN(engineVolume) ? 0 : engineVolume,
         batteryKwh: isNaN(batteryKwh) ? 0 : batteryKwh,
         mileage: isNaN(mileage) ? 0 : mileage,
@@ -718,12 +734,17 @@ window.__createAllMethods = function () {
         gearLabel: "",
         mileageLabel: "",
       };
-      var fuelKw = {
-        petrol: "Бензин",
-        diesel: "Дизель",
-        electric: "Електро",
-        hybrid: "Гібрид",
-      }[target.engineType];
+      // Гібрид перебиває тип ДВЗ: на AUTO.RIA це окремий fuel_id, і
+      // бензиновий Camry з гібридним у ціні розходяться відчутно. До появи
+      // прапорця гілка «hybrid» тут була недосяжна — engineType може бути
+      // лише petrol/diesel/electric.
+      var fuelKw = target.isHybrid
+        ? "Гібрид"
+        : {
+            petrol: "Бензин",
+            diesel: "Дизель",
+            electric: "Електро",
+          }[target.engineType];
       if (fuelKw) {
         var fm = vm.matchByName(await vm.getRiaFuels(), fuelKw);
         if (fm) {
@@ -812,6 +833,7 @@ window.__createAllMethods = function () {
       this.autoPricing.autoPrice = 0;
       this.customs.manufactureYear = window.currentYear;
       this.customs.engineType = window.engineType.Petrol;
+      this.customs.isHybrid = false;
       this.customs.engineVolume = "2.0";
       this.autoShipping.vehicleType = window.vehicleType[0].id;
       this.autoShipping.location.selected = window.autoLocation[0].id;

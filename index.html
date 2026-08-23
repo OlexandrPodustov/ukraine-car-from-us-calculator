@@ -220,6 +220,29 @@
                                   <option value="diesel">Дизель</option>
                                   <option value="electric">Електро (EV)</option>
                                 </select>
+                                <!-- Гібрид не змінює акциз (ПКУ 215.3.5-1 бере
+                                     ставку ДВЗ), але на AUTO.RIA це окремий
+                                     ціновий сегмент — звідси окремий чекбокс,
+                                     а не четвертий пункт списку. -->
+                                <label
+                                  v-if="!isElectricEngine()"
+                                  style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    margin-top: 4px;
+                                    font-size: 13px;
+                                    color: #555;
+                                  "
+                                >
+                                  <input
+                                    type="checkbox"
+                                    name="is-hybrid"
+                                    v-model="customs.isHybrid"
+                                    style="width: auto; margin: 0"
+                                  />
+                                  гібрид (акциз за ДВЗ, ціна шукається окремо)
+                                </label>
                               </div>
                             </div>
                             <div
