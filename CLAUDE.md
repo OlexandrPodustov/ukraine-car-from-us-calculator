@@ -73,6 +73,13 @@ lookup code is in `market.methods.js`.
 
 ### State / computed / watchers
 
+Editing ACV, the repair estimate or the risk coefficient does **not** rewrite the hammer price.
+Until 2026-08-23 all three watchers called `recalcMaxBid()` (`autoPrice := maxBid()`), so
+correcting the repair figure — the most common manual edit there is — threw away the bid the user
+had just typed, and with `autoPrice == maxBid()` the total equals the limit by construction, which
+turned «Вигода угоди» into the tautology `(ACV − repair) × (1 − risk)`. `recalcMaxBid()` is now
+only reachable from the «⤒ у ціну» button next to the max-bid row.
+
 `core/state.js` → Vue `data()` (defaults like price, ports, customs). `core/computed.js` →
 only `filteredLocations`. `core/watchers.js` → watchers. UI state persists to localStorage under
 key `carCalcData` via `saveToLocalStorage()`; restored in `mounted()` via

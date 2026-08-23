@@ -25,14 +25,23 @@ window.createWatchers = function () {
     locationSearch: function (newVal) {
       this.saveToLocalStorage();
     },
+    // Ці три поля НЕ переписують ціну авто. Раніше кожне з них викликало
+    // recalcMaxBid(), тобто autoPrice := maxBid(), і наслідків було два:
+    //   1) виправлення оцінки ремонту (найчастіша ручна правка) стирало
+    //      ставку, яку користувач щойно ввів;
+    //   2) при autoPrice == maxBid() підсумок за побудовою дорівнює ліміту,
+    //      тож «Вигода угоди» ставала тавтологією (ACV−ремонт)×(1−ризик)
+    //      і показувала те саме число для будь-якого лота.
+    // Максимальна ставка й далі рахується та показується окремим рядком, а
+    // підставити її в ціну можна кнопкою поруч (recalcMaxBid).
     acv: function () {
-      this.recalcMaxBid();
+      this.saveToLocalStorage();
     },
     repairCost: function () {
-      this.recalcMaxBid();
+      this.saveToLocalStorage();
     },
     riskCoefficient: function () {
-      this.recalcMaxBid();
+      this.saveToLocalStorage();
     },
     buyNowPrice: function () {
       this.saveToLocalStorage();
@@ -53,12 +62,6 @@ window.createWatchers = function () {
       this.saveToLocalStorage();
     },
     marketMsg: function (newVal) {
-      this.saveToLocalStorage();
-    },
-    ukrainianMarketPrice: function (newVal) {
-      this.saveToLocalStorage();
-    },
-    marketCategory: function (newVal) {
       this.saveToLocalStorage();
     },
   };

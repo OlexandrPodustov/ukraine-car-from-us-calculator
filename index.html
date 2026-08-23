@@ -790,6 +790,24 @@
                       <div class="price">
                         <div>$</div>
                         <div>{{maxBid()}}</div>
+                        <button
+                          type="button"
+                          v-on:click="recalcMaxBid()"
+                          title="Підставити цю ставку в поле «Ціна авто»"
+                          style="
+                            margin-left: 8px;
+                            height: 24px;
+                            padding: 0 8px;
+                            border: 1px solid #d6c48a;
+                            background: #fff;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 12px;
+                            white-space: nowrap;
+                          "
+                        >
+                          ⤒ у ціну
+                        </button>
                       </div>
                     </div>
                     <!-- Ukrainian Market Price Section -->

@@ -74,3 +74,42 @@ describe("Шаблон index.html не кличе неіснуючих мето�
     expect(Array.from(missing)).toEqual([]);
   });
 });
+
+describe("Watcher'и", () => {
+  test("кожен watcher стежить за полем, яке справді є в data", () => {
+    // ukrainianMarketPrice і marketCategory довго висіли тут верхнім рівнем,
+    // хоча обидва живуть у customs — тобто не спрацьовували ніколи.
+    loadModules();
+    const state = window.createInitialState();
+    const vm = createVm();
+    const unknown = Object.keys(window.createWatchers()).filter(
+      (key) => !(key in state) && typeof vm[key] === "undefined",
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  test("правка ACV / ремонту / коефіцієнта не переписує ціну авто", () => {
+    const watchers = window.createWatchers();
+    const vm = createVm({ autoPricing: { autoPrice: 9000 } });
+    vm.saveToLocalStorage = () => {};
+
+    ["acv", "repairCost", "riskCoefficient"].forEach((key) => {
+      const handler = watchers[key].handler || watchers[key];
+      handler.call(vm, 1, 0);
+    });
+
+    expect(vm.autoPricing.autoPrice).toBe(9000);
+  });
+
+  test("recalcMaxBid підставляє максимальну ставку, коли її просять", () => {
+    const vm = createVm({
+      autoPricing: { autoPrice: 9000 },
+      acv: 40000,
+      repairCost: 5000,
+    });
+    vm.saveToLocalStorage = () => {};
+    const expected = vm.maxBid();
+    vm.recalcMaxBid();
+    expect(vm.autoPricing.autoPrice).toBe(expected);
+  });
+});
