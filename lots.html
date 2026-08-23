@@ -580,22 +580,39 @@
         return r.acv || r.buy_now_price || r.min_bid || 0;
       }
 
+      // Лоти без значення завжди йдуть у кінець — але не через ±Infinity:
+      // два таких лоти давали Infinity − Infinity = NaN, а компаратор із NaN
+      // лишає порядок невизначеним. І `0 || -Infinity` відправляв угоду з
+      // нульовою різницею вниз, ніби її не рахували.
+      function by(get, desc) {
+        return function (a, b) {
+          var x = get(a);
+          var y = get(b);
+          var noX = x === null || x === undefined || isNaN(x);
+          var noY = y === null || y === undefined || isNaN(y);
+          if (noX && noY) return 0;
+          if (noX) return 1;
+          if (noY) return -1;
+          return desc ? y - x : x - y;
+        };
+      }
+
       var SORTS = {
-        new: function (a, b) {
-          return b.id - a.id;
-        },
-        deal: function (a, b) {
-          return (b.diff || -Infinity) - (a.diff || -Infinity);
-        },
-        price: function (a, b) {
-          return (cardPrice(a) || Infinity) - (cardPrice(b) || Infinity);
-        },
-        odo: function (a, b) {
-          return (a.odometer || Infinity) - (b.odometer || Infinity);
-        },
-        year: function (a, b) {
-          return (b.year || 0) - (a.year || 0);
-        },
+        new: by(function (r) {
+          return r.id;
+        }, true),
+        deal: by(function (r) {
+          return r.diff;
+        }, true),
+        price: by(function (r) {
+          return cardPrice(r) || null;
+        }, false),
+        odo: by(function (r) {
+          return r.odometer || null;
+        }, false),
+        year: by(function (r) {
+          return r.year;
+        }, true),
       };
 
       function renderGrid() {
