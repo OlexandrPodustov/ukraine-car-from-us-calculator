@@ -57,7 +57,13 @@ describe("Шаблон index.html не кличе неіснуючих мето�
     while ((m = directive.exec(html))) expressions.push(m[1]);
 
     // Дозволені виклики, які не є методами інстансу.
-    const BUILTINS = new Set(["if", "for", "return", "typeof", "toLocaleString"]);
+    const BUILTINS = new Set([
+      "if",
+      "for",
+      "return",
+      "typeof",
+      "toLocaleString",
+    ]);
     const missing = new Set();
     expressions.forEach(function (expr) {
       const call = /([A-Za-z_$][\w$]*)\s*\(/g;
@@ -107,10 +113,34 @@ describe("Шаблон index.html не читає неіснуючих полі�
 
     // Vue 2 пускає в шаблон обмежений набір глобалей (allowedGlobals).
     const GLOBALS = new Set([
-      "Math", "Date", "JSON", "Number", "String", "Boolean", "Array", "Object",
-      "parseInt", "parseFloat", "isNaN", "isFinite", "undefined", "null",
-      "true", "false", "NaN", "Infinity", "typeof", "in", "of", "new",
-      "return", "if", "else", "$event", "$nextTick", "$refs",
+      "Math",
+      "Date",
+      "JSON",
+      "Number",
+      "String",
+      "Boolean",
+      "Array",
+      "Object",
+      "parseInt",
+      "parseFloat",
+      "isNaN",
+      "isFinite",
+      "undefined",
+      "null",
+      "true",
+      "false",
+      "NaN",
+      "Infinity",
+      "typeof",
+      "in",
+      "of",
+      "new",
+      "return",
+      "if",
+      "else",
+      "$event",
+      "$nextTick",
+      "$refs",
     ]);
 
     const missing = new Set();
@@ -178,5 +208,32 @@ describe("Watcher'и", () => {
     const expected = vm.maxBid();
     vm.recalcMaxBid();
     expect(vm.autoPricing.autoPrice).toBe(expected);
+  });
+});
+
+describe("Довідники не мають других копій", () => {
+  test("селект палива покриває рівно значення engineType", () => {
+    loadModules();
+    const ids = window.engineTypeOptions.map((o) => o.id).sort();
+    const known = Object.keys(window.engineType)
+      .map((k) => window.engineType[k])
+      .sort();
+    expect(ids).toEqual(known);
+    expect(window.engineTypeOptions.every((o) => o.name)).toBe(true);
+  });
+
+  test("надбавка за габарит задана на самому типі кузова", () => {
+    loadModules();
+    const vm = createVm({ autoShipping: { vehicleType: "pikap" } });
+    expect(vm.oversizeFee()).toBe(
+      window.getVehicleTypeById("pikap").oversizeFee,
+    );
+    expect(
+      createVm({ autoShipping: { vehicleType: "sedan" } }).oversizeFee(),
+    ).toBe(0);
+    // Невідомий id не має обвалювати підсумок у NaN.
+    const broken = createVm({ autoShipping: { vehicleType: "нема-такого" } });
+    expect(broken.oversizeFee()).toBe(0);
+    expect(Number.isFinite(broken.total())).toBe(true);
   });
 });

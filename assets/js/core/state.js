@@ -81,6 +81,8 @@ window.createInitialState = function () {
       manufactureYear: window.currentYear,
       manYearOptions: window.manYearOptions,
       engineType: window.engineType.Petrol,
+      // Довідник для селекта; сам вибір персиститься окремим id.
+      engineTypeOptions: window.engineTypeOptions,
       // Гібрид — це НЕ окремий тип палива для митниці: ПКУ 215.3.5-1 обкладає
       // 8703 40/50/60/70 базовою ставкою відповідного ДВЗ, тобто акциз
       // рахується так само, як для бензину/дизеля відповідного об'єму

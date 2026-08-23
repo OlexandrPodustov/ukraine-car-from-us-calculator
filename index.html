@@ -216,9 +216,12 @@
                                   name="fuel-type"
                                   v-model="customs.engineType"
                                 >
-                                  <option value="petrol">Бензин</option>
-                                  <option value="diesel">Дизель</option>
-                                  <option value="electric">Електро (EV)</option>
+                                  <option
+                                    v-for="opt in customs.engineTypeOptions"
+                                    v-bind:value="opt.id"
+                                  >
+                                    {{opt.name}}
+                                  </option>
                                 </select>
                                 <!-- Гібрид не змінює акциз (ПКУ 215.3.5-1 бере
                                      ставку ДВЗ), але на AUTO.RIA це окремий

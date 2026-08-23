@@ -18,6 +18,7 @@ module.exports = {
     currentYear: "readonly",
     manYearOptions: "readonly",
     engineType: "readonly",
+    engineTypeOptions: "readonly",
     CONFIG: "readonly",
     calculateCopartFee: "readonly",
     calculateIaaIFee: "readonly",
