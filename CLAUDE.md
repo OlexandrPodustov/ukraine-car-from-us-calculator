@@ -254,6 +254,13 @@ In the DB the two halves stay separate: `searches.total_cost` is the landed cost
    full row for the histogram — but not `classifieds`, which is the heavy part of the response.
    See the `autoria-api` skill before touching this code.
 
+   The lookup **runs by itself** — `maybeLookupUkrainianPrice()` after `applyLotJson` (once the
+   lot POST resolves, so the `searches` row still finds its `lot_id`) and after `loadSavedLot`.
+   The button beside «Ціна на українському ринку» is now the manual re-run. Guards keep it off the
+   hourly limit: no API key, no make/model, a lookup already running, or a price already found for
+   this exact car (`marketTarget === marketSignature()`) all skip it — and the lookup itself reads
+   the cache before the network, so re-opening the same car costs nothing.
+
 ### Persistence (server.js + SQLite at `data/searches.db`)
 
 Two tables: `searches` (one row per market lookup, with heavy `*_json` columns for prices /

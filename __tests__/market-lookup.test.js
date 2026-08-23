@@ -127,3 +127,54 @@ describe("свіжий пошук", () => {
     expect(cached.classifieds).toBeUndefined();
   });
 });
+
+describe("автоматичний пошук (maybeLookupUkrainianPrice)", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("запускається сам, щойно з лота приїхали марка й модель", () => {
+    const vm = marketVm();
+    let calls = 0;
+    vm.lookupUkrainianPrice = () => {
+      calls++;
+      return Promise.resolve();
+    };
+    expect(vm.maybeLookupUkrainianPrice()).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it("не смикає API без ключа, без марки/моделі й під час пошуку", () => {
+    const noKey = marketVm();
+    noKey.riaApiKey = () => "";
+    expect(noKey.maybeLookupUkrainianPrice()).toBe(false);
+
+    const noCar = marketVm({
+      customs: { carrierInfo: { make: "", model: "" } },
+    });
+    expect(noCar.maybeLookupUkrainianPrice()).toBe(false);
+
+    const busy = marketVm();
+    busy.marketStatus = "loading";
+    expect(busy.maybeLookupUkrainianPrice()).toBe(false);
+  });
+
+  // Ліміт AUTO.RIA погодинний: повторний рендер того самого авто не має
+  // коштувати запиту, якщо ціна для нього вже знайдена.
+  it("не повторює запит, якщо ціна вже знайдена саме для цього авто", () => {
+    const vm = marketVm();
+    vm.marketTarget = vm.marketSignature();
+    vm.lookupUkrainianPrice = () => {
+      throw new Error("повторний пошук по тому самому авто");
+    };
+    expect(vm.maybeLookupUkrainianPrice()).toBe(false);
+
+    // Змінили рік — це вже інше авто, ціна застаріла.
+    vm.customs.manufactureYear = 2019;
+    let calls = 0;
+    vm.lookupUkrainianPrice = () => {
+      calls++;
+      return Promise.resolve();
+    };
+    expect(vm.maybeLookupUkrainianPrice()).toBe(true);
+    expect(calls).toBe(1);
+  });
+});

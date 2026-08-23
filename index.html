@@ -965,7 +965,7 @@
                             <button
                               type="button"
                               v-on:click="lookupUkrainianPrice()"
-                              v-bind:disabled="marketStatus==='loading' || !autoPricing.autoPrice"
+                              v-bind:disabled="marketStatus==='loading' || !customs.carrierInfo.make || !customs.carrierInfo.model"
                               style="
                                 height: 30px;
                                 padding: 0 13px;
@@ -980,7 +980,8 @@
                               "
                             >
                               <span v-if="marketStatus!=='loading'"
-                                >🔍 Шукати</span
+                                >🔍 {{customs.ukrainianMarketPrice &gt; 0 ?
+                                'Оновити' : 'Шукати'}}</span
                               >
                               <span v-else>⏳…</span>
                             </button>

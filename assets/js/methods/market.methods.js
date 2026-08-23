@@ -405,12 +405,25 @@ window.__createAllMethods = function () {
           wheels: lotData.wheels || "",
           whoCanBuy: lotData.whoCanBuy || "",
         };
-        if (save) vm.logLot(lotData);
+        var lotSaved = save ? vm.logLot(lotData) : null;
 
         // Персистимо зчитані поля (рік/марку/модель/двигун…) у localStorage,
         // щоб після перезавантаження сторінки вони не повертались до старих
         // значень — інакше наступний пошук ціни піде по неправильному року.
         vm.saveToLocalStorage();
+
+        // Ціна на українському ринку — половина рішення «брати чи ні», тож
+        // вона має з'являтись разом з лотом, а не після окремого кліку.
+        // Але вже ПІСЛЯ запису лота: рядок пошуку в'яжеться до лота за парою
+        // (аукціон, номер), і якщо він доїде до сервера першим, то лишиться
+        // з порожнім lot_id — тобто без плашки угоди на lots.html.
+        if (lotSaved && typeof lotSaved.then === "function") {
+          lotSaved.then(function () {
+            vm.maybeLookupUkrainianPrice();
+          });
+        } else {
+          vm.maybeLookupUkrainianPrice();
+        }
       } catch (parseErr) {
         console.error("[parse] error:", parseErr);
         vm.auctionStatus = "error";
@@ -456,6 +469,7 @@ window.__createAllMethods = function () {
         vm.currentLot.lotId = row.id || Number(id) || null;
         vm.currentLot.vinFull = row.vin_full || "";
         vm.saveToLocalStorage();
+        vm.maybeLookupUkrainianPrice();
         return true;
       } catch (e) {
         vm.auctionStatus = "error";
@@ -1001,6 +1015,25 @@ window.__createAllMethods = function () {
       this.marketStatus = "warn";
       this.marketMsg =
         "⚠ Дані авто змінились — ринкову ціну скинуто, натисніть пошук ще раз.";
+    },
+    // Автоматичний пошук ринкової ціни. Запобіжники — через погодинний ліміт
+    // безкоштовного тарифу AUTO.RIA (див. навичку autoria-api):
+    //   • без ключа не смикаємо взагалі;
+    //   • без марки/моделі запит однаково марний;
+    //   • якщо ціна вже знайдена саме для цього авто (marketTarget збігається
+    //     з підписом), повторний запит нічого не змінить.
+    // Сам lookupUkrainianPrice починає з кешу, тож повторне відкриття того
+    // самого авто ліміт не витрачає.
+    maybeLookupUkrainianPrice: function () {
+      var vm = this;
+      if (!vm.riaApiKey()) return false;
+      if (vm.marketStatus === "loading") return false;
+      var ci = vm.customs.carrierInfo || {};
+      if (!ci.make || !ci.model) return false;
+      if (vm.marketTarget && vm.marketTarget === vm.marketSignature())
+        return false;
+      vm.lookupUkrainianPrice();
+      return true;
     },
     applyMarketResult: function (price, category) {
       this.marketTarget = this.marketSignature();
