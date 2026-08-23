@@ -53,12 +53,16 @@ The same global constants (`window.autoLocation`, `window.engineType`, `window.c
 
 This is the biggest gotcha. `market.methods.js` defines `window.__createAllMethods()` which
 returns **every** method on the app (UI, fees, customs math, market lookup, auction parsing).
-`ui.methods.js`, `fees.methods.js`, and `createMarketMethods()` each call `__createAllMethods()`
-and **pick a subset by name** into their own object. `app.js` merges all three.
+`ui.methods.js` and `fees.methods.js` each **pick a subset by name** (`window.uiMethodNames` /
+`window.feesMethodNames`, both fed through `window.pickMethods`), and `createMarketMethods()`
+takes **everything else** — the complement, no list of its own. `app.js` merges all three.
 
-Consequence: to add or change any method, edit `market.methods.js`. A new method will **not**
-appear on the Vue instance until you also add its name to the corresponding `pick` array in one
-of the three `*.methods.js` files.
+Consequence: to add or change any method, edit `market.methods.js`; a new one lands on the Vue
+instance automatically (in the market set). Until 2026-08-23 all three files had explicit lists,
+so a method missing from every list silently did not exist on the instance and the template blew
+up with «is not a function» only in the browser. `__tests__/methods-wiring.test.js` now guards
+both halves: the three sets must partition the methods exactly, and every call in an `index.html`
+Vue expression must resolve on the vm.
 
 ### Services are thin delegators
 

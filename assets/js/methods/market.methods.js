@@ -1704,54 +1704,17 @@ window.__createAllMethods = function () {
     },
   };
 };
+// Ринкові/парсерні методи — це ВСЕ, чого не забрали ui і fees. Явного
+// переліку тут більше немає навмисно: доки він був, новий метод, доданий у
+// __createAllMethods(), просто не з'являвся на інстансі Vue, поки хтось не
+// згадає дописати його ім'я в один із трьох списків, — а шаблон при цьому
+// падав на «is not a function» лише в рантаймі.
 export function createMarketMethods() {
-  var all = __createAllMethods();
-  var pick = [
-    "parseAuctionLot",
-    "onAuctionUrlPaste",
-    "applyLotJson",
-    "loadSavedLot",
-    "marketPriceDifference",
-    "lotConditionRows",
-    "getMarketCacheKey",
-    "getMarketCategoryByDiff",
-    "normalizeMarketTarget",
-    "readMarketCache",
-    "purgeLegacyMarketCache",
-    "writeMarketCache",
-    "riaApiKey",
-    "riaFetchJson",
-    "readStaticCache",
-    "writeStaticCache",
-    "getRiaMarks",
-    "getRiaModels",
-    "getRiaFuels",
-    "getRiaGearboxes",
-    "resolveBaseModel",
-    "buildRiaFilters",
-    "normalizeName",
-    "matchByName",
-    "resetLotData",
-    "marketSignature",
-    "clearMarketResult",
-    "syncMarketFreshness",
-    "applyMarketResult",
-    "logSearch",
-    "postToApi",
-    "apiBase",
-    "logLot",
-    "collectLotMedia",
-    "collectLotData",
-    "pickAttr",
-    "matchAuctionLocation",
-    "parseOdometer",
-    "sanitizeLotUrl",
-    "canonicalLotUrl",
-    "lookupUkrainianPrice",
-  ];
+  var all = window.__createAllMethods();
+  var taken = (window.uiMethodNames || []).concat(window.feesMethodNames || []);
   var out = {};
-  pick.forEach(function (k) {
-    if (all[k]) out[k] = all[k];
+  Object.keys(all).forEach(function (k) {
+    if (taken.indexOf(k) === -1) out[k] = all[k];
   });
   return out;
 }
