@@ -443,9 +443,23 @@ window.__createAllMethods = function () {
         return r.value;
       });
     },
+    // Скільки грошей реально вкладено в авто: розмитнений кошт ПЛЮС ремонт.
+    // Для салведж-лота це різні речі — total() доводить розбите авто до
+    // України, а продати його можна лише полагодженим.
+    totalWithRepair: function () {
+      var repair = Number(this.repairCost) || 0;
+      return this.total() + (repair > 0 ? repair : 0);
+    },
+    // Ринкова ціна на AUTO.RIA — це ціна ЦІЛОГО авто, тож віднімати від неї
+    // треба весь вкладений кошт разом із ремонтом. Раніше тут стояв
+    // total() без ремонту: на типовому салведжі ($9k ремонту) різниця
+    // виходила втричі оптимістичнішою за реальну, і кожен лот виглядав
+    // вигідним. `benefit()` рахував це правильно з самого початку
+    // (ACV − ремонт − total), тож дві головні цифри на екрані ще й
+    // суперечили одна одній.
     marketPriceDifference: function () {
       return Math.round(
-        (this.customs.ukrainianMarketPrice || 0) - this.total(),
+        (this.customs.ukrainianMarketPrice || 0) - this.totalWithRepair(),
       );
     },
     // Ключ кешу мусить містити ВСЕ, що впливає на запит до RIA. Пробіг і
@@ -835,7 +849,8 @@ window.__createAllMethods = function () {
       this.marketTarget = this.marketSignature();
       this.customs.ukrainianMarketPrice = price;
       var diff = this.marketPriceDifference();
-      var cat = category || this.getMarketCategoryByDiff(diff, this.total());
+      var cat =
+        category || this.getMarketCategoryByDiff(diff, this.totalWithRepair());
       this.customs.marketCategory = cat;
       return cat;
     },
@@ -1262,7 +1277,11 @@ window.__createAllMethods = function () {
           median: Math.round(
             (data.percentiles && data.percentiles["50.0"]) || 0,
           ),
+          // total_cost — розмитнений кошт БЕЗ ремонту, repair_cost окремо:
+          // так у БД видно обидві складові, а diff (ринок − усе разом)
+          // лишається тим самим числом, що й на екрані.
           totalCost: vm.total(),
+          repairCost: Number(vm.repairCost) || 0,
           diff: vm.marketPriceDifference(),
           category: category,
           prices: Array.isArray(data.prices) ? data.prices : [],

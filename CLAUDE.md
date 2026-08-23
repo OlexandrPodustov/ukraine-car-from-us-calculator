@@ -119,6 +119,28 @@ form lives in `applyLotJson(nd, url, {save})`. The same JSON is already in `lots
 already be gone. `save: false` matters — otherwise loading from the DB would write straight back
 to it.
 
+### `total()` is the landed cost; the deal metrics net out the repair
+
+`total()` = everything it takes to put the car on Ukrainian soil, customs cleared. It deliberately
+does **not** include the repair bill. Every metric that compares the car against a *whole* car's
+value adds it back:
+
+- `benefit()` = `(ACV − repair) − total()`
+- `totalWithRepair()` = `total() + repair`, and `marketPriceDifference()` = AUTO.RIA price −
+  `totalWithRepair()`
+- `maxBid()` solves `totalForPrice(bid) ≤ (ACV − repair) × riskCoefficient`
+
+Until 2026-08-23 `marketPriceDifference()` subtracted the bare `total()`, so the headline
+«Різниця» and the deal pill on every `lots.html` card overstated the margin by the whole repair
+estimate — on a $9k-repair salvage the number came out ~3.7× too optimistic, and practically every
+lot read as «Вигідна». `benefit()` had always been right, so the two headline figures on the same
+screen contradicted each other.
+
+In the DB the two halves stay separate: `searches.total_cost` is the landed cost, the new
+`searches.repair_cost` is the repair estimate at search time, and `diff` is market − (both). In
+`GET /api/lots` the joined column is aliased `search_repair_cost`, because `lots.repair_cost`
+(the auction's own estimate) is already in that row.
+
 ### Two external integrations
 
 1. **Auction parsing** (`parseAuctionLot`): fetches the Copart/IAAI lot page through

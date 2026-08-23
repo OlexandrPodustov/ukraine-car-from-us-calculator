@@ -472,6 +472,9 @@
       // лот узагалі дивляться, тож вона має бути видна на картці.
       function dealPill(r) {
         if (r.diff === null || r.diff === undefined || !r.total_cost) return "";
+        // diff = ринок − (розмитнений кошт + ремонт), тож у підказці має
+        // стояти та сама сума, інакше числа на картці не сходяться.
+        var spent = r.total_cost + (r.search_repair_cost || 0);
         var good = r.diff > 0;
         var cls =
           r.category === "underpriced"
@@ -483,8 +486,11 @@
         return (
           '<span class="pill ' +
           cls +
-          '" title="кошт ' +
-          esc(fmt(r.total_cost)) +
+          '" title="вкладено ' +
+          esc(fmt(spent)) +
+          (r.search_repair_cost
+            ? " (з них ремонт " + esc(fmt(r.search_repair_cost)) + ")"
+            : "") +
           " · ринок " +
           esc(fmt(r.market_price)) +
           (r.sample_count ? " · n=" + r.sample_count : "") +

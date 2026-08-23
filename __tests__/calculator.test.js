@@ -450,6 +450,67 @@ describe("Підсумок", () => {
   });
 });
 
+describe("Порівняння з українським ринком", () => {
+  test("вкладено = розмитнений кошт + ремонт", () => {
+    const vm = createVm({ repairCost: 9000 });
+    expect(vm.totalWithRepair()).toBe(vm.total() + 9000);
+  });
+
+  test("від'ємний ремонт не зменшує вкладене", () => {
+    const vm = createVm({ repairCost: -500 });
+    expect(vm.totalWithRepair()).toBe(vm.total());
+  });
+
+  test("різниця з ринком враховує ремонт", () => {
+    // Ціна на AUTO.RIA — це ціна ЦІЛОГО авто. Салведж, який коштує $9000
+    // полагодити, не можна порівнювати з нею за самим лише розмитненим
+    // коштом: саме так кожен лот і виглядав вигідним.
+    const vm = createVm({
+      autoPricing: { autoPrice: 12000 },
+      repairCost: 9000,
+      customs: { ukrainianMarketPrice: 38000 },
+    });
+    expect(vm.marketPriceDifference()).toBe(38000 - vm.total() - 9000);
+    expect(vm.marketPriceDifference()).toBe(38000 - vm.totalWithRepair());
+  });
+
+  test("ремонт може перевернути вердикт із вигідного на невигідний", () => {
+    const cheapRepair = createVm({
+      autoPricing: { autoPrice: 12000 },
+      repairCost: 0,
+      customs: { ukrainianMarketPrice: 30000 },
+    });
+    const dearRepair = createVm({
+      autoPricing: { autoPrice: 12000 },
+      repairCost: 12000,
+      customs: { ukrainianMarketPrice: 30000 },
+    });
+    expect(
+      cheapRepair.getMarketCategoryByDiff(
+        cheapRepair.marketPriceDifference(),
+        cheapRepair.totalWithRepair(),
+      ),
+    ).toBe("underpriced");
+    expect(
+      dearRepair.getMarketCategoryByDiff(
+        dearRepair.marketPriceDifference(),
+        dearRepair.totalWithRepair(),
+      ),
+    ).toBe("overpriced");
+  });
+
+  test("benefit і різниця з ринком міряють те саме, лише різні бази", () => {
+    // benefit = ACV − ремонт − total; різниця = ринок − total − ремонт.
+    // Обидві нетять ремонт, тож при ACV == ринковій ціні мають збігатися.
+    const vm = createVm({
+      acv: 30000,
+      repairCost: 5000,
+      customs: { ukrainianMarketPrice: 30000 },
+    });
+    expect(vm.marketPriceDifference()).toBe(vm.benefit());
+  });
+});
+
 describe("filteredLocations (computed)", () => {
   test("локації Copart не показуються при вибраному IAAI і навпаки", () => {
     const copart = createVm({

@@ -657,7 +657,19 @@
                         </div>
                       </div>
                       <div class="field-row">
-                        <div class="title">Вартість ремонту</div>
+                        <div class="title">
+                          Вартість ремонту
+                          <div
+                            style="
+                              font-size: 12px;
+                              font-weight: 400;
+                              color: #666;
+                            "
+                          >
+                            з лоту підставляється оцінка аукціону (ціни США) —
+                            заміни на свою
+                          </div>
+                        </div>
                         <input
                           type="number"
                           v-model.number="repairCost"
@@ -827,7 +839,15 @@
                           "
                         >
                           <div class="values_title" style="font-size: 13px">
-                            Різниця (укр. ринок − фінальна ціна)
+                            Різниця (укр. ринок − вкладено)
+                            <div style="font-size: 12px; font-weight: 400">
+                              вкладено = підсумок ${{total()}}<span
+                                v-if="repairCost > 0"
+                              >
+                                + ремонт ${{repairCost}} =
+                                ${{totalWithRepair()}}</span
+                              >
+                            </div>
                           </div>
                           <div class="price">
                             <div>{{marketPriceDifference()&gt;=0?'+':''}}$</div>

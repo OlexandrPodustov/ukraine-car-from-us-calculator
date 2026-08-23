@@ -34,6 +34,7 @@ window.createFeesMethods = function () {
     "recalcMaxBid",
     "fixedFeesTotal",
     "total",
+    "totalWithRepair",
   ];
   var out = {};
   pick.forEach(function (k) {

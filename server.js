@@ -45,6 +45,9 @@ db.exec(`
   "classifieds_json TEXT",
   "filters_json TEXT",
   "lot_id INTEGER",
+  // Кошт ремонту зберігається окремо від total_cost: total_cost — це
+  // розмитнене авто на майданчику, а порівнюється з ринком уже сума обох.
+  "repair_cost INTEGER",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE searches ADD COLUMN " + col);
@@ -59,7 +62,8 @@ db.exec(`
 const LIST_COLS =
   "s.id, s.ts, s.make, s.model, s.year, s.engine_type, s.engine_volume, " +
   "s.marka_id, s.model_id, s.model_matched, s.market_price, s.sample_count, " +
-  "s.arithmetic_mean, s.iq_mean, s.median, s.total_cost, s.diff, s.category, " +
+  "s.arithmetic_mean, s.iq_mean, s.median, s.total_cost, s.repair_cost, " +
+  "s.diff, s.category, " +
   "s.lot_id, l.vin, l.lot_number, l.auction";
 
 // VIN зберігається лише в lots, тож у пошуки він приходить через lot_id.
@@ -70,10 +74,10 @@ const insertStmt = db.prepare(`
   INSERT INTO searches
     (ts, make, model, year, engine_type, engine_volume, marka_id, model_id,
      model_matched, market_price, sample_count, arithmetic_mean, iq_mean,
-     median, total_cost, diff, category, prices_json, percentiles_json,
-     classifieds_json, filters_json, lot_id)
+     median, total_cost, repair_cost, diff, category, prices_json,
+     percentiles_json, classifieds_json, filters_json, lot_id)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 // Знаходить id лота за (аукціон, номер лота), щоб прив'язати до нього пошук.
@@ -201,7 +205,10 @@ const LOT_LIST_SQL =
       return "l." + c;
     })
     .join(", ") +
-  ", s.market_price, s.total_cost, s.diff, s.category, s.sample_count " +
+  // s.repair_cost під псевдонімом: у lots теж є repair_cost (оцінка
+  // аукціону), і без нього одна колонка затирала б іншу в рядку відповіді.
+  ", s.market_price, s.total_cost, s.repair_cost AS search_repair_cost, " +
+  "s.diff, s.category, s.sample_count " +
   "FROM lots l " +
   "LEFT JOIN (SELECT lot_id, MAX(id) AS sid FROM searches " +
   "           WHERE lot_id IS NOT NULL GROUP BY lot_id) last " +
@@ -506,6 +513,7 @@ const server = http.createServer(function (req, res) {
             num(p.iqMean),
             num(p.median),
             num(p.totalCost),
+            num(p.repairCost),
             num(p.diff),
             p.category || null,
             Array.isArray(p.prices) ? JSON.stringify(p.prices) : null,
