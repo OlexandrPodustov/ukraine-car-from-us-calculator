@@ -31,6 +31,12 @@ window.__createAllMethods = function () {
         vm.auctionMsg = "⚠ Підтримується лише iaai.com та copart.com";
         return;
       }
+      // Два парсинги одночасно писали б в один і той самий vm (і в БД) —
+      // paste запускає парсинг, а проксі відповідає до 13 с.
+      if (vm.auctionStatus === "loading") {
+        console.warn("[parseAuctionLot] Уже триває парсинг — пропускаю");
+        return;
+      }
       vm.auctionStatus = "loading";
       vm.auctionMsg = "⏳ Завантаження сторінки лоту…";
       vm.autoPricing.auctions.selected = isIaai ? "iaai" : "copart";
@@ -97,31 +103,44 @@ window.__createAllMethods = function () {
       }
 
       // ── Parse JSON ────────────────────────────────
+      var nextMatch =
+        html.match(
+          /<script[^>]+id="ProductDetailsVM"[^>]*>([\s\S]*?)<\/script>/,
+        ) ||
+        html.match(/<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+
+      if (!nextMatch) {
+        vm.auctionStatus = "error";
+        vm.auctionMsg = "❌ JSON не знайдено на сторінці. Структура змінилась?";
+        return;
+      }
+
+      var nd;
       try {
-        var nextMatch =
-          html.match(
-            /<script[^>]+id="ProductDetailsVM"[^>]*>([\s\S]*?)<\/script>/,
-          ) ||
-          html.match(
-            /<script[^>]+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/,
-          );
+        nd = JSON.parse(nextMatch[1]);
+      } catch (e) {
+        vm.auctionStatus = "error";
+        vm.auctionMsg = "❌ Помилка парсингу JSON: " + e.message;
+        return;
+      }
 
-        if (!nextMatch) {
-          vm.auctionStatus = "error";
-          vm.auctionMsg =
-            "❌ JSON не знайдено на сторінці. Структура змінилась?";
-          return;
-        }
+      vm.applyLotJson(nd, url, { save: true });
+    },
 
-        var nd;
-        try {
-          nd = JSON.parse(nextMatch[1]);
-        } catch (e) {
-          vm.auctionStatus = "error";
-          vm.auctionMsg = "❌ Помилка парсингу JSON: " + e.message;
-          return;
-        }
-
+    // Заповнює форму з JSON лота. Винесено з parseAuctionLot окремо, бо той
+    // самий JSON уже лежить у БД (`raw_json`): збережений лот можна перерахувати
+    // без повторного скрейпу через проксі — сторінка лоту може бути вже знята
+    // з торгів або закрита Cloudflare.
+    //
+    // `opts.save === false` — не писати лот у БД (він звідти ж і прийшов).
+    applyLotJson: function (nd, url, opts) {
+      var vm = this;
+      var save = !opts || opts.save !== false;
+      // Скидаємо все з попереднього лота і тут теж: parseAuctionLot робить це
+      // до фетчу (щоб екран очистився одразу), а завантаження збереженого
+      // лота приходить сюди навпростець.
+      vm.resetLotData();
+      try {
         // Навігація по дереву до потрібних об'єктів
         var attrs = (nd.inventoryView || {}).attributes || {};
         var saleValues =
@@ -235,68 +254,63 @@ window.__createAllMethods = function () {
           filled.push("седан");
         }
 
-        var priceFound = false;
-        if (!priceFound) {
-          var fallbackPrice =
-            parseInt(attrs.MinimumBidAmount) || parseInt(bidInfo.buyNowAmount);
+        // Стартова ціна: мінімальна ставка вже підставлена вище, тому тут
+        // лишається тільки Buy Now з auctionInformation. Раніше ця гілка
+        // сиділа під `if (!priceFound)` з priceFound, що завжди був false, і
+        // вдруге писала ту саму MinimumBidAmount — у статусі виходило
+        // «мін.ставка $X · ціна $X».
+        if (!(minBid > 0)) {
+          var fallbackPrice = parseInt(bidInfo.buyNowAmount);
           if (fallbackPrice >= 500) {
             vm.autoPricing.autoPrice = fallbackPrice;
             filled.push("ціна $" + fallbackPrice);
           }
         }
 
-        // ── Локація — BranchState + BranchName ─────────────────────
-        // attrs.BranchState = "OR", attrs.Name/City = "Portland"
-        // attrs.BranchName = "Portland (OR)"
-        var stateCode = (attrs.BranchState || "").trim().toUpperCase();
-        var cityName = (attrs.City || attrs.Name || "").trim().toUpperCase();
-        var auctionKey = vm.autoPricing.auctions.selected.toUpperCase(); // "IAAI"
-
-        var locFound = null;
-        if (stateCode && cityName) {
-          // Спробуй точний збіг: штат + місто + тип аукціону
-          locFound = window.autoLocation.filter(function (l) {
-            var n = l.name.toUpperCase();
-            return (
-              n.startsWith(stateCode + " ") &&
-              n.indexOf(cityName) !== -1 &&
-              n.indexOf(auctionKey) !== -1
-            );
-          })[0];
-        }
-        if (!locFound && stateCode) {
-          // Fallback: просто штат + тип аукціону
-          locFound = window.autoLocation.filter(function (l) {
-            var n = l.name.toUpperCase();
-            return (
-              n.startsWith(stateCode + " ") && n.indexOf(auctionKey) !== -1
-            );
-          })[0];
-        }
+        // ── Локація ────────────────────────────────────────────────
+        // attrs.State/City — де авто СТОЇТЬ, attrs.BranchState — де філія.
+        // Для offsite-лотів вони різні (Porsche 46380419: авто в Yonkers NY,
+        // філія «Dream Rides» IL), а інланд-фрахт рахується від авто.
+        var locFound = vm.matchAuctionLocation(attrs);
         if (locFound) {
           vm.autoShipping.location.selected = locFound.id;
           vm.locationSearch = locFound.name;
           vm.$nextTick(function () {
             vm.onLocationChange();
           });
-          filled.push("локація " + stateCode);
+          filled.push("локація " + locFound.name);
+        }
+        // Offsite: філія і місце зберігання різні — попереджаємо, бо саме
+        // звідси рахується доставка до порту.
+        if (vm.pickAttr(attrs.OffsiteSaleInd, attrs.IsOffsite) === "True") {
+          filled.push(
+            "⚠ offsite (" +
+              vm.pickAttr(attrs.City, attrs.Name) +
+              ", " +
+              vm.pickAttr(attrs.State, attrs.BranchState) +
+              ") — перевірте локацію",
+          );
         }
 
         // ── Make/Model + mileage для подальшого пошуку в UA ───────
-        vm.customs.carrierInfo.make = (attrs.Make || "").trim();
-        vm.customs.carrierInfo.model = (attrs.Model || "").trim();
-        vm.customs.carrierInfo.color = (
-          attrs.Color ||
-          attrs.PrimaryDamage ||
-          ""
-        ).trim();
-        vm.customs.carrierInfo.transmission = (attrs.Transmission || "").trim();
-        var odo = parseInt(
-          (attrs.Odometer || attrs.OdometerKM || attrs.OdometerMiles || "")
-            .toString()
-            .replace(/[^0-9]/g, ""),
+        vm.customs.carrierInfo.make = vm.pickAttr(attrs.Make);
+        vm.customs.carrierInfo.model = vm.pickAttr(attrs.Model);
+        vm.customs.carrierInfo.color = vm.pickAttr(
+          attrs.ExteriorColor,
+          attrs.Color,
         );
-        if (!isNaN(odo) && odo > 0) vm.customs.carrierInfo.mileage = odo;
+        vm.customs.carrierInfo.transmission = vm.pickAttr(
+          attrs.TransmissionDesc,
+          attrs.Transmission,
+        );
+        // Пробіг — це фільтр raceInt для AUTO.RIA. Раніше читався неіснуючий
+        // attrs.Odometer, тож для жодного лоту IAAI не заповнювався, і
+        // медіана рахувалась по авто з будь-яким пробігом.
+        var odo = vm.parseOdometer(attrs);
+        if (odo > 0) {
+          vm.customs.carrierInfo.mileage = odo;
+          filled.push("пробіг " + odo.toLocaleString("en-US") + " mi");
+        }
 
         // ── Make/Model для інформації ──────────────────────────────
         var carLabel = [attrs.Year, attrs.Make, attrs.Model]
@@ -305,18 +319,44 @@ window.__createAllMethods = function () {
         if (carLabel) filled.push(carLabel);
 
         vm.auctionStatus = filled.length ? "ok" : "warn";
+        if (!filled.length) {
+          // Розбір заточений під структуру IAAI (inventoryView.attributes).
+          // Copart віддає __NEXT_DATA__ з іншим деревом — ключі в консоль,
+          // щоб було з чого починати, якщо доведеться його підтримати.
+          console.warn(
+            "[parse] структуру не розпізнано; ключі JSON:",
+            Object.keys(nd || {}),
+          );
+        }
         vm.auctionMsg = filled.length
           ? "✅ " + filled.join(" · ")
-          : "⚠ Дані з JSON не розпізнано. Заповніть вручну.";
+          : "⚠ Структура сторінки (" +
+            (vm.autoPricing.auctions.selected || "?").toUpperCase() +
+            ") не розпізнана — заповніть поля вручну.";
 
-        // Зберігаємо ВЕСЬ лот (включно з HD-фото/відео) у локальну БД
-        var lotData = vm.collectLotData(nd, attrs, saleValues);
+        // Зберігаємо ВЕСЬ лот (включно з HD-фото/відео) у локальну БД.
+        // url береться з локальної змінної, а не з vm.auctionUrl: парсинг
+        // асинхронний (проксі ~13 с), і якщо за цей час у поле щось вставили
+        // (а paste ще й перезапускає парсинг), у БД потрапляв уже новий текст.
+        var lotData = vm.collectLotData(nd, attrs, saleValues, url);
         vm.currentLot = {
           auction: lotData.auction || "",
           lotNumber: lotData.lotNumber || "",
           vin: lotData.vin || "",
         };
-        vm.logLot(lotData);
+        vm.lotCondition = {
+          damage: lotData.primaryDamage || "",
+          secondaryDamage: lotData.secondaryDamage || "",
+          lossType: lotData.lossType || "",
+          runAndDrive: lotData.runAndDrive || "",
+          keys: lotData.hasKeys || "",
+          airbags: lotData.airbags || "",
+          grade: lotData.vehicleGrade || "",
+          odometer: lotData.odometer || 0,
+          odometerBrand: lotData.odometerBrand || "",
+          titleCode: lotData.titleCode || "",
+        };
+        if (save) vm.logLot(lotData);
 
         // Персистимо зчитані поля (рік/марку/модель/двигун…) у localStorage,
         // щоб після перезавантаження сторінки вони не повертались до старих
@@ -328,20 +368,106 @@ window.__createAllMethods = function () {
         vm.auctionMsg = "❌ Помилка парсингу: " + parseErr.message;
       }
     },
+    // Відкриття калькулятора з ?lot=<id> — заповнити форму зі збереженого
+    // лота (кнопка «Порахувати» на lots.html). Жодних звернень до аукціону:
+    // весь JSON уже в БД.
+    loadSavedLot: async function (id) {
+      var vm = this;
+      vm.auctionStatus = "loading";
+      vm.auctionMsg = "⏳ Завантаження збереженого лота №" + id + "…";
+      try {
+        var res = await fetch(vm.apiBase() + "/api/lots/" + id);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var row = await res.json();
+        if (!row || !row.raw) {
+          vm.auctionStatus = "error";
+          vm.auctionMsg = "❌ У збереженого лота немає сирого JSON.";
+          return false;
+        }
+        vm.auctionUrl = vm.sanitizeLotUrl(row.url);
+        vm.applyLotJson(row.raw, row.url, { save: false });
+        return true;
+      } catch (e) {
+        vm.auctionStatus = "error";
+        vm.auctionMsg =
+          "❌ Не вдалося завантажити лот із БД (" +
+          e.message +
+          "). Запущено `npm start`?";
+        return false;
+      }
+    },
+    // Вставка в поле запускає парсинг автоматично — але лише якщо вставили
+    // саме посилання на лот. Інакше вставка чогось стороннього (наприклад,
+    // скопійованого тексту сторінки) підмінювала статус і сам URL лоту.
+    onAuctionUrlPaste: function () {
+      var v = (this.auctionUrl || "").trim();
+      if (!/^https?:\/\/[^\s]*(iaai|copart)\.com/i.test(v)) return;
+      this.parseAuctionLot();
+    },
+    // Рядки для блоку «Стан лота» — порожні поля просто не показуємо.
+    lotConditionRows: function () {
+      var c = this.lotCondition || {};
+      function yesNo(v, yes, no) {
+        if (v === "True") return yes;
+        if (v === "False") return no;
+        return "";
+      }
+      return [
+        {
+          label: "Пошкодження",
+          value: [c.damage, c.secondaryDamage].filter(Boolean).join(" + "),
+        },
+        { label: "Тип збитку", value: c.lossType },
+        { label: "Заводиться/їде", value: yesNo(c.runAndDrive, "так", "ні") },
+        { label: "Ключі", value: yesNo(c.keys, "є", "нема") },
+        {
+          label: "Подушки",
+          value:
+            c.airbags === "Intact"
+              ? "цілі"
+              : c.airbags === "Deployed"
+                ? "спрацювали"
+                : c.airbags,
+        },
+        { label: "Grade", value: c.grade },
+        {
+          label: "Пробіг",
+          value: c.odometer
+            ? c.odometer.toLocaleString("en-US") +
+              " mi" +
+              (c.odometerBrand ? " (" + c.odometerBrand + ")" : "")
+            : "",
+        },
+        { label: "Тайтл", value: c.titleCode },
+      ].filter(function (r) {
+        return r.value;
+      });
+    },
     marketPriceDifference: function () {
       return Math.round(
         (this.customs.ukrainianMarketPrice || 0) - this.total(),
       );
     },
+    // Ключ кешу мусить містити ВСЕ, що впливає на запит до RIA. Пробіг і
+    // коробка потрапляють у фільтри (raceInt, gear_id), тож без них два лоти
+    // однієї моделі й року — скажімо, M340i з 40k і зі 100k миль — читали б
+    // одну й ту саму ціну з кешу. Пробіг округлюємо до 10 тис. км: діапазон
+    // запиту й так ±30 тис., дрібніші відмінності лише дробили б кеш, а він
+    // тут обов'язковий (безкоштовний тариф API лімітований погодинно).
     getMarketCacheKey: function (target) {
+      var km = target.mileage
+        ? Math.round((target.mileage * 1.60934) / 10000)
+        : "";
       return [
-        "ukr_market_cache_v1",
+        "ukr_market_cache_v2",
         (target.make || "").toLowerCase(),
         (target.model || "").toLowerCase(),
         target.year || "",
         (target.engineType || "").toLowerCase(),
         target.engineVolume || "",
         target.batteryKwh || "",
+        km,
+        (target.transmission || "").toLowerCase().slice(0, 4),
       ].join("|");
     },
     getMarketCategoryByDiff: function (diff, totalCost) {
@@ -371,6 +497,24 @@ window.__createAllMethods = function () {
         mileage: isNaN(mileage) ? 0 : mileage,
         transmission: transmission,
       };
+    },
+    // Записи попередньої версії ключа (без пробігу) вже ніколи не збігуться —
+    // прибираємо їх, щоб не займали місце в localStorage: у кожному лежить
+    // список оголошень із цінами.
+    purgeLegacyMarketCache: function () {
+      try {
+        var doomed = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf("ukr_market_cache_v1|") === 0) doomed.push(k);
+        }
+        doomed.forEach(function (k) {
+          localStorage.removeItem(k);
+        });
+        return doomed.length;
+      } catch (e) {
+        return 0;
+      }
     },
     readMarketCache: function (cacheKey) {
       try {
@@ -630,6 +774,18 @@ window.__createAllMethods = function () {
     // лоту ніколи не переносились на інший.
     resetLotData: function () {
       this.currentLot = { auction: "", lotNumber: "", vin: "" };
+      this.lotCondition = {
+        damage: "",
+        secondaryDamage: "",
+        lossType: "",
+        runAndDrive: "",
+        keys: "",
+        airbags: "",
+        grade: "",
+        odometer: 0,
+        odometerBrand: "",
+        titleCode: "",
+      };
       this.acv = 0;
       this.repairCost = 0;
       this.buyNowPrice = 0;
@@ -684,17 +840,36 @@ window.__createAllMethods = function () {
       return cat;
     },
     // Лог результату пошуку в локальну SQLite (через server.js).
-    // Fire-and-forget: якщо сервера нема (статика/python) — тихо ігнорується.
     logSearch: function (payload) {
-      try {
-        fetch(this.apiBase() + "/api/searches", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).catch(function () {});
-      } catch (e) {
-        /* ignore */
-      }
+      return this.postToApi("/api/searches", payload, "Пошук");
+    },
+    // Один шлях запису в SQLite для лотів і пошуків. Раніше обидва були
+    // fire-and-forget із порожнім catch: якщо піднято статику (`npm run
+    // start:py` чи Live Server без `npm start`), сторінка поводилась так само,
+    // як при робочому сервері, а в БД не з'являлось нічого — і це помічалось
+    // лише на lots.html, через дні.
+    postToApi: function (route, payload, what) {
+      var vm = this;
+      return fetch(vm.apiBase() + route, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          vm.dbMsg = "";
+          return true;
+        })
+        .catch(function (e) {
+          console.warn("[api]", route, e.message);
+          vm.dbMsg =
+            "⚠ " +
+            what +
+            " не збережено в БД (" +
+            e.message +
+            "). Запусти `npm start` — статичний сервер /api не має.";
+          return false;
+        });
     },
     // База API: node-сервер на :5500. Якщо сторінку відкрито з іншого порту
     // (Live Server) — пишемо в :5500 напряму (на сервері дозволено CORS).
@@ -703,15 +878,96 @@ window.__createAllMethods = function () {
     },
     // Лог повного лота (всі поля + HD-фото/відео + сирий JSON) у SQLite.
     logLot: function (payload) {
-      try {
-        fetch(this.apiBase() + "/api/lots", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }).catch(function () {});
-      } catch (e) {
-        /* ignore */
+      return this.postToApi("/api/lots", payload, "Лот");
+    },
+    // Довідник локацій названий по філіях («NY LONG ISLAND - NY (IAAI)»),
+    // а не по містах, тож збіг шукаємо саме по BranchName («Long Island (NY)»)
+    // з відкатом на місто; серед кандидатів того ж штату виграє той, у кого
+    // більше спільних слів.
+    matchAuctionLocation: function (attrs) {
+      var a = attrs || {};
+      var stateCode = this.pickAttr(a.State, a.BranchState).toUpperCase();
+      if (!stateCode) return null;
+      var auctionKey = this.autoPricing.auctions.selected.toUpperCase();
+
+      var inState = window.autoLocation.filter(function (l) {
+        var n = l.name.toUpperCase();
+        return n.indexOf(stateCode + " ") === 0 && n.indexOf(auctionKey) !== -1;
+      });
+      if (!inState.length) return null;
+
+      var hintWords = this.pickAttr(a.BranchName, a.Name, a.City)
+        .toUpperCase()
+        .replace(/\([^)]*\)/g, " ") // «Long Island (NY)» → «Long Island»
+        .split(/[^A-Z0-9]+/)
+        .filter(function (w) {
+          return w.length > 2 && w !== stateCode;
+        });
+
+      var best = null,
+        bestScore = 0;
+      inState.forEach(function (l) {
+        var n = l.name.toUpperCase();
+        var score = hintWords.reduce(function (acc, w) {
+          return acc + (n.indexOf(w) !== -1 ? 1 : 0);
+        }, 0);
+        if (score > bestScore) {
+          bestScore = score;
+          best = l;
+        }
+      });
+      return best || inState[0];
+    },
+    // IAAI віддає порожні поля як " " (пробіл), а потрібне значення часто
+    // лежить під іншим ім'ям (ODOValue, а не Odometer; PrimaryDamageDesc, а не
+    // PrimaryDamage). Беремо перше непорожнє з переліку кандидатів.
+    pickAttr: function () {
+      for (var i = 0; i < arguments.length; i++) {
+        var v = arguments[i];
+        if (v === null || v === undefined) continue;
+        v = String(v).trim();
+        if (v) return v;
       }
+      return "";
+    },
+    // IAAI: ODOValue + ODOUoM ("mi"/"km"); Copart/старий код: Odometer.
+    // Повертає пробіг у МИЛЯХ (км конвертуються), бо саме в милях його
+    // показує аукціон і саме з миль рахується фільтр пробігу для AUTO.RIA.
+    parseOdometer: function (a) {
+      var attrs = a || {};
+      var raw = this.pickAttr(
+        attrs.ODOValue,
+        attrs.Odometer,
+        attrs.OdometerMiles,
+      );
+      var n = parseInt(raw.replace(/[^0-9]/g, ""), 10);
+      if (!n || isNaN(n)) {
+        var km = parseInt(
+          this.pickAttr(attrs.OdometerKM).replace(/[^0-9]/g, ""),
+          10,
+        );
+        return km ? Math.round(km / 1.60934) : null;
+      }
+      var uom = this.pickAttr(attrs.ODOUoM).toLowerCase();
+      return uom === "km" ? Math.round(n / 1.60934) : n;
+    },
+    // Приймає лише http(s)-посилання. У БД одного разу вже потрапив
+    // скопійований зі сторінки текст замість URL — і кнопка «Сторінка лоту»
+    // перетворилась на битий відносний лінк.
+    sanitizeLotUrl: function (url) {
+      var v = (url == null ? "" : String(url)).trim();
+      if (!/^https?:\/\/[^\s]+$/i.test(v)) return "";
+      return v;
+    },
+    // Запасний варіант, якщо URL загубився: сторінку лоту завжди можна
+    // зібрати з аукціону та номера лоту.
+    canonicalLotUrl: function (auction, lotNumber) {
+      var n = (lotNumber == null ? "" : String(lotNumber)).trim();
+      if (!/^[0-9]{4,12}$/.test(n)) return "";
+      if (auction === "iaai")
+        return "https://www.iaai.com/VehicleDetail/" + n + "~US";
+      if (auction === "copart") return "https://www.copart.com/lot/" + n;
+      return "";
     },
     // Витягує HD-фото, 360° та відео з JSON лота (IAAI; Copart — best-effort).
     collectLotMedia: function (nd) {
@@ -746,7 +1002,7 @@ window.__createAllMethods = function () {
       return { images: images, image360: image360, videos: videos };
     },
     // Збирає повний набір даних про лот для збереження в БД.
-    collectLotData: function (nd, attrs, saleValues) {
+    collectLotData: function (nd, attrs, saleValues, lotUrl) {
       var vm = this;
       var inv = nd.inventory || {};
       var a = attrs || {};
@@ -757,40 +1013,79 @@ window.__createAllMethods = function () {
       function s(v) {
         return (v == null ? "" : v).toString().trim();
       }
+      var p = vm.pickAttr;
+      var auction = vm.autoPricing.auctions.selected;
+      var lotNumber = s(
+        a.SalvageId ||
+          a.StockNo ||
+          (nd.inventoryView || {}).itemId ||
+          inv.salvageId ||
+          "",
+      );
       return {
-        url: vm.auctionUrl,
-        auction: vm.autoPricing.auctions.selected,
-        lotNumber: s(
-          a.StockNo || (nd.inventoryView || {}).itemId || inv.salvageId || "",
-        ),
-        vin: s(a.VIN || inv.vin),
+        url:
+          vm.sanitizeLotUrl(lotUrl) ||
+          vm.sanitizeLotUrl(vm.auctionUrl) ||
+          vm.canonicalLotUrl(auction, lotNumber),
+        auction: auction,
+        lotNumber: lotNumber,
+        vin: p(a.VIN, inv.vin),
         year: parseInt(a.Year || inv.year || 0) || null,
-        make: s(a.Make || inv.make),
-        model: s(a.Model || inv.model),
-        series: s(a.Series || inv.series),
-        bodyStyle: s(a.BodyStyleName || inv.bodyStyleName || a.Segment),
-        fuel: s(a.FuelTypeDesc || a.FuelTypeCode || inv.fuelTypeDesc),
-        engine: s(a.EngineSize || inv.engineSize || a.DisplLiters),
-        cylinders: s(a.Cylinders || inv.cylindersDesc),
-        drive: s(a.DriveLineType || inv.driveLineTypeDesc),
-        transmission: s(a.Transmission || inv.transmissionDesc),
-        color: s(a.Color || inv.colorDesc),
-        odometer:
-          parseInt((a.Odometer || "").toString().replace(/[^0-9]/g, "")) ||
-          null,
-        primaryDamage: s(a.PrimaryDamage || inv.primaryDamageDesc),
-        secondaryDamage: s(a.SecondaryDamage || inv.secondaryDamageDesc),
-        titleBrand: s(a.TitleBrand || inv.titleBrand),
-        titleState: s(a.TitleState || inv.certState),
+        make: p(a.Make, inv.make),
+        model: p(a.Model, inv.model),
+        series: p(a.Series, inv.series),
+        bodyStyle: p(a.BodyStyleName, inv.bodyStyleName, a.Segment),
+        fuel: p(a.FuelTypeDesc, a.FuelTypeCode, inv.fuelTypeDesc),
+        engine: p(a.EngineSize, inv.engineSize, a.DisplLiters),
+        cylinders: p(a.CylindersDesc, a.Cylinders, inv.cylindersDesc),
+        drive: p(a.DriveLineTypeDesc, a.DriveLineType, inv.driveLineTypeDesc),
+        transmission: p(
+          a.TransmissionDesc,
+          a.Transmission,
+          inv.transmissionDesc,
+        ),
+        color: p(a.ExteriorColor, a.Color, inv.colorDesc),
+        interiorColor: p(a.InteriorColor),
+        odometer: vm.parseOdometer(a),
+        odometerBrand: p(a.ODOBrand),
+        primaryDamage: p(
+          a.PrimaryDamageDesc,
+          a.PrimaryDamage,
+          inv.primaryDamageDesc,
+        ),
+        secondaryDamage: p(
+          a.SecondaryDamageDesc,
+          a.SecondaryDamage,
+          inv.secondaryDamageDesc,
+        ),
+        lossType: p(a.LossTypeDesc),
+        runAndDrive: p(a.RunAndDrive),
+        hasKeys: p(a.Keys),
+        airbags: p(a.AirbagState),
+        vehicleGrade: p(a.VehicleGrade),
+        titleBrand: p(a.TitleBrand, inv.titleBrand),
+        // Тип документа (BillOfSale / Certificate of Title…) і його код —
+        // окремо від бренду тайтла: для імпорту це різні речі.
+        titleType: p(a.Title),
+        titleCode: p(a.TitleCode),
+        titleState: p(a.TitleState, inv.certState),
+        vehicleCity: p(a.City),
+        vehicleState: p(a.State, a.BranchState),
+        vehicleZip: p(a.Zip),
+        offsite: p(a.OffsiteSaleInd, a.IsOffsite) === "True" ? 1 : 0,
         acv: vm.parseDollars(sv("ActualCashValue")) || null,
-        repairCost: vm.parseDollars(sv("EstimatedRepairCost")) || null,
+        repairCost:
+          vm.parseDollars(sv("EstimatedRepairCost")) ||
+          vm.parseDollars(a.EstRepairCost) ||
+          null,
         buyNowPrice:
           vm.parseDollars(sv("BuyNowPrice")) ||
           parseInt(a.BuyNowAmount || 0) ||
           null,
         minBid: parseInt(a.MinimumBidAmount || 0) || null,
-        sellingBranch: s(sv("SellingBranch") || a.BranchName),
-        branchState: s(a.BranchState),
+        sellingBranch: p(sv("SellingBranch"), a.BranchName),
+        branchState: p(a.BranchState),
+        saleLane: p(sv("Lane"), a.Lane),
         saleDate: s(sv("AuctionDateTime")),
         images: media.images,
         image360: media.image360,
@@ -1042,22 +1337,40 @@ window.__createAllMethods = function () {
         vm.locationDropOpen = false;
       }, 150);
     },
+    // Штат локації = перший токен її назви («CA ACE CARSON - CA (IAAI)»).
+    locationState: function () {
+      var loc = this.getCurrentLocation();
+      var m = ((loc && loc.name) || "").match(/^([A-Z]{2})\b/);
+      return m ? m[1] : "";
+    },
+    // Ручний вибір порту в селекті. Прапорець потрібен, щоб зміна локації
+    // потім не перезатирала вибір користувача (і щоб при завантаженні
+    // сторінки порт виводився з локації, а не брався зі старого сховища).
+    onDeparturePortChange: function () {
+      this.autoShipping.shippingPortManual = true;
+      this.saveToLocalStorage();
+    },
     onLocationChange: function () {
       var ports = this.shippingAllowedPorts();
       var location = this.getCurrentLocation();
 
-      if (!ports || !ports.length) {
-        if (window.shippingPorts && window.shippingPorts.length) {
-          this.autoShipping.shippingPort = window.shippingPorts[0].id;
-        }
+      // toPort у довіднику суцільно -1, тож ця гілка зараз не спрацьовує
+      // ніколи; лишена на випадок, якщо таблицю відстаней колись заповнять.
+      if (ports && ports.length) {
+        var optimal = ports.reduce(function (acc, cur) {
+          return location.toPort[cur.id] < location.toPort[acc.id] ? cur : acc;
+        });
+        this.autoShipping.shippingPort = optimal.id;
         return;
       }
 
-      var optimal = ports.reduce(function (acc, cur) {
-        return location.toPort[cur.id] < location.toPort[acc.id] ? cur : acc;
-      });
-
-      this.autoShipping.shippingPort = optimal.id;
+      // Без таблиці відстаней порт визначає штат. Раніше тут беззастережно
+      // ставився shippingPorts[0] (Нью-Йорк), тому авто з Каліфорнії
+      // рахувалось за східним фрахтом.
+      if (this.autoShipping.shippingPortManual) return;
+      this.autoShipping.shippingPort = window.portForState(
+        this.locationState(),
+      );
     },
 
     selectLocation: function (opt) {
@@ -1349,11 +1662,15 @@ window.__createAllMethods = function () {
       this.saveToLocalStorage();
     },
 
+    // Сума фіксованих зборів (брокер, парковка, доставка по Україні,
+    // сертифікація). Джерело правди — `fixedFees` у state.js, звідки ці ж
+    // рядки виводяться в таблицю витрат.
+    fixedFeesTotal: function () {
+      return this.fixedFees.reduce(function (sum, fee) {
+        return sum + fee.amount;
+      }, 0);
+    },
     total: function () {
-      let inPortParking = 44;
-      //calc
-      // Vue викликає методи з шаблону при кожному ререндері, а ререндер відбувається при будь-якій зміні даних
-      // console.log(`total ${this.autoPricing.autoPrice} + ${this.auctionFee()} + ${this.commissionBank()} + ${this.strahovka()} + ${this.totalShippingFee()} + ${this.totalCustomsFee()} + ${550} + ${inPortParking} + ${250} + ${250} + ${this.mreo()} + ${this.anzFee()}`)
       return Math.floor(
         this.autoPricing.autoPrice +
           this.auctionFee() +
@@ -1361,10 +1678,7 @@ window.__createAllMethods = function () {
           this.strahovka() +
           this.totalShippingFee() +
           this.totalCustomsFee() +
-          550 +
-          inPortParking +
-          250 +
-          250 +
+          this.fixedFeesTotal() +
           this.mreo() +
           this.anzFee(),
       );
@@ -1375,11 +1689,16 @@ export function createMarketMethods() {
   var all = __createAllMethods();
   var pick = [
     "parseAuctionLot",
+    "onAuctionUrlPaste",
+    "applyLotJson",
+    "loadSavedLot",
     "marketPriceDifference",
+    "lotConditionRows",
     "getMarketCacheKey",
     "getMarketCategoryByDiff",
     "normalizeMarketTarget",
     "readMarketCache",
+    "purgeLegacyMarketCache",
     "writeMarketCache",
     "riaApiKey",
     "riaFetchJson",
@@ -1399,10 +1718,16 @@ export function createMarketMethods() {
     "syncMarketFreshness",
     "applyMarketResult",
     "logSearch",
+    "postToApi",
     "apiBase",
     "logLot",
     "collectLotMedia",
     "collectLotData",
+    "pickAttr",
+    "matchAuctionLocation",
+    "parseOdometer",
+    "sanitizeLotUrl",
+    "canonicalLotUrl",
     "lookupUkrainianPrice",
   ];
   var out = {};

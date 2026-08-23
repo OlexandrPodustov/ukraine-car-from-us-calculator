@@ -358,7 +358,7 @@
           H = 430,
           padL = 12,
           padR = 12,
-          padTop = 46,
+          padTop = 62,
           padBot = 46;
         var plotW = W - padL - padR,
           plotH = H - padTop - padBot;
@@ -458,7 +458,8 @@
         function marker(v, color, label, dashed, row, thick) {
           if (v == null || isNaN(v) || v < dMin || v > dMax) return "";
           var mx = x(v);
-          var ly = row === 1 ? 30 : 14;
+          var ly = 14 + row * 16;
+          if (row < 0) label = ""; // місця під підпис не лишилось — тільки лінія
           return (
             '<line x1="' +
             mx.toFixed(1) +
@@ -487,12 +488,68 @@
           );
         }
 
-        var markers =
-          marker(q25, "#9ca3af", "25%", true, 0) +
-          marker(q75, "#9ca3af", "75%", true, 0) +
-          marker(q50, "#111827", "медіана", false, 0) +
-          marker(market, "#7c3aed", "ринок " + fmt(market), false, 1) +
-          marker(lot, "#ea580c", "наш " + fmt(lot), false, 1, true);
+        // Рядок підпису рахуємо, а не задаємо: при близьких значеннях
+        // (а це нормальний випадок — наш кошт поруч із ринком) жорстко
+        // задані рядки перетворювали підписи на нечитабельну кашу.
+        var LABEL_ROWS = Math.floor((padTop - 8) / 16);
+        var rowEnds = [];
+        function assignRow(v, label) {
+          var half = (String(label).length * 6.6) / 2;
+          var left = Math.min(W - 60, Math.max(40, x(v))) - half;
+          var right = left + half * 2;
+          for (var r = 0; r < LABEL_ROWS; r++) {
+            if (rowEnds[r] === undefined || left > rowEnds[r] + 6) {
+              rowEnds[r] = right;
+              return r;
+            }
+          }
+          return -1; // краще без підпису, ніж підпис поверх підпису
+        }
+
+        // Маркери розкладаються зліва направо (звідси сортування за
+        // значенням): кожен підпис займає перший рядок, де він ні на що не
+        // налазить.
+        var visible = [
+          { v: lot, color: "#ea580c", label: "наш " + fmt(lot), thick: true },
+          { v: market, color: "#7c3aed", label: "ринок " + fmt(market) },
+          { v: q50, color: "#111827", label: "медіана" },
+          { v: q25, color: "#9ca3af", label: "25%", dashed: true },
+          { v: q75, color: "#9ca3af", label: "75%", dashed: true },
+        ].filter(function (m) {
+          return m.v != null && !isNaN(m.v) && m.v >= dMin && m.v <= dMax;
+        });
+
+        // Ринкова оцінка часто дорівнює медіані — тоді це одна лінія, і два
+        // підписи один поверх одного. Схлопуємо все, що потрапляє в ту саму
+        // точку (за порядком важливості вище), в один підпис.
+        var merged = [];
+        visible.forEach(function (m) {
+          var same = merged.filter(function (o) {
+            return Math.abs(x(o.v) - x(m.v)) < 3;
+          })[0];
+          if (same) {
+            same.label += " / " + m.label.split(" ")[0];
+            same.thick = same.thick || m.thick;
+          } else {
+            merged.push(Object.assign({}, m));
+          }
+        });
+
+        var markers = merged
+          .sort(function (a, b) {
+            return a.v - b.v;
+          })
+          .map(function (m) {
+            return marker(
+              m.v,
+              m.color,
+              m.label,
+              m.dashed,
+              assignRow(m.v, m.label),
+              m.thick,
+            );
+          })
+          .join("");
 
         return (
           '<svg viewBox="0 0 ' +

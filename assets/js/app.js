@@ -1,13 +1,11 @@
-import {
-  auctions,
-  calculateCopartFee,
-  calculateIaaIFee,
-  inRange,
-} from "./constants/auctions.js";
-import { autoLocation } from "./constants/locations.js";
-import { shippingPorts } from "./constants/ports.js";
-import { vehicleTypes } from "./constants/vehicle.js";
-import { engineTypes, engineVolumes } from "./constants/engine.js";
+// Довідники підключаються заради побічного ефекту — вони пишуть себе у
+// window.*, звідки їх і читає решта коду (див. CLAUDE.md). Іменовані імпорти
+// тут нічого не давали: жодне з цих імен у app.js не використовується.
+import "./constants/auctions.js";
+import "./constants/locations.js";
+import "./constants/ports.js";
+import "./constants/vehicle.js";
+import "./constants/engine.js";
 import {
   createStorageService,
   applyPersistedState,
@@ -58,6 +56,20 @@ function initializeApp() {
           vm.syncMarketFreshness();
         }
       }
+      vm.purgeLegacyMarketCache();
+
+      // /index.html?lot=<id> — перерахувати збережений лот (кнопка з lots.html).
+      // Форма заповнюється з raw_json у БД, аукціон при цьому не смикаємо.
+      var lotParam = new URLSearchParams(location.search).get("lot");
+      if (lotParam && /^\d+$/.test(lotParam)) {
+        vm.loadSavedLot(lotParam);
+      }
+
+      // Порт відправлення виводиться зі штату локації (див. ports.js). Робимо
+      // це і при старті: у сховищі всіх, хто відкривав калькулятор раніше,
+      // лежить new_york — воно б давало східний фрахт навіть для Каліфорнії.
+      vm.onLocationChange();
+
       ratesService.initNbuRate(vm);
 
       vm.__rawParseAuctionLot = vm.parseAuctionLot;

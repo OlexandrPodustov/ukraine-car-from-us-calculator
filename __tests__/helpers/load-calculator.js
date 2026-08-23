@@ -67,6 +67,14 @@ function createVm(overrides) {
     vm[key] = methods[key].bind(vm);
   });
 
+  // Vue дає інстансу $nextTick; код парсера через нього оновлює локацію.
+  // Без нього тест падав на «vm.$nextTick is not a function» там, де сторінка
+  // працює. Виконуємо колбек синхронно — у тестах нема черги рендеру.
+  vm.$nextTick = function (cb) {
+    if (typeof cb === "function") cb();
+    return Promise.resolve();
+  };
+
   const computed = window.createComputed();
   Object.keys(computed).forEach(function (key) {
     Object.defineProperty(vm, key, { get: computed[key], enumerable: true });

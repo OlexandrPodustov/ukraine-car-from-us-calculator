@@ -86,7 +86,7 @@
                                   v-model="auctionUrl"
                                   placeholder="https://www.iaai.com/VehicleDetail/45000877~US"
                                   autocomplete="off"
-                                  v-on:paste="$nextTick(parseAuctionLot)"
+                                  v-on:paste="$nextTick(onAuctionUrlPaste)"
                                   style="
                                     margin-bottom: 0;
                                     flex: 1;
@@ -129,6 +129,19 @@
                               >
                                 {{auctionMsg}}
                                 <!-- </div> -->
+                              </div>
+                              <!-- Запис у локальну SQLite. Мовчазний збій тут
+                                   означає, що лот нікуди не зберігся. -->
+                              <div
+                                v-if="dbMsg"
+                                style="
+                                  font-size: 13px;
+                                  margin-bottom: 4px;
+                                  line-height: 1.4;
+                                  color: #a06000;
+                                "
+                              >
+                                {{dbMsg}}
                               </div>
                               <!-- VIN зчитаного лота. Показуємо тут, бо це
                                    єдиний ідентифікатор авто, який потрібно
@@ -349,6 +362,39 @@
                             </div>
                             <div
                               class="field-row t-input-group t-input-group_nm"
+                              data-input-lid="1495646545078"
+                            >
+                              <div
+                                class="t-input-block t-input-group t-input-block-ext"
+                              >
+                                <div class="title">Порт відправлення (США)</div>
+                                <select
+                                  name="departure_port"
+                                  v-model="autoShipping.shippingPort"
+                                  v-on:change="onDeparturePortChange"
+                                >
+                                  <option
+                                    v-for="opt in autoShipping.shippingPortOptions"
+                                    v-bind:value="opt.id"
+                                  >
+                                    {{opt.name}}
+                                  </option>
+                                </select>
+                                <div
+                                  style="
+                                    font-size: 13px;
+                                    color: #777;
+                                    margin-top: 4px;
+                                  "
+                                >
+                                  Підставляється зі штату аукціону; визначає
+                                  ставку фрахту ({{currentCoast() === 'west' ?
+                                  'західне' : 'східне'}} узбережжя).
+                                </div>
+                              </div>
+                            </div>
+                            <div
+                              class="field-row t-input-group t-input-group_nm"
                               data-input-lid="1495646545079"
                             >
                               <div
@@ -496,36 +542,15 @@
                             <div>{{totalCustomsFee()}}</div>
                           </div>
                         </div>
-                        <div class="valuess">
-                          <div class="values_title">Брокер/експедитор</div>
+                        <!-- Фіксовані збори — з core/state.js (fixedFees).
+                             Раніше кожна сума стояла тут числом і ще раз у
+                             total(): таблиця й підсумок могли розійтися. -->
+                        <div class="valuess" v-for="fee in fixedFees">
+                          <div class="values_title">{{fee.label}}</div>
 
                           <div class="price">
                             <div>$</div>
-                            <div>550</div>
-                          </div>
-                        </div>
-                        <div class="valuess">
-                          <div class="values_title">Парковка в порту</div>
-
-                          <div class="price">
-                            <div>$</div>
-                            <div>44</div>
-                          </div>
-                        </div>
-                        <div class="valuess">
-                          <div class="values_title">Доставка по україні</div>
-
-                          <div class="price">
-                            <div>$</div>
-                            <div>250</div>
-                          </div>
-                        </div>
-                        <div class="valuess">
-                          <div class="values_title">Сертифікація</div>
-
-                          <div class="price">
-                            <div>$</div>
-                            <div>250</div>
+                            <div>{{fee.amount}}</div>
                           </div>
                         </div>
                         <div class="valuess">
@@ -602,6 +627,34 @@
                         /><span style="margin-left: 4px; line-height: 30px"
                           >$</span
                         >
+                      </div>
+                      <!-- Стан авто зі зчитаного лота: саме з нього
+                           оцінюють вартість ремонту, тож він має бути перед
+                           очима, а не тільки в БД. -->
+                      <div
+                        v-if="lotConditionRows().length"
+                        style="
+                          margin: 4px 0 10px;
+                          padding: 8px 10px;
+                          background: #f7f8fa;
+                          border: 1px solid #e5e7eb;
+                          border-radius: 6px;
+                          font-size: 13px;
+                          line-height: 1.5;
+                        "
+                      >
+                        <div style="font-weight: 600; margin-bottom: 2px">
+                          Стан лота
+                        </div>
+                        <div
+                          v-for="row in lotConditionRows()"
+                          style="display: flex; gap: 8px"
+                        >
+                          <span style="color: #6b7280; min-width: 118px"
+                            >{{row.label}}</span
+                          >
+                          <span>{{row.value}}</span>
+                        </div>
                       </div>
                       <div class="field-row">
                         <div class="title">Вартість ремонту</div>

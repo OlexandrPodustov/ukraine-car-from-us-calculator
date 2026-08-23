@@ -1,0 +1,250 @@
+{
+  "inventory": {
+    "vin": null
+  },
+  "inventoryView": {
+    "itemId": "46380419",
+    "attributes": {
+      "Id": "46380419~US",
+      "SalvageId": "46380419",
+      "StockNumber": "45881423",
+      "Year": "2012",
+      "Make": "PORSCHE",
+      "Model": "911",
+      "Series": "CARRERA S",
+      "VIN": "WP0AB2A93CS******",
+      "TitleBrand": " ",
+      "Title": "BillOfSale",
+      "TitleCode": "CLR",
+      "TitleState": "NY",
+      "CertState": null,
+      "PrimaryDamageCode": "WT",
+      "PrimaryDamageDesc": "NORMAL WEAR & TEAR",
+      "SecondaryDamageCode": " ",
+      "SecondaryDamageDesc": " ",
+      "LossTypeDesc": "Other",
+      "Keys": "True",
+      "KeyFOB": "True",
+      "StartsCode": " ",
+      "StartsDesc": " ",
+      "RunAndDrive": "True",
+      "AirbagState": "Intact",
+      "ODOValue": "58639",
+      "ODOBrand": "ACTUAL",
+      "ODOUoM": "mi",
+      "City": "Yonkers",
+      "State": "NY ",
+      "Name": "Saw Mill Auto Sales River Road Offsite",
+      "BranchName": "Dream Rides",
+      "BranchNumber": "817",
+      "BranchState": "IL",
+      "BodyStyleCode": null,
+      "BodyStyleName": "COUPE",
+      "Segment": "Coupe",
+      "SegmentDesc": null,
+      "Cylinders": "6",
+      "CylindersDesc": "6 Cyl",
+      "DriveLineTypeCode": null,
+      "DriveLineTypeDesc": "RWD",
+      "EngineSize": "3.8L H-6 DI, DOHC, VVT, 400HP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       ",
+      "DisplLiters": "3.8 L",
+      "FuelTypeCode": "Gasoline",
+      "FuelTypeDesc": "Gasoline",
+      "ExteriorColor": "SILVER",
+      "InteriorColor": " ",
+      "TransmissionCode": null,
+      "Transmission": "Unknown",
+      "TransmissionDesc": null,
+      "VehicleGrade": "50",
+      "VehicleCondition": " ",
+      "OperableInd": "True",
+      "MinimumBidAmount": "0",
+      "AuctionDateTime": "8/17/2026 5:00:00 PM +00:00",
+      "Lane": "C",
+      "Aisle": "OFF",
+      "EstRepairCost": " ",
+      "YearMakeModelSeries": "2012 PORSCHE 911 CARRERA S",
+      "Link360": "",
+      "EngineSoundLink": null,
+      "Zip": "10701",
+      "Address": "380 Saw Mill River Rd",
+      "OffsiteSaleInd": "True",
+      "IsOffsite": "False",
+      "LocLatitude": "41.53539",
+      "LocLongitude": "-74.13375"
+    },
+    "saleInformation": {
+      "$values": [
+        {
+          "$id": "32",
+          "key": "SellingBranch",
+          "value": "Dream Rides",
+          "order": 2
+        },
+        {
+          "$id": "33",
+          "key": "VehiclesVehicleLocation",
+          "value": "Yonkers, NY 10701\nYONKERS, NY, 10701\n",
+          "order": 3
+        },
+        {
+          "$id": "35",
+          "key": "AuctionDateTime",
+          "value": "8/17/2026 5:00:00 PM +00:00",
+          "order": 6
+        },
+        {
+          "$id": "36",
+          "key": "Lane",
+          "value": "C - #161",
+          "order": 7
+        },
+        {
+          "$id": "37",
+          "key": "Aisle",
+          "value": "OFF - 1",
+          "order": 8
+        },
+        {
+          "$id": "38",
+          "key": "ActualCashValue",
+          "value": "$67,864 USD",
+          "order": 9
+        },
+        {
+          "$id": "39",
+          "key": "EstimatedRepairCost",
+          "value": "",
+          "order": 10
+        },
+        {
+          "$id": "40",
+          "key": "Seller",
+          "value": "",
+          "order": 11
+        },
+        {
+          "$id": "41",
+          "key": "TitleSaleDoc",
+          "value": "CLEAR (New York)",
+          "order": 13
+        },
+        {
+          "$id": "42",
+          "key": "Notes",
+          "value": "SALVAGE HISTORY",
+          "order": 15
+        }
+      ]
+    },
+    "imageDimensions": {
+      "image360Ind": false,
+      "image360Url": "",
+      "vrdUrl": "https://mediaretriever.iaai.com/api/EngineVideoRetriever?partitionKey=46380419&Tenant=iaai",
+      "keys": {
+        "$values": [
+          {
+            "$id": "54",
+            "k": "46380419~SID~B635~S0~I1~RW1440~H1080~TH0",
+            "w": 1440,
+            "h": 1080,
+            "sn": "",
+            "sid": 46380419,
+            "b": 635,
+            "in": 1,
+            "i": 0,
+            "s": 0,
+            "ar": 1.33,
+            "art": 1.36,
+            "tw": 96,
+            "th": 72
+          },
+          {
+            "$id": "55",
+            "k": "46380419~SID~B635~S0~I2~RW1440~H1080~TH0",
+            "w": 1440,
+            "h": 1080,
+            "sn": "",
+            "sid": 46380419,
+            "b": 635,
+            "in": 2,
+            "i": 1,
+            "s": 0,
+            "ar": 1.33,
+            "art": 1.36,
+            "tw": 96,
+            "th": 72
+          },
+          {
+            "$id": "56",
+            "k": "46380419~SID~B635~S0~I3~RW1440~H1080~TH0",
+            "w": 1440,
+            "h": 1080,
+            "sn": "",
+            "sid": 46380419,
+            "b": 635,
+            "in": 3,
+            "i": 2,
+            "s": 0,
+            "ar": 1.33,
+            "art": 1.36,
+            "tw": 96,
+            "th": 72
+          }
+        ]
+      }
+    }
+  },
+  "auctionInformation": {
+    "biddingInformation": {
+      "$id": "68",
+      "year": 2012,
+      "make": "PORSCHE",
+      "model": "911",
+      "myCurrent": null,
+      "buyNowAmount": 0,
+      "buyNowPrice": "$0",
+      "timedAuctionBuyNowOfferstatus": 0,
+      "buyNowOfferAmount": 0,
+      "watchingAllowed": true,
+      "isWatching": false,
+      "isHighPrebidder": null,
+      "prebidClosed": null,
+      "displayHighPrebid": false,
+      "isPreBidVisible": false,
+      "timedAuctionInd": false,
+      "buyNowInd": false,
+      "displaySalesTaxWarningLinks": false,
+      "whoCanBuy": {
+        "$id": "69",
+        "$values": [
+          "DEA,DIS,EXP,LBU,REB,SCR"
+        ]
+      },
+      "biddingNotes": {
+        "$id": "70",
+        "$values": [
+          "All bids are in $25 increments",
+          "The winning pre-bid online will be represented at the live sale",
+          "Press the \"Pre-Bid\" button to learn more (such as Bid History)"
+        ]
+      },
+      "biddingWarnings": null,
+      "bidStatusWarnings": {
+        "$id": "71",
+        "$values": [
+          "You are not logged in."
+        ]
+      },
+      "bidStatusIcon": "W",
+      "bidBuyInd": false,
+      "salesTaxInd": false,
+      "isUpstreamBranchStock": false,
+      "bidderMaxAllowedCredit": null,
+      "bidderUsedCredit": null,
+      "preBidAccessLevel": 3,
+      "buyerSalvageLimitMsg": null,
+      "bidIncrement": 250
+    }
+  }
+}

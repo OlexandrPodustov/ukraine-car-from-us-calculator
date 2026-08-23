@@ -10,6 +10,45 @@ var shippingPorts = [
   // { id: "houston", name: "Houston (TX)", coast: "gulf" },
 ];
 
+// Порт відправлення за штатом аукціону.
+//
+// Довідник локацій має поле `toPort`, але воно суцільно -1 (обнулене
+// 2026-08-17 разом із подвійним рахунком фрахту — див.
+// docs/shipping-rates-baseline.md). Через це «оптимальний порт» ніколи не
+// вибирався, і фрахт завжди рахувався за СХІДНИМ узбережжям — навіть для авто
+// з Каліфорнії, де він на $500 (Одеса) / $650 (Клайпеда) дорожчий.
+//
+// Тут — лише маршрутизація «штат → порт», без жодних ставок: рейт бере
+// oceanFreightRates за coast порту. Savannah і New York обидва east, тож для
+// південного сходу змінюється тільки підпис плеча, не сума. Портів Мексиканської
+// затоки в списку нема, тому TX/LA/OK поки їдуть через Нью-Йорк.
+var portByState = {
+  AK: "los_angeles",
+  AZ: "los_angeles",
+  CA: "los_angeles",
+  HI: "los_angeles",
+  ID: "los_angeles",
+  MT: "los_angeles",
+  NV: "los_angeles",
+  OR: "los_angeles",
+  UT: "los_angeles",
+  WA: "los_angeles",
+  WY: "los_angeles",
+  AL: "savannah",
+  FL: "savannah",
+  GA: "savannah",
+  MS: "savannah",
+  NC: "savannah",
+  SC: "savannah",
+  TN: "savannah",
+};
+
+// Порт відправлення для штату; за замовчуванням — Нью-Йорк (східне узбережжя).
+function portForState(state) {
+  var code = (state == null ? "" : String(state)).trim().toUpperCase();
+  return portByState[code] || "new_york";
+}
+
 // Порти призначення.
 // `toUkraine` — доставка автовозом від порту призначення до кордону України.
 // Для Одеси це 0: порт уже в Україні, і внутрішня доставка по Україні
@@ -53,6 +92,14 @@ var oceanFreightRates = {
 };
 
 window.shippingPorts = shippingPorts;
+window.portByState = portByState;
+window.portForState = portForState;
 window.destinationPorts = destinationPorts;
 window.oceanFreightRates = oceanFreightRates;
-export { shippingPorts, destinationPorts, oceanFreightRates };
+export {
+  shippingPorts,
+  destinationPorts,
+  oceanFreightRates,
+  portByState,
+  portForState,
+};

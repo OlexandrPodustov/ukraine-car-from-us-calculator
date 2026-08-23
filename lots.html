@@ -97,6 +97,21 @@
         font-size: 11px;
         margin-top: 6px;
       }
+
+      /* Вердикт угоди: різниця «укр. ринок − наш кошт» з останнього пошуку. */
+      .pill + .pill {
+        margin-left: 6px;
+      }
+
+      .pill.good {
+        background: #dcfce7;
+        color: #14532d;
+      }
+
+      .pill.bad {
+        background: #fee2e2;
+        color: #7f1d1d;
+      }
       .empty {
         padding: 40px;
         text-align: center;
@@ -266,6 +281,54 @@
         border-radius: 999px;
         font-size: 14px;
       }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin: 0 0 16px;
+      }
+      /* app.css робить усі input/select на всю ширину з відступом знизу —
+         для панелі фільтра це треба перебити, інакше кожен контрол займає
+         власний рядок. */
+      .toolbar input[type="search"] {
+        flex: 1 1 240px;
+        width: auto;
+        height: 34px;
+        margin-bottom: 0;
+        padding: 0 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      .toolbar select {
+        flex: 0 0 auto;
+        width: auto;
+        height: 34px;
+        margin-bottom: 0;
+        padding: 0 34px 0 10px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+        background-color: #fff;
+      }
+
+      .toolbar .chk {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: #374151;
+        white-space: nowrap;
+      }
+
+      .toolbar .chk input {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
       table.info {
         width: 100%;
         border-collapse: collapse;
@@ -297,6 +360,25 @@
         Кожне зчитування лоту на калькуляторі зберігає сюди повну інформацію +
         HD-фото та відео. Клікни картку для деталей.
       </p>
+      <div class="toolbar">
+        <input
+          id="q"
+          type="search"
+          placeholder="Фільтр: марка, модель, VIN, № лоту, штат, пошкодження…"
+          autocomplete="off"
+        />
+        <select id="sort">
+          <option value="new">Спершу нові</option>
+          <option value="deal">Найбільша вигода</option>
+          <option value="price">Дешевші (ACV/BuyNow)</option>
+          <option value="odo">Менший пробіг</option>
+          <option value="year">Новіші за роком</option>
+        </select>
+        <label class="chk"
+          ><input type="checkbox" id="onlyDeals" /> лише прораховані</label
+        >
+        <span class="muted" id="count"></span>
+      </div>
       <div id="grid"><p class="muted">Завантаження…</p></div>
     </div>
 
@@ -343,6 +425,23 @@
           }[c];
         });
       }
+      // Пропускає лише http(s): у БД (лот 29) колись потрапив скопійований
+      // текст сторінки замість URL, і кнопка вела в нікуди.
+      function safeUrl(u) {
+        var v = (u == null ? "" : String(u)).trim();
+        return /^https?:\/\/[^\s]+$/i.test(v) ? v : "";
+      }
+
+      // Якщо url загубився — збираємо сторінку лоту з аукціону та номера.
+      function canonicalLotUrl(auction, lotNumber) {
+        var n = (lotNumber == null ? "" : String(lotNumber)).trim();
+        if (!/^[0-9]{4,12}$/.test(n)) return "";
+        if (auction === "iaai")
+          return "https://www.iaai.com/VehicleDetail/" + n + "~US";
+        if (auction === "copart") return "https://www.copart.com/lot/" + n;
+        return "";
+      }
+
       function dt(iso) {
         try {
           return new Date(iso).toLocaleString("uk-UA", {
@@ -368,79 +467,214 @@
         return url;
       }
 
+      // Останній пошук ринкової ціни по цьому лоту (сервер підмішує його в
+      // /api/lots). Різниця «укр. ринок − наш кошт» — це і є те, заради чого
+      // лот узагалі дивляться, тож вона має бути видна на картці.
+      function dealPill(r) {
+        if (r.diff === null || r.diff === undefined || !r.total_cost) return "";
+        var good = r.diff > 0;
+        var cls =
+          r.category === "underpriced"
+            ? "good"
+            : r.category === "overpriced"
+              ? "bad"
+              : "";
+        var few = r.sample_count && r.sample_count < 5 ? " ⚠" : "";
+        return (
+          '<span class="pill ' +
+          cls +
+          '" title="кошт ' +
+          esc(fmt(r.total_cost)) +
+          " · ринок " +
+          esc(fmt(r.market_price)) +
+          (r.sample_count ? " · n=" + r.sample_count : "") +
+          '">' +
+          (good ? "+" : "−") +
+          esc(fmt(Math.abs(r.diff))) +
+          few +
+          "</span>"
+        );
+      }
+
+      function airbagLabel(v) {
+        if (v === "Intact") return "цілі";
+        if (v === "Deployed") return "спрацювали";
+        return v;
+      }
+
+      // Місто/штат авто, а не філії: у offsite-лотах вони різні, і плече до
+      // порту рахується саме від авто.
+      function lotLocation(r) {
+        var place = [r.vehicle_city, r.vehicle_state]
+          .filter(Boolean)
+          .join(", ");
+        if (!place) return r.selling_branch || r.branch_state || "";
+        return r.offsite ? place + " (offsite)" : place;
+      }
+
       // ── Список карток ────────────────────────────────────────────
+      var ALL_LOTS = [];
+
+      // Текст, по якому шукає фільтр. Один рядок на лот, зібраний один раз —
+      // фільтрувати доводиться на кожне натискання клавіші.
+      function haystack(r) {
+        return [
+          r.year,
+          r.make,
+          r.model,
+          r.series,
+          r.vin,
+          r.lot_number,
+          r.body_style,
+          r.fuel,
+          r.color,
+          r.primary_damage,
+          r.title_code,
+          r.vehicle_city,
+          r.vehicle_state,
+          r.selling_branch,
+          r.branch_state,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+      }
+
+      // Ціна, за якою сортуємо «дешевші»: те саме, що показано на пілюлі.
+      function cardPrice(r) {
+        return r.acv || r.buy_now_price || r.min_bid || 0;
+      }
+
+      var SORTS = {
+        new: function (a, b) {
+          return b.id - a.id;
+        },
+        deal: function (a, b) {
+          return (b.diff || -Infinity) - (a.diff || -Infinity);
+        },
+        price: function (a, b) {
+          return (cardPrice(a) || Infinity) - (cardPrice(b) || Infinity);
+        },
+        odo: function (a, b) {
+          return (a.odometer || Infinity) - (b.odometer || Infinity);
+        },
+        year: function (a, b) {
+          return (b.year || 0) - (a.year || 0);
+        },
+      };
+
+      function renderGrid() {
+        var g = $("grid");
+        var q = ($("q").value || "").trim().toLowerCase();
+        var onlyDeals = $("onlyDeals").checked;
+
+        var rows = ALL_LOTS.filter(function (r) {
+          if (onlyDeals && (r.diff === null || r.diff === undefined))
+            return false;
+          if (!q) return true;
+          return q.split(/\s+/).every(function (w) {
+            return r.__hay.indexOf(w) !== -1;
+          });
+        }).sort(SORTS[$("sort").value] || SORTS.new);
+
+        $("count").textContent =
+          rows.length === ALL_LOTS.length
+            ? ALL_LOTS.length + " лотів"
+            : rows.length + " з " + ALL_LOTS.length;
+
+        if (!rows.length) {
+          g.className = "";
+          g.innerHTML = '<div class="empty">Нічого не знайшлось.</div>';
+          return;
+        }
+
+        g.className = "grid";
+        g.innerHTML = rows
+          .map(function (r) {
+            var title =
+              [r.year, r.make, r.model].filter(Boolean).join(" ") || "Лот";
+            var thumbSrc = cardImg(r.primary_hd, r.primary_thumb);
+            var thumb = thumbSrc
+              ? '<img class="thumb" loading="lazy" src="' +
+                esc(thumbSrc) +
+                '" alt="">'
+              : '<div class="noimg">без фото</div>';
+            var facts = [
+              r.odometer ? r.odometer.toLocaleString("en-US") + " mi" : "",
+              r.fuel || "",
+              r.primary_damage ? "пошк.: " + r.primary_damage : "",
+              // Стан лота вирішує, скільки закладати на ремонт, тож на
+              // картці він потрібніший за назву філії.
+              r.run_and_drive === "True" ? "🔑 їде" : "",
+              r.has_keys === "True" ? "ключі є" : "",
+              r.airbags ? "подушки: " + airbagLabel(r.airbags) : "",
+              r.title_code ? "тайтл " + r.title_code : "",
+              lotLocation(r),
+            ]
+              .filter(Boolean)
+              .map(function (x) {
+                return "<span>" + esc(x) + "</span>";
+              })
+              .join("");
+            var price = r.acv
+              ? "ACV " + fmt(r.acv)
+              : r.buy_now_price
+                ? "BuyNow " + fmt(r.buy_now_price)
+                : r.min_bid
+                  ? "мін.ставка " + fmt(r.min_bid)
+                  : "ціна —";
+            var deal = dealPill(r);
+            return (
+              '<div class="card" data-id="' +
+              r.id +
+              '">' +
+              thumb +
+              '<div class="body"><div class="title">' +
+              esc(title) +
+              '</div><div class="sub">' +
+              esc(r.auction ? r.auction.toUpperCase() : "") +
+              " · лот " +
+              esc(r.lot_number || "—") +
+              " · " +
+              (r.image_count || 0) +
+              ' фото</div><div class="vin">VIN ' +
+              esc(r.vin || "—") +
+              '</div><div class="facts">' +
+              facts +
+              '</div><span class="pill">' +
+              esc(price) +
+              "</span>" +
+              deal +
+              "</div></div>"
+            );
+          })
+          .join("");
+        Array.prototype.forEach.call(g.querySelectorAll(".card"), function (c) {
+          c.addEventListener("click", function () {
+            openLot(c.getAttribute("data-id"));
+          });
+        });
+      }
+
       fetch(API + "/api/lots")
         .then(function (r) {
           return r.json();
         })
         .then(function (rows) {
-          var g = $("grid");
           if (!rows || !rows.length) {
-            g.innerHTML =
+            $("grid").innerHTML =
               '<div class="empty">Немає збережених лотів. Зчитай лот на ' +
               '<a href="/index.html">калькуляторі</a> (Copart/IAAI).</div>';
             return;
           }
-          g.className = "grid";
-          g.innerHTML = rows
-            .map(function (r) {
-              var title =
-                [r.year, r.make, r.model].filter(Boolean).join(" ") || "Лот";
-              var thumbSrc = cardImg(r.primary_hd, r.primary_thumb);
-              var thumb = thumbSrc
-                ? '<img class="thumb" loading="lazy" src="' +
-                  esc(thumbSrc) +
-                  '" alt="">'
-                : '<div class="noimg">без фото</div>';
-              var facts = [
-                r.odometer ? r.odometer.toLocaleString("en-US") + " mi" : "",
-                r.fuel || "",
-                r.primary_damage ? "пошк.: " + r.primary_damage : "",
-                r.selling_branch || r.branch_state || "",
-              ]
-                .filter(Boolean)
-                .map(function (x) {
-                  return "<span>" + esc(x) + "</span>";
-                })
-                .join("");
-              var price = r.acv
-                ? "ACV " + fmt(r.acv)
-                : r.buy_now_price
-                  ? "BuyNow " + fmt(r.buy_now_price)
-                  : r.min_bid
-                    ? "мін.ставка " + fmt(r.min_bid)
-                    : "ціна —";
-              return (
-                '<div class="card" data-id="' +
-                r.id +
-                '">' +
-                thumb +
-                '<div class="body"><div class="title">' +
-                esc(title) +
-                '</div><div class="sub">' +
-                esc(r.auction ? r.auction.toUpperCase() : "") +
-                " · лот " +
-                esc(r.lot_number || "—") +
-                " · " +
-                (r.image_count || 0) +
-                ' фото</div><div class="vin">VIN ' +
-                esc(r.vin || "—") +
-                '</div><div class="facts">' +
-                facts +
-                '</div><span class="pill">' +
-                esc(price) +
-                "</span></div></div>"
-              );
-            })
-            .join("");
-          Array.prototype.forEach.call(
-            g.querySelectorAll(".card"),
-            function (c) {
-              c.addEventListener("click", function () {
-                openLot(c.getAttribute("data-id"));
-              });
-            },
-          );
+          ALL_LOTS = rows.map(function (r) {
+            r.__hay = haystack(r);
+            return r;
+          });
+          renderGrid();
+          $("q").addEventListener("input", renderGrid);
+          $("sort").addEventListener("change", renderGrid);
+          $("onlyDeals").addEventListener("change", renderGrid);
         })
         .catch(function (e) {
           $("grid").innerHTML =
@@ -503,16 +737,24 @@
           .join("");
 
         var actions = "";
-        if (d.image360_url)
+        var url360 = safeUrl(d.image360_url);
+        if (url360)
           actions +=
             '<a class="btn alt" target="_blank" rel="noopener" href="' +
-            esc(d.image360_url) +
+            esc(url360) +
             '">🔄 360° огляд</a>';
-        if (d.url)
+        var lotUrl = safeUrl(d.url) || canonicalLotUrl(d.auction, d.lot_number);
+        if (lotUrl)
           actions +=
             '<a class="btn alt" target="_blank" rel="noopener" href="' +
-            esc(d.url) +
+            esc(lotUrl) +
             '">↗ Сторінка лоту</a>';
+        // Перерахунок іде з raw_json у БД, без звернення до аукціону —
+        // сторінка лоту може бути вже знята з торгів.
+        actions +=
+          '<a class="btn alt" href="/index.html?lot=' +
+          encodeURIComponent(d.id) +
+          '">🧮 Порахувати в калькуляторі</a>';
 
         var video = (d.videos || [])
           .map(function (v) {
@@ -530,7 +772,11 @@
           vinRow(d.vin) +
           row(
             "Пробіг",
-            d.odometer ? d.odometer.toLocaleString("en-US") + " mi" : "",
+            d.odometer
+              ? d.odometer.toLocaleString("en-US") +
+                  " mi" +
+                  (d.odometer_brand ? " (" + d.odometer_brand + ")" : "")
+              : "",
           ) +
           row("Кузов", d.body_style) +
           row("Двигун", d.engine) +
@@ -538,15 +784,42 @@
           row("Привід", d.drive) +
           row("КПП", d.transmission) +
           row("Колір", d.color) +
+          row("Салон", d.interior_color) +
           row("Пошкодження", d.primary_damage) +
           row("Втор. пошкодження", d.secondary_damage) +
+          row("Тип збитку", d.loss_type) +
+          row(
+            "Заводиться/їде",
+            d.run_and_drive === "True"
+              ? "так"
+              : d.run_and_drive === "False"
+                ? "ні"
+                : "",
+          ) +
+          row(
+            "Ключі",
+            d.has_keys === "True" ? "є" : d.has_keys === "False" ? "нема" : "",
+          ) +
+          row("Подушки", d.airbags ? airbagLabel(d.airbags) : "") +
+          row("Оцінка стану (grade)", d.vehicle_grade) +
           row("Тайтл", d.title_brand) +
+          row(
+            "Документ",
+            [d.title_type, d.title_code].filter(Boolean).join(" · "),
+          ) +
           row("ACV", d.acv ? fmt(d.acv) : "") +
           row("Оцінка ремонту", d.repair_cost ? fmt(d.repair_cost) : "") +
           row("Buy Now", d.buy_now_price ? fmt(d.buy_now_price) : "") +
           row("Мін. ставка", d.min_bid ? fmt(d.min_bid) : "") +
           row("Філія", d.selling_branch) +
+          row(
+            "Де стоїть авто",
+            [d.vehicle_city, d.vehicle_state, d.vehicle_zip]
+              .filter(Boolean)
+              .join(", ") + (d.offsite ? " — offsite" : ""),
+          ) +
           row("Дата торгів", d.sale_date) +
+          row("Лейн", d.sale_lane) +
           "</table>";
 
         $("modal").innerHTML =

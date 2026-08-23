@@ -79,6 +79,46 @@ against the live constants, and migrates pre-v2 payloads. Do not go back to stor
 worse, restored a frozen copy of `location.options` over the fresh one, so shipping-rate
 updates never reached anyone who had opened the page before.
 
+### IAAI JSON: field names are not what they look like
+
+The lot JSON keeps "no data" as a single space (`" "`), and the useful value is often under a
+different key than the obvious one: `ODOValue`/`ODOUoM` (not `Odometer`), `ExteriorColor` (not
+`Color`), `PrimaryDamageDesc` (not `PrimaryDamage`), `DriveLineTypeDesc`, `SalvageId` for the lot
+number. Until 2026-08-22 the parser read the obvious names, so odometer/color/damage/drive went
+into the DB empty **and** `carrierInfo.mileage` was never set — the AUTO.RIA lookup silently
+dropped its mileage filter. Use `pickAttr(...candidates)` (first non-blank, trimmed) and
+`parseOdometer(attrs)` for anything read out of `attributes`.
+
+`lot_number` is `attrs.SalvageId` — the number IAAI puts in the lot URL
+(`/VehicleDetail/<SalvageId>~US`), which is what `canonicalLotUrl` rebuilds from. It is **not**
+`inventoryView.itemId` (what the parser used before 2026-08-22) and not `StockNumber`; for many
+lots all three differ, so the wrong one both breaks the rebuilt link and forks the
+`(auction, lot_number)` dedup key on re-parse. `scripts/backfill-lot-fields.mjs` renumbers old
+rows.
+
+`attrs.State`/`City` is where the car physically **is**; `attrs.BranchState` is the selling
+branch. For offsite lots (`OffsiteSaleInd === "True"`) they differ by whole states, and the
+inland leg is priced from the car — so location matching uses `State` first, and matches the
+locations table by **branch name**, not city (the table is named after branches: `NY LONG ISLAND
+
+- NY (IAAI)`).
+
+### The US departure port is derived, not chosen
+
+`location.toPort` is all `-1`, so the "cheapest port" branch in `onLocationChange()` never fires.
+The port now comes from `portByState` (`constants/ports.js`) and sets `currentCoast()`, i.e. the
+ocean-freight rate. A manual pick in the UI sets `shippingPortManual` and is not overwritten by a
+later location change. See `docs/shipping-rates-baseline.md`.
+
+### Re-pricing a saved lot without scraping
+
+`parseAuctionLot` only fetches the page and digs out the embedded JSON; everything that fills the
+form lives in `applyLotJson(nd, url, {save})`. The same JSON is already in `lots.raw_json`, so
+`/index.html?lot=<id>` (the "🧮 Порахувати в калькуляторі" button in the lots.html modal) calls
+`loadSavedLot(id)` → `applyLotJson(..., {save: false})` and re-prices a lot whose auction page may
+already be gone. `save: false` matters — otherwise loading from the DB would write straight back
+to it.
+
 ### Two external integrations
 
 1. **Auction parsing** (`parseAuctionLot`): fetches the Copart/IAAI lot page through
@@ -89,8 +129,11 @@ updates never reached anyone who had opened the page before.
 2. **AUTO.RIA market price** (`lookupUkrainianPrice`): calls `developers.ria.com` **directly**
    (CORS-allowed — do NOT route through the proxy). Resolves brand/model from cached dictionaries,
    then does tiered narrowing on `average_price` (≤3 calls, stop at first `total>=5`). **The free
-   API tier is hourly rate-limited — caching in localStorage is mandatory.** See the
-   `autoria-api` skill before touching this code.
+   API tier is hourly rate-limited — caching in localStorage is mandatory.** The cache key must
+   list every parameter that reaches the query (`getMarketCacheKey`: make/model/year/fuel/volume/
+   kWh + a 10 000-km mileage bucket + gearbox) — mileage and gearbox are real filters, so a key
+   without them served one price to two cars of the same model-year. See the `autoria-api` skill
+   before touching this code.
 
 ### Persistence (server.js + SQLite at `data/searches.db`)
 
@@ -98,12 +141,18 @@ Two tables: `searches` (one row per market lookup, with heavy `*_json` columns f
 percentiles / classifieds) and `lots` (full parsed lot incl. HD photo URLs, 360°, videos, and
 `raw_json`). `lots` is deduped by a unique `(auction, lot_number)` index and UPSERTed, so
 re-parsing the same lot updates rather than duplicates. A search links to its lot via `lot_id`.
-Schema migrations are done with try/catch `ALTER TABLE ADD COLUMN`. Companion pages read these:
+Schema migrations are done with try/catch `ALTER TABLE ADD COLUMN`. `GET /api/lots` also
+LEFT JOINs the most recent search per lot (`market_price` / `total_cost` / `diff` / `category`),
+which is what the deal pill on each card shows. Companion pages read these:
 `lots.html`, `searches.html`, and `stats.html` (draws distribution charts from the stored
 `prices_json` / `percentiles_json` — never re-calls the rate-limited API just to render a chart).
 
 **Never delete `data/searches.db`, and persist every field the RIA API returns** (these are
-standing project rules — see memory).
+standing project rules — see memory). The same goes for the lot JSON: `raw_json` holds the whole
+payload, so a parser fix can be replayed over past lots instead of re-scraping —
+`node scripts/backfill-lot-fields.mjs --dry` shows what would change, without `--dry` writes it.
+It loads the real `market.methods.js` (through the jest ESM transform), so there is no second
+copy of the mapping to keep in sync, and it only fills columns that are currently NULL/empty.
 
 ## Tests
 
@@ -123,6 +172,12 @@ hand-written `mockVm`, and had silently drifted from the source (it asserted a $
 does not exist and skipped a whole price branch that does).
 
 ## Rates and constants are dated, not guessed
+
+A lot URL that is not `http(s)://…` is not stored: `collectLotData` takes the URL the parse
+actually started from (not the live `auctionUrl`, which the paste-to-parse handler can change
+mid-fetch), falls back to a canonical `auction + lotNumber` link, and `server.js` re-checks it.
+A pasted blob of page text once ended up in `lots.url` and made the "↗ Сторінка лоту" button a
+dead relative link.
 
 `docs/*-baseline.md` is the source of truth for every rate in the code — customs, shipping,
 pension fee, auction fees. Each records the value, the date it was checked, the primary source

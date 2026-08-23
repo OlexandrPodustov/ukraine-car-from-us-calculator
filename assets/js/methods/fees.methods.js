@@ -32,6 +32,7 @@ window.createFeesMethods = function () {
     "maxBid",
     "totalForPrice",
     "recalcMaxBid",
+    "fixedFeesTotal",
     "total",
   ];
   var out = {};

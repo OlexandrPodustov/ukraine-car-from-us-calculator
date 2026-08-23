@@ -41,6 +41,7 @@ window.pickPersistedState = function (vm) {
     auction: vm.autoPricing.auctions.selected,
     location: vm.autoShipping.location.selected,
     shippingPort: vm.autoShipping.shippingPort,
+    shippingPortManual: vm.autoShipping.shippingPortManual,
     destinationPort: vm.autoShipping.destinationPort.selected,
     vehicleType: vm.autoShipping.vehicleType,
     customs: {
@@ -59,6 +60,7 @@ window.pickPersistedState = function (vm) {
     // Разом з auctionMsg — щоб після перезавантаження сторінки VIN лоту
     // не зникав із шапки.
     currentLot: vm.currentLot,
+    lotCondition: vm.lotCondition,
     acv: vm.acv,
     repairCost: vm.repairCost,
     buyNowPrice: vm.buyNowPrice,
@@ -83,6 +85,7 @@ function migrateLegacy(saved) {
     auction: (pricing.auctions || {}).selected,
     location: (shipping.location || {}).selected,
     shippingPort: shipping.shippingPort,
+    shippingPortManual: shipping.shippingPortManual,
     destinationPort: (shipping.destinationPort || {}).selected,
     vehicleType: shipping.vehicleType,
     customs: {
@@ -103,6 +106,7 @@ function migrateLegacy(saved) {
     auctionStatus: saved.auctionStatus,
     auctionMsg: saved.auctionMsg,
     currentLot: saved.currentLot,
+    lotCondition: saved.lotCondition,
     acv: saved.acv,
     repairCost: saved.repairCost,
     buyNowPrice: saved.buyNowPrice,
@@ -149,6 +153,7 @@ window.applyPersistedState = function (vm, rawSaved) {
     vm.autoShipping.location.selected = saved.location;
   if (hasId(window.shippingPorts, saved.shippingPort))
     vm.autoShipping.shippingPort = saved.shippingPort;
+  vm.autoShipping.shippingPortManual = saved.shippingPortManual === true;
   if (hasId(window.destinationPorts, saved.destinationPort))
     vm.autoShipping.destinationPort.selected = saved.destinationPort;
   if (hasId(window.vehicleTypes, saved.vehicleType))
@@ -182,6 +187,15 @@ window.applyPersistedState = function (vm, rawSaved) {
   ].forEach(function (key) {
     if (typeof saved[key] === "string") vm[key] = saved[key];
   });
+  // «loading» пережити перезавантаження не має права: кнопка «Заповнити»
+  // вимкнена саме цим статусом, а парсинг, який його поставив, не переживе
+  // релоад — сторінка відкривалась із назавжди заблокованою кнопкою.
+  ["auctionStatus", "marketStatus"].forEach(function (key) {
+    if (vm[key] === "loading") {
+      vm[key] = "";
+      vm[key === "auctionStatus" ? "auctionMsg" : "marketMsg"] = "";
+    }
+  });
   [
     "acv",
     "repairCost",
@@ -192,6 +206,7 @@ window.applyPersistedState = function (vm, rawSaved) {
     if (isNum(saved[key])) vm[key] = saved[key];
   });
   if (saved.currentLot) Object.assign(vm.currentLot, saved.currentLot);
+  if (saved.lotCondition) Object.assign(vm.lotCondition, saved.lotCondition);
 
   return true;
 };

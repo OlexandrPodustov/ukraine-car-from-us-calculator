@@ -5,6 +5,8 @@ window.createUiMethods = function () {
     "getCurrentLocation",
     "getCurrentPort",
     "onLocationBlur",
+    "locationState",
+    "onDeparturePortChange",
     "onLocationChange",
     "selectLocation",
     "getVal",

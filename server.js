@@ -113,6 +113,20 @@ db.exec(`
     selling_branch TEXT,
     branch_state  TEXT,
     sale_date     TEXT,
+    interior_color TEXT,
+    odometer_brand TEXT,
+    loss_type     TEXT,
+    run_and_drive TEXT,
+    has_keys      TEXT,
+    airbags       TEXT,
+    vehicle_grade TEXT,
+    vehicle_city  TEXT,
+    vehicle_state TEXT,
+    vehicle_zip   TEXT,
+    offsite       INTEGER,
+    sale_lane     TEXT,
+    title_type    TEXT,
+    title_code    TEXT,
     image_count   INTEGER,
     primary_thumb TEXT,
     primary_hd    TEXT,
@@ -122,6 +136,32 @@ db.exec(`
     raw_json      TEXT
   )
 `);
+
+// Міграції таблиці лотів. Поля стану авто (біжить/ключі/подушки/тип збитку) і
+// фізичне місце зберігання парсер раніше просто викидав, хоча вони є в JSON
+// лота і саме на них будується оцінка ремонту та плече до порту.
+[
+  "interior_color TEXT",
+  "odometer_brand TEXT",
+  "loss_type TEXT",
+  "run_and_drive TEXT",
+  "has_keys TEXT",
+  "airbags TEXT",
+  "vehicle_grade TEXT",
+  "vehicle_city TEXT",
+  "vehicle_state TEXT",
+  "vehicle_zip TEXT",
+  "offsite INTEGER",
+  "sale_lane TEXT",
+  "title_type TEXT",
+  "title_code TEXT",
+].forEach(function (col) {
+  try {
+    db.exec("ALTER TABLE lots ADD COLUMN " + col);
+  } catch (e) {
+    /* колонка вже існує */
+  }
+});
 
 // Дедуплікація лотів за (auction, lot_number): лишаємо найсвіжіший запис
 // (max id), решту видаляємо. Потрібно ПЕРЕД створенням унікального індексу,
@@ -149,7 +189,25 @@ const LOT_LIST_COLS =
   "id, ts, url, auction, lot_number, vin, year, make, model, series, " +
   "body_style, fuel, engine, transmission, color, odometer, primary_damage, " +
   "title_brand, acv, repair_cost, buy_now_price, min_bid, selling_branch, " +
-  "branch_state, sale_date, image_count, primary_thumb, primary_hd, image360_url";
+  "branch_state, sale_date, image_count, primary_thumb, primary_hd, " +
+  "image360_url, run_and_drive, has_keys, airbags, vehicle_grade, " +
+  "vehicle_city, vehicle_state, offsite, title_code, title_type, loss_type";
+
+// Той самий список колонок, але з префіксом l. — для запиту з JOIN на пошуки.
+const LOT_LIST_SQL =
+  "SELECT " +
+  LOT_LIST_COLS.split(", ")
+    .map(function (c) {
+      return "l." + c;
+    })
+    .join(", ") +
+  ", s.market_price, s.total_cost, s.diff, s.category, s.sample_count " +
+  "FROM lots l " +
+  "LEFT JOIN (SELECT lot_id, MAX(id) AS sid FROM searches " +
+  "           WHERE lot_id IS NOT NULL GROUP BY lot_id) last " +
+  "  ON last.lot_id = l.id " +
+  "LEFT JOIN searches s ON s.id = last.sid " +
+  "ORDER BY l.id DESC LIMIT 200";
 
 const insertLotStmt = db.prepare(`
   INSERT INTO lots
@@ -158,10 +216,13 @@ const insertLotStmt = db.prepare(`
      primary_damage, secondary_damage, title_brand, title_state, acv,
      repair_cost, buy_now_price, min_bid, selling_branch, branch_state,
      sale_date, image_count, primary_thumb, primary_hd, image360_url,
-     images_json, videos_json, raw_json)
+     images_json, videos_json, raw_json, interior_color, odometer_brand,
+     loss_type, run_and_drive, has_keys, airbags, vehicle_grade, vehicle_city,
+     vehicle_state, vehicle_zip, offsite, sale_lane, title_type, title_code)
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+     ?)
   ON CONFLICT(auction, lot_number) DO UPDATE SET
     ts=excluded.ts, url=excluded.url, vin=excluded.vin, year=excluded.year,
     make=excluded.make, model=excluded.model, series=excluded.series,
@@ -177,8 +238,28 @@ const insertLotStmt = db.prepare(`
     image_count=excluded.image_count, primary_thumb=excluded.primary_thumb,
     primary_hd=excluded.primary_hd, image360_url=excluded.image360_url,
     images_json=excluded.images_json, videos_json=excluded.videos_json,
-    raw_json=excluded.raw_json
+    raw_json=excluded.raw_json, interior_color=excluded.interior_color,
+    odometer_brand=excluded.odometer_brand, loss_type=excluded.loss_type,
+    run_and_drive=excluded.run_and_drive, has_keys=excluded.has_keys,
+    airbags=excluded.airbags, vehicle_grade=excluded.vehicle_grade,
+    vehicle_city=excluded.vehicle_city, vehicle_state=excluded.vehicle_state,
+    vehicle_zip=excluded.vehicle_zip, offsite=excluded.offsite,
+    sale_lane=excluded.sale_lane, title_type=excluded.title_type,
+    title_code=excluded.title_code
 `);
+
+// У колонку url має потрапляти лише http(s)-посилання: одного разу туди
+// прилетів скопійований зі сторінки текст, і lots.html відрендерив битий лінк.
+function lotUrl(raw, auction, lotNumber) {
+  var v = (raw == null ? "" : String(raw)).trim();
+  if (/^https?:\/\/[^\s]+$/i.test(v)) return v;
+  var n = (lotNumber == null ? "" : String(lotNumber)).trim();
+  if (!/^[0-9]{4,12}$/.test(n)) return null;
+  if (auction === "iaai")
+    return "https://www.iaai.com/VehicleDetail/" + n + "~US";
+  if (auction === "copart") return "https://www.copart.com/lot/" + n;
+  return null;
+}
 
 function num(v) {
   if (v === null || v === undefined || v === "") return null;
@@ -325,7 +406,7 @@ const server = http.createServer(function (req, res) {
           var primary = images[0] || {};
           insertLotStmt.run(
             new Date().toISOString(),
-            p.url || null,
+            lotUrl(p.url, p.auction, p.lotNumber),
             p.auction || null,
             p.lotNumber || null,
             p.vin || null,
@@ -359,6 +440,20 @@ const server = http.createServer(function (req, res) {
             JSON.stringify(images),
             Array.isArray(p.videos) ? JSON.stringify(p.videos) : "[]",
             p.raw ? JSON.stringify(p.raw) : null,
+            p.interiorColor || null,
+            p.odometerBrand || null,
+            p.lossType || null,
+            p.runAndDrive || null,
+            p.hasKeys || null,
+            p.airbags || null,
+            p.vehicleGrade || null,
+            p.vehicleCity || null,
+            p.vehicleState || null,
+            p.vehicleZip || null,
+            p.offsite ? 1 : 0,
+            p.saleLane || null,
+            p.titleType || null,
+            p.titleCode || null,
           );
           sendJson(res, 201, { ok: true });
         } catch (e) {
@@ -368,11 +463,10 @@ const server = http.createServer(function (req, res) {
       return;
     }
     if (req.method === "GET") {
-      var lots = db
-        .prepare(
-          "SELECT " + LOT_LIST_COLS + " FROM lots ORDER BY id DESC LIMIT 200",
-        )
-        .all();
+      // До кожного лота чіпляємо ОСТАННІЙ пошук ринкової ціни по ньому —
+      // інакше «вигідно/дорого» видно лише на searches.html, окремо від фото
+      // й пошкоджень, за якими лот і обирають.
+      var lots = db.prepare(LOT_LIST_SQL).all();
       sendJson(res, 200, lots);
       return;
     }
