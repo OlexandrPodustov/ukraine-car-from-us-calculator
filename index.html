@@ -371,14 +371,19 @@
                                 class="t-input-block t-input-group t-input-block-ext"
                               >
                                 <div class="title">Тип авто</div>
+                                <!-- Список — з constants/vehicle.js. Раніше
+                                     ці три <option> були другою копією
+                                     довідника і вже розійшлися з ним у назві
+                                     («Кросовер» проти «Позашляховик»). -->
                                 <select
                                   name="vehicle_type"
                                   v-model="autoShipping.vehicleType"
                                 >
-                                  <option value="sedan" selected>Седан</option>
-                                  <option value="suv">Кросовер</option>
-                                  <option value="pikap">
-                                    Пікап або вантажівка
+                                  <option
+                                    v-for="opt in autoShipping.vehicleTypeOptions"
+                                    v-bind:value="opt.id"
+                                  >
+                                    {{opt.name}}
                                   </option>
                                 </select>
                               </div>

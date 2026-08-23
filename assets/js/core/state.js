@@ -70,6 +70,9 @@ window.createInitialState = function () {
         options: window.destinationPorts,
       },
       vehicleType: window.vehicleType[0].id,
+      // Довідник для селекта типу кузова. Як і порти, не персиститься —
+      // у localStorage летить лише обраний id (див. storage.service.js).
+      vehicleTypeOptions: window.vehicleTypes,
     },
     customs: {
       engineVolume: "2.0",

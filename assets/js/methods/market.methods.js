@@ -1661,12 +1661,13 @@ window.__createAllMethods = function () {
       return (location && location[this.autoPricing.auctions.selected]) || 1100;
     },
 
-    // Надбавка за габарит: пікапи/вантажівки займають більше місця.
-    // ⚠️ $300 — оцінка, у коміті 9572538 джерело не вказане.
+    // Надбавка за габарит. Сама ставка живе поруч із типом кузова
+    // (constants/vehicle.js): доти вона була числом тут, а тип вибирався за
+    // індексом `vehicleType[2]` — переставили б рядки в довіднику, і надбавку
+    // почав би отримувати не той кузов.
     oversizeFee: function () {
-      return this.autoShipping.vehicleType === window.vehicleType[2].id
-        ? 300
-        : 0;
+      var type = window.getVehicleTypeById(this.autoShipping.vehicleType);
+      return (type && type.oversizeFee) || 0;
     },
 
     // Автовоз від порту призначення до кордону України (0 для Одеси).

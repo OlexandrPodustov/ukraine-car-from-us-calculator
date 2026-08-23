@@ -75,6 +75,73 @@ describe("Шаблон index.html не кличе неіснуючих мето�
   });
 });
 
+describe("Шаблон index.html не читає неіснуючих полів", () => {
+  test("корінь кожного виразу є на інстансі", () => {
+    // Ловить друге джерело мовчазних поламок: посилання на поле, якого в
+    // data немає. Так `vehicleTypeOptions` замість
+    // `autoShipping.vehicleTypeOptions` дав би порожній селект без жодної
+    // помилки в консолі.
+    const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+    const vm = createVm();
+
+    const expressions = [];
+    const aliases = new Set();
+    let m;
+    const mustache = /\{\{([\s\S]*?)\}\}/g;
+    while ((m = mustache.exec(html))) expressions.push(m[1]);
+    const directive = /\s(v-[\w:.-]+)="([^"]*)"/g;
+    while ((m = directive.exec(html))) {
+      const [, name, value] = m;
+      if (name.indexOf("v-for") === 0) {
+        // «opt in list» / «(item, i) in list» — ліва частина це локальні імена.
+        const parts = value.split(/\s+(?:in|of)\s+/);
+        parts[0]
+          .replace(/[()]/g, " ")
+          .split(",")
+          .forEach((a) => a.trim() && aliases.add(a.trim()));
+        expressions.push(parts.slice(1).join(" "));
+      } else {
+        expressions.push(value);
+      }
+    }
+
+    // Vue 2 пускає в шаблон обмежений набір глобалей (allowedGlobals).
+    const GLOBALS = new Set([
+      "Math", "Date", "JSON", "Number", "String", "Boolean", "Array", "Object",
+      "parseInt", "parseFloat", "isNaN", "isFinite", "undefined", "null",
+      "true", "false", "NaN", "Infinity", "typeof", "in", "of", "new",
+      "return", "if", "else", "$event", "$nextTick", "$refs",
+    ]);
+
+    const missing = new Set();
+    expressions.forEach(function (raw) {
+      // HTML-сутності («benefit()&gt;=0») спершу назад у символи, потім
+      // прибираємо рядкові літерали — усередині них ідентифікаторів немає.
+      const expr = raw
+        .replace(/&gt;/g, ">")
+        .replace(/&lt;/g, "<")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, "&")
+        .replace(/'[^']*'/g, "''")
+        .replace(/`[^`]*`/g, "''");
+      const ident = /([A-Za-z_$][\w$]*)/g;
+      let c;
+      while ((c = ident.exec(expr))) {
+        const name = c[1];
+        const before = expr.slice(0, c.index).trimEnd();
+        const after = expr.slice(c.index + name.length).trimStart();
+        if (before.endsWith(".")) continue; // властивість об'єкта
+        if (after.startsWith(":")) continue; // ключ у літералі {color:…}
+        if (GLOBALS.has(name) || aliases.has(name)) continue;
+        if (typeof vm[name] === "undefined" && !(name in vm)) missing.add(name);
+      }
+    });
+
+    expect(Array.from(missing).sort()).toEqual([]);
+  });
+});
+
 describe("Watcher'и", () => {
   test("кожен watcher стежить за полем, яке справді є в data", () => {
     // ukrainianMarketPrice і marketCategory довго висіли тут верхнім рівнем,
