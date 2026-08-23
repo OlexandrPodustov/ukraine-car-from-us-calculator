@@ -109,6 +109,15 @@ lots all three differ, so the wrong one both breaks the rebuilt link and forks t
 `(auction, lot_number)` dedup key on re-parse. `scripts/backfill-lot-fields.mjs` renumbers old
 rows.
 
+A scan of the 25 stored `raw_json` payloads (2026-08-23) turned up more fields the parser was
+walking past, all filled on 23–24 of 24 lots: `StartsDesc` («Starts» — *not* the same as
+`RunAndDrive`; «starts but does not drive» is a different repair bill), `CatalyticConverter`
+(«Present» — a missing one is $500–2000), `CATIndicator`/`CATText` (a flood/hail catastrophe unit,
+usually a hard no for import), `KeyFOB` (separate from `Keys`), `TitleNotes` («SALVAGE HISTORY»),
+and `HybridIndicator` — an explicit flag that beats reading the fuel string. All of them now land
+in `lots`, in the calculator's «Стан лота» block and in the `lots.html` modal.
+`CATText` is boilerplate present on every lot page, so it is stored only when the flag is set.
+
 `attrs.State`/`City` is where the car physically **is**; `attrs.BranchState` is the selling
 branch. For offsite lots (`OffsiteSaleInd === "True"`) they differ by whole states, and the
 inland leg is priced from the car — so location matching uses `State` first, and matches the

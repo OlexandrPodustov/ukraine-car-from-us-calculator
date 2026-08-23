@@ -166,6 +166,16 @@ db.exec(`
   "sale_lane TEXT",
   "title_type TEXT",
   "title_code TEXT",
+  // Поля стану, які IAAI віддає окремими атрибутами, а парсер до 2026-08-23
+  // не читав: «заводиться» (не те саме, що run-and-drive), каталізатор,
+  // прапорець стихійного лиха, брелок, примітка до тайтла й гібрид.
+  "starts TEXT",
+  "catalytic_converter TEXT",
+  "cat_indicator INTEGER",
+  "cat_text TEXT",
+  "key_fob TEXT",
+  "title_notes TEXT",
+  "hybrid INTEGER",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE lots ADD COLUMN " + col);
@@ -202,7 +212,8 @@ const LOT_LIST_COLS =
   "title_brand, acv, repair_cost, buy_now_price, min_bid, selling_branch, " +
   "branch_state, sale_date, image_count, primary_thumb, primary_hd, " +
   "image360_url, run_and_drive, has_keys, airbags, vehicle_grade, " +
-  "vehicle_city, vehicle_state, offsite, title_code, title_type, loss_type";
+  "vehicle_city, vehicle_state, offsite, title_code, title_type, loss_type, " +
+  "starts, catalytic_converter, cat_indicator, key_fob, title_notes, hybrid";
 
 // Той самий список колонок, але з префіксом l. — для запиту з JOIN на пошуки.
 const LOT_LIST_SQL =
@@ -232,11 +243,13 @@ const insertLotStmt = db.prepare(`
      sale_date, image_count, primary_thumb, primary_hd, image360_url,
      images_json, videos_json, raw_json, interior_color, odometer_brand,
      loss_type, run_and_drive, has_keys, airbags, vehicle_grade, vehicle_city,
-     vehicle_state, vehicle_zip, offsite, sale_lane, title_type, title_code)
+     vehicle_state, vehicle_zip, offsite, sale_lane, title_type, title_code,
+     starts, catalytic_converter, cat_indicator, cat_text, key_fob,
+     title_notes, hybrid)
   VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-     ?)
+     ?, ?, ?, ?, ?, ?, ?, ?)
   -- COALESCE, а не голе excluded: повторний парсинг того самого лота
   -- НЕ має стирати поле, якого цього разу в JSON не виявилось. Саме так
   -- уже губились дані — до 2026-08-22 парсер читав неіснуючі ключі
@@ -290,7 +303,14 @@ const insertLotStmt = db.prepare(`
     offsite=excluded.offsite,
     sale_lane=COALESCE(excluded.sale_lane, sale_lane),
     title_type=COALESCE(excluded.title_type, title_type),
-    title_code=COALESCE(excluded.title_code, title_code)
+    title_code=COALESCE(excluded.title_code, title_code),
+    starts=COALESCE(excluded.starts, starts),
+    catalytic_converter=COALESCE(excluded.catalytic_converter, catalytic_converter),
+    cat_indicator=excluded.cat_indicator,
+    cat_text=COALESCE(excluded.cat_text, cat_text),
+    key_fob=COALESCE(excluded.key_fob, key_fob),
+    title_notes=COALESCE(excluded.title_notes, title_notes),
+    hybrid=excluded.hybrid
 `);
 
 // У колонку url має потрапляти лише http(s)-посилання: одного разу туди
@@ -501,6 +521,13 @@ const server = http.createServer(function (req, res) {
             p.saleLane || null,
             p.titleType || null,
             p.titleCode || null,
+            p.starts || null,
+            p.catalyticConverter || null,
+            p.catIndicator ? 1 : 0,
+            p.catText || null,
+            p.keyFob || null,
+            p.titleNotes || null,
+            p.hybrid ? 1 : 0,
           );
           sendJson(res, 201, { ok: true });
         } catch (e) {

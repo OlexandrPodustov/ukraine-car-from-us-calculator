@@ -92,6 +92,124 @@ describe("collectLotData — поля лота", () => {
   });
 });
 
+describe("поля стану, які IAAI віддає окремими атрибутами", () => {
+  const vm = iaaiVm();
+  const data = vm.collectLotData(LOT, ATTRS, SALE, "https://x.iaai.com/1");
+
+  it("читає «заводиться», каталізатор і брелок", () => {
+    // У фікстурі StartsDesc порожній (пробіл) і CatalyticConverter відсутній —
+    // саме той один лот із 24, де IAAI цих полів не дав.
+    expect(data.starts).toBe("");
+    expect(data.catalyticConverter).toBe("");
+    expect(data.keyFob).toBe("True");
+
+    // StartsDesc — не те саме, що RunAndDrive: «заводиться, але не їде».
+    const rich = vm.collectLotData(
+      LOT,
+      Object.assign({}, ATTRS, {
+        StartsCode: "CST",
+        StartsDesc: "Starts",
+        CatalyticConverter: "Present",
+      }),
+      SALE,
+      "https://x.iaai.com/1",
+    );
+    expect(rich.starts).toBe("Starts");
+    expect(rich.catalyticConverter).toBe("Present");
+  });
+
+  it("прапорець CAT (стихійне лихо) — 0/1, а не рядок", () => {
+    expect(data.catIndicator).toBe(0);
+    const flooded = vm.collectLotData(
+      LOT,
+      Object.assign({}, ATTRS, {
+        CATIndicator: "True",
+        CATText: "http://iaa-auctions.com/flood",
+      }),
+      SALE,
+      "https://x.iaai.com/1",
+    );
+    expect(flooded.catIndicator).toBe(1);
+    expect(flooded.catText).toContain("flood");
+  });
+
+  it("посилання на CAT не зберігається для звичайних лотів", () => {
+    // Воно є на КОЖНІЙ сторінці лота — без цієї умови всі 25 рядків у БД
+    // отримували однакову боілерплейтну адресу.
+    const normal = vm.collectLotData(
+      LOT,
+      Object.assign({}, ATTRS, {
+        CATIndicator: "False",
+        CATText: "http://iaa-auctions.com/flood",
+      }),
+      SALE,
+      "https://x.iaai.com/1",
+    );
+    expect(normal.catText).toBe("");
+  });
+
+  it("прапорець гібрида читається з HybridIndicator, а не з назви палива", () => {
+    const hybridAttrs = Object.assign({}, ATTRS, {
+      HybridIndicator: "True",
+      FuelTypeCode: "GASOLINE",
+    });
+    const parsed = vm.collectLotData(
+      LOT,
+      hybridAttrs,
+      SALE,
+      "https://x.iaai.com/1",
+    );
+    expect(parsed.hybrid).toBe(1);
+
+    const form = iaaiVm();
+    form.logLot = () => Promise.resolve(true);
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes = hybridAttrs;
+    form.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
+    expect(form.customs.isHybrid).toBe(true);
+    expect(form.customs.engineType).toBe("petrol");
+  });
+
+  it("HybridIndicator=False перебиває «hybrid» у назві палива", () => {
+    const form = iaaiVm();
+    form.logLot = () => Promise.resolve(true);
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes.HybridIndicator = "False";
+    lot.inventoryView.attributes.FuelTypeCode = "HYBRID";
+    form.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
+    expect(form.customs.isHybrid).toBe(false);
+  });
+
+  it("нові поля доходять до блоку «Стан лота» на калькуляторі", () => {
+    const form = iaaiVm();
+    form.logLot = () => Promise.resolve(true);
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes.CATIndicator = "True";
+    lot.inventoryView.attributes.CatalyticConverter = "Present";
+    lot.inventoryView.attributes.StartsDesc = "Starts";
+    form.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
+    const rows = form.lotConditionRows();
+    const byLabel = Object.fromEntries(rows.map((r) => [r.label, r.value]));
+    expect(byLabel["CAT-лот"]).toMatch(/стихійне лихо/);
+    expect(byLabel["Брелок"]).toBe("є");
+    expect(byLabel["Каталізатор"]).toBe("на місці");
+    expect(byLabel["Заводиться"]).toBe("так");
+    // Порожні поля в блок не потрапляють — рядків рівно стільки, скільки є.
+    expect(rows.every((r) => r.value)).toBe(true);
+  });
+
+  it("resetLotData прибирає їх разом з рештою лота", () => {
+    const form = iaaiVm();
+    form.logLot = () => Promise.resolve(true);
+    form.applyLotJson(LOT, "https://x.iaai.com/1", { save: false });
+    form.resetLotData();
+    expect(form.lotCondition.starts).toBe("");
+    expect(form.lotCondition.keyFob).toBe("");
+    expect(form.lotCondition.catalyticConverter).toBe("");
+    expect(form.lotConditionRows()).toEqual([]);
+  });
+});
+
 describe("matchAuctionLocation", () => {
   const vm = iaaiVm();
 

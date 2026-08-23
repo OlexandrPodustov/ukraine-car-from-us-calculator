@@ -95,7 +95,16 @@ const FIELD_MAP = {
   sale_lane: "saleLane",
   title_type: "titleType",
   title_code: "titleCode",
+  starts: "starts",
+  catalytic_converter: "catalyticConverter",
+  cat_text: "catText",
+  key_fob: "keyFob",
+  title_notes: "titleNotes",
 };
+
+// Прапорці 0/1: «порожньо» для них — це NULL, а не нуль, тож заповнюємо лише
+// поки колонки ще нема. Інакше кожен прогін «оновлював» hybrid=0 → hybrid=0.
+const FLAG_MAP = { cat_indicator: "catIndicator", hybrid: "hybrid" };
 
 function isEmpty(v) {
   return v === null || v === undefined || String(v).trim() === "";
@@ -135,6 +144,12 @@ rows.forEach((row) => {
     if (col === "offsite" && row[col] !== null) return;
     sets.push(`${col} = ?`);
     values.push(next);
+    perColumn[col] = (perColumn[col] || 0) + 1;
+  });
+  Object.keys(FLAG_MAP).forEach((col) => {
+    if (row[col] !== null && row[col] !== undefined) return;
+    sets.push(`${col} = ?`);
+    values.push(data[FLAG_MAP[col]] ? 1 : 0);
     perColumn[col] = (perColumn[col] || 0) + 1;
   });
 

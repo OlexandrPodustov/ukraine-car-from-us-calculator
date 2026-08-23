@@ -210,8 +210,12 @@ window.__createAllMethods = function () {
           attrs.FuelTypeDesc ||
           ""
         ).toLowerCase();
-        var isHybrid =
-          /hybrid|hev|gas\s*\/\s*electric|electric\s*\/\s*gas/.test(fuelRaw);
+        // HybridIndicator — явне поле IAAI; розбір назви палива лишається
+        // запасним варіантом (Copart і старі лоти його не мають).
+        var hybridFlag = vm.pickAttr(attrs.HybridIndicator);
+        var isHybrid = hybridFlag
+          ? hybridFlag === "True"
+          : /hybrid|hev|gas\s*\/\s*electric|electric\s*\/\s*gas/.test(fuelRaw);
         vm.customs.isHybrid = isHybrid;
         if (isHybrid) {
           // Для митниці гібрид — це його ДВЗ (ПКУ 215.3.5-1), тож ставимо
@@ -374,6 +378,11 @@ window.__createAllMethods = function () {
           odometer: lotData.odometer || 0,
           odometerBrand: lotData.odometerBrand || "",
           titleCode: lotData.titleCode || "",
+          starts: lotData.starts || "",
+          catalyticConverter: lotData.catalyticConverter || "",
+          cat: lotData.catIndicator ? "True" : "",
+          keyFob: lotData.keyFob || "",
+          titleNotes: lotData.titleNotes || "",
         };
         if (save) vm.logLot(lotData);
 
@@ -437,8 +446,26 @@ window.__createAllMethods = function () {
           value: [c.damage, c.secondaryDamage].filter(Boolean).join(" + "),
         },
         { label: "Тип збитку", value: c.lossType },
+        // Стихійне лихо (повінь/град) окремим рядком: для імпорту це
+        // найчастіше стоп, а не знижка.
+        {
+          label: "CAT-лот",
+          value: c.cat === "True" ? "⚠ так (стихійне лихо)" : "",
+        },
         { label: "Заводиться/їде", value: yesNo(c.runAndDrive, "так", "ні") },
+        {
+          label: "Заводиться",
+          value: /start/i.test(c.starts || "") ? "так" : c.starts,
+        },
         { label: "Ключі", value: yesNo(c.keys, "є", "нема") },
+        { label: "Брелок", value: yesNo(c.keyFob, "є", "нема") },
+        {
+          label: "Каталізатор",
+          value:
+            c.catalyticConverter === "Present"
+              ? "на місці"
+              : c.catalyticConverter,
+        },
         {
           label: "Подушки",
           value:
@@ -458,6 +485,7 @@ window.__createAllMethods = function () {
             : "",
         },
         { label: "Тайтл", value: c.titleCode },
+        { label: "Примітка до тайтла", value: c.titleNotes },
       ].filter(function (r) {
         return r.value;
       });
@@ -825,6 +853,11 @@ window.__createAllMethods = function () {
         odometer: 0,
         odometerBrand: "",
         titleCode: "",
+        starts: "",
+        catalyticConverter: "",
+        cat: "",
+        keyFob: "",
+        titleNotes: "",
       };
       this.acv = 0;
       this.repairCost = 0;
@@ -1160,6 +1193,21 @@ window.__createAllMethods = function () {
         hasKeys: p(a.Keys),
         airbags: p(a.AirbagState),
         vehicleGrade: p(a.VehicleGrade),
+        // Заводиться (StartsDesc «Starts») — це НЕ те саме, що RunAndDrive:
+        // «заводиться, але не їде» — інший обсяг ремонту.
+        starts: p(a.StartsDesc, a.StartsCode),
+        // Каталізатор: у салведжа його часто вже немає, а це $500–2000.
+        catalyticConverter: p(a.CatalyticConverter),
+        // CAT-лот — авто зі стихійного лиха (повінь/град). Для імпорту це
+        // здебільшого стоп-сигнал, а в JSON лежить окремим прапорцем.
+        catIndicator: p(a.CATIndicator) === "True" ? 1 : 0,
+        // Посилання на пояснення CAT є на КОЖНІЙ сторінці лота, незалежно від
+        // прапорця, — зберігаємо його лише там, де воно щось означає.
+        catText: p(a.CATIndicator) === "True" ? p(a.CATText) : "",
+        keyFob: p(a.KeyFOB),
+        titleNotes: p(a.TitleNotes, sv("Notes")),
+        // IAAI має явний прапорець гібрида — надійніше за розбір назви палива.
+        hybrid: p(a.HybridIndicator) === "True" ? 1 : 0,
         titleBrand: p(a.TitleBrand, inv.titleBrand),
         // Тип документа (BillOfSale / Certificate of Title…) і його код —
         // окремо від бренду тайтла: для імпорту це різні речі.

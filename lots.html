@@ -540,6 +540,9 @@
           r.vehicle_state,
           r.selling_branch,
           r.branch_state,
+          // Щоб «гібрид» і «cat» працювали як фільтри в пошуковому рядку.
+          r.hybrid ? "гібрид hybrid" : "",
+          r.cat_indicator ? "cat повінь" : "",
         ]
           .filter(Boolean)
           .join(" ")
@@ -615,6 +618,8 @@
               r.has_keys === "True" ? "ключі є" : "",
               r.airbags ? "подушки: " + airbagLabel(r.airbags) : "",
               r.title_code ? "тайтл " + r.title_code : "",
+              r.hybrid ? "гібрид" : "",
+              r.cat_indicator ? "⚠ CAT" : "",
               lotLocation(r),
             ]
               .filter(Boolean)
@@ -803,9 +808,26 @@
                 : "",
           ) +
           row(
+            "Заводиться",
+            /start/i.test(d.starts || "") ? "так" : d.starts || "",
+          ) +
+          row(
             "Ключі",
             d.has_keys === "True" ? "є" : d.has_keys === "False" ? "нема" : "",
           ) +
+          row(
+            "Брелок",
+            d.key_fob === "True" ? "є" : d.key_fob === "False" ? "нема" : "",
+          ) +
+          row(
+            "Каталізатор",
+            d.catalytic_converter === "Present"
+              ? "на місці"
+              : d.catalytic_converter || "",
+          ) +
+          // Стихійне лихо (повінь/град) — для імпорту це найчастіше стоп,
+          // тож рядок з'являється тільки коли прапорець справді стоїть.
+          row("CAT-лот", d.cat_indicator ? "⚠ так (стихійне лихо)" : "") +
           row("Подушки", d.airbags ? airbagLabel(d.airbags) : "") +
           row("Оцінка стану (grade)", d.vehicle_grade) +
           row("Тайтл", d.title_brand) +
@@ -813,6 +835,7 @@
             "Документ",
             [d.title_type, d.title_code].filter(Boolean).join(" · "),
           ) +
+          row("Примітка до тайтла", d.title_notes) +
           row("ACV", d.acv ? fmt(d.acv) : "") +
           row("Оцінка ремонту", d.repair_cost ? fmt(d.repair_cost) : "") +
           row("Buy Now", d.buy_now_price ? fmt(d.buy_now_price) : "") +
