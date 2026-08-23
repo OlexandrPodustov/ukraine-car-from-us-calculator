@@ -175,7 +175,9 @@ In the DB the two halves stay separate: `searches.total_cost` is the landed cost
 Two tables: `searches` (one row per market lookup, with heavy `*_json` columns for prices /
 percentiles / classifieds) and `lots` (full parsed lot incl. HD photo URLs, 360°, videos, and
 `raw_json`). `lots` is deduped by a unique `(auction, lot_number)` index and UPSERTed, so
-re-parsing the same lot updates rather than duplicates. A search links to its lot via `lot_id`.
+re-parsing the same lot updates rather than duplicates — with `COALESCE(excluded.col, col)`, so a
+re-parse that comes back thinner than the first one does not blank the columns it could not fill
+(`ts` and `offsite` are always sent, so they overwrite outright). A search links to its lot via `lot_id`.
 Schema migrations are done with try/catch `ALTER TABLE ADD COLUMN`. `GET /api/lots` also
 LEFT JOINs the most recent search per lot (`market_price` / `total_cost` / `diff` / `category`),
 which is what the deal pill on each card shows. Companion pages read these:
