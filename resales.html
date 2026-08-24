@@ -1,0 +1,805 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Перепродажі — Авто із США</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <style>
+      .page {
+        font-family: Roboto, system-ui, sans-serif;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px;
+        color: #1f2937;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 8px 0 8px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 24px 0 8px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 14px;
+      }
+      .warn {
+        color: #92400e;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        margin: 8px 0;
+      }
+      .lookup {
+        display: flex;
+        gap: 8px;
+        margin: 16px 0 8px;
+        flex-wrap: wrap;
+      }
+      .lookup input[type="text"] {
+        flex: 1 1 420px;
+        min-width: 240px;
+        padding: 9px 11px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font: inherit;
+      }
+      button {
+        padding: 9px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        font: inherit;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #2563eb;
+        border-color: #2563eb;
+        color: #fff;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: default;
+      }
+      .status {
+        font-size: 14px;
+        margin: 6px 0;
+        min-height: 20px;
+      }
+      .status.err {
+        color: #b91c1c;
+      }
+      .status.ok {
+        color: #047857;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin: 12px 0;
+      }
+      .stat {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #fff;
+      }
+      .stat .k {
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .stat .v {
+        font-size: 20px;
+        font-weight: 500;
+        margin-top: 2px;
+      }
+      .preview {
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        padding: 14px;
+        margin: 12px 0;
+        background: #fff;
+      }
+      .chain {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 10px 0;
+        font-size: 15px;
+      }
+      .chain .step {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 6px 10px;
+      }
+      .chain .arrow {
+        color: #9ca3af;
+      }
+      .chain .step b {
+        display: block;
+        font-size: 18px;
+      }
+      .chain .step small {
+        color: #6b7280;
+      }
+      .photos {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        margin: 10px 0;
+        padding-bottom: 4px;
+      }
+      .photos img {
+        height: 120px;
+        border-radius: 8px;
+        background: #f3f4f6;
+      }
+      .fields {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        margin-top: 10px;
+      }
+      .fields label {
+        font-size: 13px;
+        color: #374151;
+        display: block;
+      }
+      .fields input {
+        width: 130px;
+        padding: 7px 9px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font: inherit;
+      }
+      .fields input.wide {
+        width: 260px;
+      }
+      table.rows {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+      table.rows th,
+      table.rows td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 7px 8px;
+        text-align: left;
+        white-space: nowrap;
+      }
+      table.rows th {
+        color: #6b7280;
+        font-weight: 500;
+        cursor: pointer;
+        user-select: none;
+      }
+      table.rows td.num,
+      table.rows th.num {
+        text-align: right;
+      }
+      td.vin {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        user-select: all;
+      }
+      .pill {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      .pill.good {
+        background: #d1fae5;
+        color: #065f46;
+      }
+      .pill.bad {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .pill.none {
+        background: #f3f4f6;
+        color: #6b7280;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .toolbar input {
+        padding: 7px 9px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font: inherit;
+      }
+      .wrap {
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="app-nav">
+      <a href="/index.html">🧮 Калькулятор</a>
+      <a href="/lots.html">🚗 Лоти</a>
+      <a href="/searches.html">🔎 Пошуки</a>
+      <a href="/stats.html">📊 Статистика</a>
+      <a href="/resales.html" class="active">💰 Перепродажі</a>
+    </nav>
+    <div class="app-nav-spacer"></div>
+
+    <div class="page">
+      <h1>Перепродажі: скільки заробляють на пригоні</h1>
+      <p class="muted">
+        Встав посилання на оголошення AUTO.RIA — з нього береться VIN, за VIN
+        піднімається аукціонна історія (ставка, дата, пошкодження, фото), і цим
+        самим калькулятором рахується, скільки коштувало привезти авто сюди.
+        Різниця між ціною в Україні і цією сумою — і є наварка.
+      </p>
+
+      <div class="lookup">
+        <input
+          type="text"
+          id="q"
+          placeholder="https://auto.ria.com/uk/auto_..._40023169.html  або  VIN"
+        />
+        <button class="primary" id="go">Знайти</button>
+      </div>
+      <div class="status" id="msg"></div>
+      <div id="preview"></div>
+
+      <h2>Зведення</h2>
+      <p class="muted">
+        Медіани рахуються лише по рядках із введеним ремонтом в Україні: без
+        нього «чистий» дорівнює валовому і назва брехала б.
+      </p>
+      <div class="summary" id="summary"></div>
+
+      <h2>Калібрування ставок</h2>
+      <p class="muted" id="calibNote"></p>
+
+      <h2>Спостереження</h2>
+      <div class="toolbar">
+        <input type="text" id="filter" placeholder="фільтр: марка, VIN, місто" />
+        <span class="muted" id="count"></span>
+      </div>
+      <div class="wrap"><table class="rows" id="tbl"></table></div>
+    </div>
+
+    <script>
+      // Той самий резолвер бази API, що й на решті сторінок: спершу свій
+      // origin (сервер міг віддати сторінку сам, на будь-якому порту), потім
+      // :5500. Захардкоджене «не 5500 → localhost:5500» ламалось на іншому PORT.
+      var API_BASES = (location.protocol === "file:" ? [] : [""]).concat(
+        "http://localhost:5500",
+      );
+      var API_RESOLVED = null;
+      function apiFetch(route, opts) {
+        var bases = API_RESOLVED === null ? API_BASES : [API_RESOLVED];
+        var i = 0;
+        function attempt() {
+          return fetch(bases[i] + route, opts)
+            .then(function (r) {
+              API_RESOLVED = bases[i];
+              return r;
+            })
+            .catch(function (e) {
+              i += 1;
+              if (i < bases.length) return attempt();
+              throw e;
+            });
+        }
+        return attempt();
+      }
+      function apiJson(route, method, body) {
+        return apiFetch(route, {
+          method: method || "GET",
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        }).then(function (r) {
+          return r.json().then(function (j) {
+            if (!r.ok) throw new Error((j && j.error) || "HTTP " + r.status);
+            return j;
+          });
+        });
+      }
+      function $(id) {
+        return document.getElementById(id);
+      }
+      function fmt(n) {
+        if (n === null || n === undefined || n === "" || isNaN(n)) return "—";
+        var v = Math.round(Number(n));
+        // Мінус перед знаком долара, а не після: «$-1,718» читається як
+        // помилка рендеру, а не як збиток.
+        return (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US");
+      }
+      function pct(n) {
+        if (n === null || n === undefined || isNaN(n)) return "—";
+        return (Number(n) * 100).toFixed(1) + "%";
+      }
+      // Екрануємо і ' та ` — значення летять в атрибути, а приїжджають
+      // зі сторонніх сторінок.
+      function esc(s) {
+        return String(s === null || s === undefined ? "" : s).replace(
+          /[<>&"'`]/g,
+          function (c) {
+            return {
+              "<": "&lt;",
+              ">": "&gt;",
+              "&": "&amp;",
+              '"': "&quot;",
+              "'": "&#39;",
+              "`": "&#96;",
+            }[c];
+          },
+        );
+      }
+      function dt(iso) {
+        if (!iso) return "—";
+        var d = new Date(iso);
+        return isNaN(d) ? String(iso) : d.toLocaleDateString("uk-UA");
+      }
+      function median(arr) {
+        var a = arr
+          .filter(function (v) {
+            return v !== null && v !== undefined && !isNaN(v);
+          })
+          .map(Number)
+          .sort(function (x, y) {
+            return x - y;
+          });
+        if (!a.length) return null;
+        var m = Math.floor(a.length / 2);
+        return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+      }
+
+      var ROWS = [];
+      var PENDING = null;
+
+      function setMsg(text, cls) {
+        var el = $("msg");
+        el.className = "status" + (cls ? " " + cls : "");
+        el.textContent = text || "";
+      }
+
+      function lookup(state) {
+        var value = $("q").value.trim();
+        if (!value) return;
+        $("go").disabled = true;
+        setMsg("Шукаю оголошення, VIN і аукціонну історію…");
+        $("preview").innerHTML = "";
+        apiJson("/api/resales/lookup", "POST", { url: value, state: state })
+          .then(function (d) {
+            PENDING = d.row;
+            renderPreview(d);
+            setMsg("", "ok");
+          })
+          .catch(function (e) {
+            setMsg("❌ " + e.message, "err");
+          })
+          .finally(function () {
+            $("go").disabled = false;
+          });
+      }
+
+      function renderPreview(d) {
+        var r = d.row || {};
+        var h = d.history || {};
+        var images = (h.images || []).slice(0, 8);
+        var noHistory = r.history_source === "none";
+        var html = "";
+
+        html +=
+          '<div class="preview"><b>' +
+          esc([r.year || r.ria_year, r.make, r.model].filter(Boolean).join(" ")) +
+          "</b> · <span class='vin'>" +
+          esc(r.vin) +
+          "</span>";
+        if (r.ria_url)
+          html +=
+            ' · <a href="' +
+            esc(r.ria_url) +
+            '" target="_blank" rel="noopener">оголошення ↗</a>';
+        if (r.history_url)
+          html +=
+            ' · <a href="' +
+            esc(r.history_url) +
+            '" target="_blank" rel="noopener">аукціон ↗</a>';
+        html += "</div>";
+
+        if (noHistory) {
+          html +=
+            '<div class="warn">Аукціонної історії за цим VIN немає — авто могло' +
+            " приїхати з Європи або бути куплене в дилера. Рядок усе одно варто" +
+            " зберегти: «є в Україні за " +
+            fmt(r.ria_price_usd) +
+            ", аукціону не знайдено» — теж спостереження.</div>";
+        }
+
+        if (images.length) {
+          html += '<div class="photos">';
+          images.forEach(function (u) {
+            html += '<img src="' + esc(u) + '" alt="фото лота" loading="lazy" />';
+          });
+          html += "</div>";
+        }
+
+        html += '<div class="chain">';
+        html +=
+          '<div class="step"><small>ставка на аукціоні</small><b>' +
+          fmt(r.sold_price) +
+          "</b><small>" +
+          esc((r.auction || "").toUpperCase()) +
+          " · лот " +
+          esc(r.lot_number || "—") +
+          " · " +
+          esc(r.sale_date || "—") +
+          "</small></div>";
+        html += '<div class="arrow">→</div>';
+        html +=
+          '<div class="step"><small>привезти сюди (наш розрахунок)</small><b>' +
+          fmt(r.landed_cost) +
+          "</b><small>" +
+          (r.location_matched
+            ? esc(r.matched_location) +
+              (r.location_weak ? " ⚠ лише за штатом" : "")
+            : "⚠ локація невідома") +
+          "</small></div>";
+        html += '<div class="arrow">→</div>';
+        html +=
+          '<div class="step"><small>ціна в Україні</small><b>' +
+          fmt(r.ria_price_usd) +
+          "</b><small>" +
+          esc(r.ria_city || "") +
+          (r.ria_mileage_km
+            ? " · " + Math.round(r.ria_mileage_km / 1000) + " тис. км"
+            : "") +
+          "</small></div>";
+        html += '<div class="arrow">=</div>';
+        html +=
+          '<div class="step"><small>валова наварка</small><b>' +
+          fmt(r.gross_profit) +
+          "</b><small>без ремонту</small></div>";
+        html += "</div>";
+
+        if (r.location_matched === 0) {
+          // Без коду штату наземне плече рахується від першої локації
+          // довідника — тобто від чужого штату. Цифра при цьому виглядає
+          // так само впевнено, як зматчена, тому кажемо про це прямо.
+          html +=
+            '<div class="warn">У полі Location аукціону немає коду штату (' +
+            esc(d.history && d.history.location ? d.history.location : "—") +
+            "), тож наземне плече до порту ($" +
+            (r.inland_us_fee || 0) +
+            ") взяте від дефолтної локації <b>" +
+            esc((d.landed && d.landed.fallbackLocation) || "?") +
+            "</b>. Вкажи штат — і landed перерахується." +
+            ' <input type="text" id="state" maxlength="2" size="2" ' +
+            'style="width:52px;text-transform:uppercase" placeholder="NY" /> ' +
+            '<button id="restate">Перерахувати</button></div>';
+        }
+        if (r.us_repair_cost) {
+          html +=
+            '<p class="muted">Кошторис ремонту аукціону (США): ' +
+            fmt(r.us_repair_cost) +
+            ", ACV " +
+            fmt(r.acv) +
+            ". Це американські нормо-години й оригінальні деталі — довідка, у" +
+            " формулу не входить.</p>";
+        }
+        if (r.rates_asof) {
+          html +=
+            '<p class="muted">⚠ Продаж був ' +
+            esc(r.sale_date || "?") +
+            ", а фрахт, акциз і курс узяті станом на " +
+            esc(r.rates_asof) +
+            " — landed це оцінка сьогоднішніми тарифами, не історичними.</p>";
+        }
+        if (r.notes) html += '<div class="warn">' + esc(r.notes) + "</div>";
+
+        html += '<div class="fields">';
+        html +=
+          "<div><label for=\"rep\">Ремонт в Україні, $</label>" +
+          '<input type="number" id="rep" min="0" step="100" placeholder="0" /></div>';
+        html +=
+          "<div><label for=\"ovh\">Інші витрати, $</label>" +
+          '<input type="number" id="ovh" min="0" step="100" placeholder="0" /></div>';
+        html +=
+          "<div><label for=\"note\">Нотатка</label>" +
+          '<input type="text" class="wide" id="note" /></div>';
+        html += '<button class="primary" id="save">Зберегти</button>';
+        html += "</div>";
+
+        $("preview").innerHTML = html;
+        $("save").addEventListener("click", save);
+        if ($("restate")) {
+          $("restate").addEventListener("click", function () {
+            var st = $("state").value.trim().toUpperCase();
+            if (/^[A-Z]{2}$/.test(st)) lookup(st);
+            else setMsg("Штат — дві літери, напр. NY", "err");
+          });
+        }
+      }
+
+      function save() {
+        if (!PENDING) return;
+        var payload = Object.assign({}, PENDING);
+        var rep = $("rep").value;
+        var ovh = $("ovh").value;
+        if (rep !== "") {
+          payload.ua_repair_cost = Number(rep);
+          payload.ua_repair_source = Number(rep) ? "manual" : "none";
+        }
+        if (ovh !== "") payload.overhead_cost = Number(ovh);
+        if ($("note").value) payload.notes = $("note").value;
+        $("save").disabled = true;
+        apiJson("/api/resales", "POST", payload)
+          .then(function () {
+            setMsg("✅ Збережено", "ok");
+            $("preview").innerHTML = "";
+            $("q").value = "";
+            PENDING = null;
+            load();
+          })
+          .catch(function (e) {
+            setMsg("❌ " + e.message, "err");
+            $("save").disabled = false;
+          });
+      }
+
+      function repairKnown(r) {
+        return r.ua_repair_source === "manual" && r.ua_repair_cost > 0;
+      }
+
+      function renderSummary() {
+        var withRepair = ROWS.filter(repairKnown);
+        var priced = ROWS.filter(function (r) {
+          return r.landed_cost !== null && r.ria_price_usd !== null;
+        });
+        var cards = [
+          ["Спостережень", ROWS.length],
+          ["З ремонтом (у медіанах)", withRepair.length],
+          [
+            "Медіана валової",
+            priced.length
+              ? fmt(
+                  median(
+                    priced.map(function (r) {
+                      return r.gross_profit;
+                    }),
+                  ),
+                )
+              : "—",
+          ],
+          [
+            "Медіана чистої",
+            withRepair.length
+              ? fmt(
+                  median(
+                    withRepair.map(function (r) {
+                      return r.net_profit;
+                    }),
+                  ),
+                )
+              : "—",
+          ],
+          [
+            "Медіана маржі",
+            withRepair.length
+              ? pct(
+                  median(
+                    withRepair.map(function (r) {
+                      return r.margin_pct;
+                    }),
+                  ),
+                )
+              : "—",
+          ],
+          [
+            "Медіана днів до ринку",
+            median(
+              ROWS.map(function (r) {
+                return r.days_to_market;
+              }),
+            ) === null
+              ? "—"
+              : median(
+                  ROWS.map(function (r) {
+                    return r.days_to_market;
+                  }),
+                ) + " дн.",
+          ],
+        ];
+        $("summary").innerHTML = cards
+          .map(function (c) {
+            return (
+              '<div class="stat"><div class="k">' +
+              esc(c[0]) +
+              '</div><div class="v">' +
+              esc(c[1]) +
+              "</div></div>"
+            );
+          })
+          .join("");
+      }
+
+      // Головне питання фічі: наскільки наша стеля відповідає тому, що платять
+      // реальні покупці. Порівнюємо реальну ставку з maxBidForMarket() на тих
+      // самих вхідних.
+      function renderCalibration() {
+        var pairs = ROWS.filter(function (r) {
+          return r.sold_price > 0 && r.max_bid_for_market > 0;
+        });
+        if (!pairs.length) {
+          $("calibNote").textContent =
+            "Ще нема жодного рядка, де є і реальна ставка, і наша стеля за ринком.";
+          return;
+        }
+        var ratios = pairs.map(function (r) {
+          return r.sold_price / r.max_bid_for_market;
+        });
+        var m = median(ratios);
+        $("calibNote").innerHTML =
+          "n = " +
+          pairs.length +
+          ". Медіана «реальна ставка ÷ наша стеля за ринком» = <b>" +
+          m.toFixed(2) +
+          "</b>" +
+          (m > 1
+            ? " — реальні покупці платять більше, ніж радить калькулятор" +
+              " (стеля занижена або коефіцієнт ризику надто обережний)."
+            : " — реальні ставки нижчі за нашу стелю, запас є.") +
+          " Стеля рахована з коефіцієнтом ризику " +
+          esc(pairs[0].risk_coefficient) +
+          ".";
+      }
+
+      var SORT = { key: "id", desc: true };
+      var COLS = [
+        ["id", "#", false],
+        ["ria_add_date", "Оголошення", false],
+        ["car", "Авто", false],
+        ["vin", "VIN", false],
+        ["sold_price", "Ставка", true],
+        ["landed_cost", "Привезти", true],
+        ["ria_price_usd", "В Україні", true],
+        ["gross_profit", "Валова", true],
+        ["ua_repair_cost", "Ремонт UA", true],
+        ["net_profit", "Чиста", true],
+        ["margin_pct", "Маржа", true],
+        ["days_to_market", "Днів", true],
+      ];
+
+      function cellValue(r, key) {
+        if (key === "car")
+          return [r.year || r.ria_year, r.make, r.model].filter(Boolean).join(" ");
+        return r[key];
+      }
+
+      function renderTable() {
+        var q = $("filter").value.trim().toLowerCase();
+        var rows = ROWS.filter(function (r) {
+          if (!q) return true;
+          return (
+            [r.vin, r.make, r.model, r.ria_city, r.lot_number, r.auction]
+              .join(" ")
+              .toLowerCase()
+              .indexOf(q) !== -1
+          );
+        });
+        rows.sort(function (a, b) {
+          var x = cellValue(a, SORT.key),
+            y = cellValue(b, SORT.key);
+          if (x === null || x === undefined) return 1;
+          if (y === null || y === undefined) return -1;
+          if (x < y) return SORT.desc ? 1 : -1;
+          if (x > y) return SORT.desc ? -1 : 1;
+          return 0;
+        });
+        $("count").textContent = rows.length + " з " + ROWS.length;
+
+        var html = "<thead><tr>";
+        COLS.forEach(function (c) {
+          html +=
+            '<th class="' +
+            (c[2] ? "num" : "") +
+            '" data-key="' +
+            c[0] +
+            '">' +
+            esc(c[1]) +
+            (SORT.key === c[0] ? (SORT.desc ? " ↓" : " ↑") : "") +
+            "</th>";
+        });
+        html += "</tr></thead><tbody>";
+        rows.forEach(function (r) {
+          var known = repairKnown(r);
+          html += "<tr>";
+          html += "<td>" + r.id + "</td>";
+          html += "<td>" + dt(r.ria_add_date) + "</td>";
+          html +=
+            "<td>" +
+            esc(cellValue(r, "car") || "—") +
+            (r.history_source === "none"
+              ? ' <span class="pill none">без аукціону</span>'
+              : "") +
+            "</td>";
+          html += '<td class="vin">' + esc(r.vin) + "</td>";
+          html += '<td class="num">' + fmt(r.sold_price) + "</td>";
+          html +=
+            '<td class="num">' +
+            fmt(r.landed_cost) +
+            (r.location_matched === 0
+              ? ' <span class="pill none" title="локацію не зматчено — наземне плече від дефолтної">⚠</span>'
+              : "") +
+            "</td>";
+          html += '<td class="num">' + fmt(r.ria_price_usd) + "</td>";
+          html += '<td class="num">' + fmt(r.gross_profit) + "</td>";
+          html +=
+            '<td class="num">' +
+            (known
+              ? fmt(r.ua_repair_cost)
+              : '<span class="pill none" title="без нього чиста = валова">⚠ нема</span>') +
+            "</td>";
+          html +=
+            '<td class="num"><span class="pill ' +
+            (r.net_profit > 0 ? "good" : r.net_profit === null ? "none" : "bad") +
+            '">' +
+            fmt(r.net_profit) +
+            "</span></td>";
+          html += '<td class="num">' + pct(r.margin_pct) + "</td>";
+          html +=
+            '<td class="num">' +
+            (r.days_to_market === null ? "—" : r.days_to_market) +
+            "</td>";
+          html += "</tr>";
+        });
+        html += "</tbody>";
+        $("tbl").innerHTML = html;
+        Array.prototype.forEach.call($("tbl").querySelectorAll("th"), function (th) {
+          th.addEventListener("click", function () {
+            var key = th.getAttribute("data-key");
+            if (SORT.key === key) SORT.desc = !SORT.desc;
+            else {
+              SORT.key = key;
+              SORT.desc = true;
+            }
+            renderTable();
+          });
+        });
+      }
+
+      function load() {
+        return apiJson("/api/resales")
+          .then(function (rows) {
+            ROWS = rows;
+            renderSummary();
+            renderCalibration();
+            renderTable();
+          })
+          .catch(function (e) {
+            setMsg("Помилка: " + e.message + " (сервер запущено?)", "err");
+          });
+      }
+
+      $("go").addEventListener("click", function () {
+        lookup();
+      });
+      $("q").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") lookup();
+      });
+      $("filter").addEventListener("input", renderTable);
+      load();
+    </script>
+  </body>
+</html>

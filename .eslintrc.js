@@ -35,12 +35,13 @@ module.exports = {
     },
     {
       // Одноразові скрипти обслуговування БД — ESM під Node.
-      files: ["scripts/*.mjs"],
+      files: ["scripts/*.mjs", "scripts/lib/*.mjs"],
       env: { node: true, browser: false },
       parserOptions: { sourceType: "module" },
     },
     {
-      files: ["server.js"],
+      // server.js і lib/* — CommonJS під Node, без браузерних глобалів.
+      files: ["server.js", "lib/*.js"],
       env: { node: true, browser: false },
       parserOptions: {
         sourceType: "script",

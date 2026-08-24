@@ -226,3 +226,133 @@ describe("статика", () => {
     }
   });
 });
+
+describe("/api/resales", () => {
+  // Мінімальний рядок у тій самій формі, яку віддає POST /api/resales/lookup.
+  // Сам lookup сюди не тягнемо: він ходить у мережу (AUTO.RIA + saleshistory),
+  // а тест має бути детермінованим і не палити годинний ліміт RIA.
+  const ROW = {
+    ts: "2026-08-24T10:00:00.000Z",
+    vin: "WAUC4CF56RA030212",
+    ria_auto_id: 40023169,
+    ria_url: "https://auto.ria.com/auto_audi_s5_sportback_40023169.html",
+    ria_price_usd: 43300,
+    ria_city: "Луцьк",
+    ria_add_date: "2026-08-14 02:01:51",
+    ria_active: 1,
+    auction: "copart",
+    lot_number: "51505035",
+    sold_price: 20000,
+    sale_date: "2025-07-15",
+    acv: 49620,
+    us_repair_cost: 32804,
+    landed_cost: 37018,
+    max_bid_for_market: 19854,
+    risk_coefficient: 0.85,
+  };
+
+  function putJson(route, body) {
+    return fetch(BASE + route, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  let id;
+
+  it("зберігає спостереження і рахує валову", async () => {
+    const res = await postJson("/api/resales", ROW);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    id = body.id;
+
+    const row = await (await fetch(BASE + "/api/resales/" + id)).json();
+    expect(row.sold_price).toBe(20000);
+    expect(row.gross_profit).toBe(43300 - 37018);
+    // Кошторис ремонту США лежить у рядку, але у вердикт не входить —
+    // те саме правило, що для searches.repair_cost.
+    expect(row.us_repair_cost).toBe(32804);
+    expect(row.net_profit).toBe(row.gross_profit);
+    expect(row.ua_repair_source).toBe("none");
+  });
+
+  it("відхиляє VIN неправильної форми", async () => {
+    const res = await postJson("/api/resales", { ...ROW, vin: "SHORT" });
+    expect(res.status).toBe(400);
+  });
+
+  it("повторний POST оновлює рядок, а не дублює його", async () => {
+    const before = (await (await fetch(BASE + "/api/resales")).json()).length;
+    const res = await postJson("/api/resales", {
+      ...ROW,
+      ria_price_usd: 39900,
+    });
+    expect(res.status).toBe(201);
+    const after = await (await fetch(BASE + "/api/resales")).json();
+    expect(after.length).toBe(before);
+    const row = after.find((r) => r.id === id);
+    expect(row.ria_price_usd).toBe(39900);
+    // Похідні мають перерахуватись від нової ціни, а не лишитись від старої.
+    expect(row.gross_profit).toBe(39900 - 37018);
+  });
+
+  it("зміна ціни ДОПИСУЄ зріз, а не перезаписує попередній", async () => {
+    // Уся цінність таблиці — в дельті: авто стояло за $43 300, впало до
+    // $39 900. Перезапис знищив би саме це.
+    const row = await (await fetch(BASE + "/api/resales/" + id)).json();
+    expect(row.priceHistory.length).toBe(2);
+    expect(row.priceHistory.map((p) => p.price_usd)).toEqual([43300, 39900]);
+  });
+
+  it("бідніший повторний POST не затирає вже збережене", async () => {
+    await postJson("/api/resales", {
+      vin: ROW.vin,
+      ria_auto_id: ROW.ria_auto_id,
+      ria_price_usd: 39900,
+    });
+    const row = await (await fetch(BASE + "/api/resales/" + id)).json();
+    expect(row.sold_price).toBe(20000);
+    expect(row.landed_cost).toBe(37018);
+    expect(row.sale_date).toBe("2025-07-15");
+  });
+
+  it("PUT ставить ремонт в Україні і перераховує чисту та маржу", async () => {
+    const res = await putJson("/api/resales/" + id, {
+      uaRepairCost: 9000,
+      overheadCost: 500,
+    });
+    expect(res.status).toBe(200);
+    const row = await res.json();
+    expect(row.ua_repair_cost).toBe(9000);
+    expect(row.ua_repair_source).toBe("manual");
+    expect(row.net_profit).toBe(39900 - 37018 - 9000 - 500);
+    expect(row.margin_pct).toBeCloseTo(
+      (39900 - 37018 - 9000 - 500) / (37018 + 9000 + 500),
+      6,
+    );
+  });
+
+  it("PUT з нулем повертає рядок у стан «ремонт невідомий»", async () => {
+    const row = await (
+      await putJson("/api/resales/" + id, { uaRepairCost: 0 })
+    ).json();
+    expect(row.ua_repair_cost).toBe(0);
+    expect(row.ua_repair_source).toBe("none");
+    expect(row.net_profit).toBe(row.gross_profit - 500);
+  });
+
+  it("список не тягне важкі *_json", async () => {
+    const rows = await (await fetch(BASE + "/api/resales")).json();
+    expect(rows[0].history_json).toBeUndefined();
+    expect(rows[0].ria_json).toBeUndefined();
+    expect(rows[0].landed_breakdown_json).toBeUndefined();
+    expect(rows[0].vin).toBe(ROW.vin);
+  });
+
+  it("404 на невідомий id", async () => {
+    const res = await fetch(BASE + "/api/resales/999999");
+    expect(res.status).toBe(404);
+  });
+});

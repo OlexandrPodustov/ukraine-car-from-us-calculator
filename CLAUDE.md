@@ -274,6 +274,76 @@ ended up sitting next to a negative «Різниця» computed on the same scre
    this exact car (`marketTarget === marketSignature()`) all skip it — and the lookup itself reads
    the cache before the network, so re-opening the same car costs nothing.
 
+### Перепродажі: VIN з українського оголошення → реальна ставка
+
+Окремий контур від калькулятора, і навмисно окремі таблиці. У `lots` лежать
+лоти, які **ми** розглядали до купівлі; у `resales` — **чужі** авто, які вже
+приїхали і стоять на AUTO.RIA. Змішування отруїло б обидві вибірки, тому
+`lots` / `searches` ця фіча не чіпає взагалі.
+
+Ланцюжок: URL оголошення → `auto_id` → `GET /auto/info` (єдине місце, де є VIN;
+пошуку по VIN в API AUTO.RIA немає) → `saleshistory.org` за VIN → ставка, дата
+продажу, ACV, пошкодження, фото → `applyLotJson()` + `totalForPrice(ставка)`.
+
+**Landed рахує сервер, а не сторінка.** `lib/landed.js` перекладає дані
+saleshistory у форму IAAI (`inventoryView.attributes` + `saleInformation`) і
+проганяє через **справжній `applyLotJson()`** з `market.methods.js` — рік,
+паливо, об'єм, локація й порт визначаються тим самим кодом, що в браузері.
+Другої копії мапінгу немає, тож фікс у парсері доїжджає сюди сам. Виконує це
+`scripts/lib/app-vm.mjs` — витягнутий з `backfill-lot-fields.mjs` завантажувач
+(`node:vm` + `test/esm-to-cjs-transform.cjs`), яким тепер користуються і скрипт,
+і `server.js`. Альтернативу — тягнути 16 `<script type="module">` у
+`resales.html` — відкинуто: `lots.html`/`searches.html`/`stats.html` це чистий
+vanilla без Vue і без CDN, і нова сторінка лишається такою ж.
+
+**`lib/landed.js` глушить мережу перед розрахунком.** `applyLotJson` у кінці
+смикає `maybeLookupUkrainianPrice()`, а він на годинному ліміті AUTO.RIA — на
+headless-vm він підмінюється заглушкою разом із `logLot` і
+`saveToLocalStorage`. `sharedCalculator()` ще й вантажиться з тихою консоллю:
+`applyLotJson` діагностично друкує розбір лота, і в логах сервера це шум.
+
+**Формула — `net = (ціна оголошення − landed) − ремонт_UA − накладні`.**
+`us_repair_cost` (кошторис страховика США) зберігається, показується, і у
+формулу **не входить** — те саме правило, що для `repairCost` у вердикті
+калькулятора. На перевіреному авто (Audi S5 2024, ставка $20 000, landed
+$37 018, Луцьк $43 300) підстановка американського кошторису $32 804
+перетворила б +$6 282 на −$26 522. Поки ремонт в Україні не введено,
+`ua_repair_source = 'none'` і рядок **не входить у зведені медіани** —
+інакше «чиста наварка» була б валовою під чужою назвою.
+
+**Джерело аукціону — сайдбар «Auction Info» детальної сторінки, не бейдж
+видачі.** На Audi `WAUC4CF56RA030212` бейдж `.label_icon` каже IAAI, тоді як
+сайдбар, текст огляду і префікс теки фото (`/uploads/c51505035/` — `c`=Copart,
+`i`=IAAI) узгоджено кажуть Copart. Розбіжність пишеться в `resales.notes`, а не
+розв'язується мовчки. `opendatacar` для цього не годиться взагалі: його
+`/auction/lot-history` має лише свіжі лоти (по цьому VIN порожньо,
+`purchase_price = 0` на всіх 28 наших VIN), а на VIN Macan
+`WP1AA2A53RLB16469` він віддав «2007 CHEVROLET TAHOE».
+
+**`resale_price_history` дописує, ніколи не перезаписує.** `ria_price_usd` — це
+запитана ціна, не ціна продажу; поки оголошення не зняли, всі медіани це
+медіани хотілок. Тому `scripts/resale.mjs --refresh` додає новий зріз
+(`price_usd`, `ria_active`, `ria_sold_date`) щоразу, коли щось із них
+змінилось — те саме правило датованих зрізів, що в `docs/*-baseline.md`.
+
+**Ставки історичні, тарифи сьогоднішні.** Продаж міг бути торік, а фрахт,
+акциз, ПФ і курс беруться поточні, тож у рядку зберігаються `rates_asof`,
+`usd_uah`, `eur_usd`, а на сторінці стоїть відповідна позначка. Без цього набір
+через рік став би несумісним сам із собою. `--recompute` перераховує landed зі
+збереженого `history_json`, без повторного скрейпу — так само, як
+`backfill-lot-fields.mjs` відновлює лоти з `raw_json`.
+
+**Зіставлення тільки за VIN.** AUTO.RIA на перевіреному авто каже рік 2023,
+аукціон — 2024; обидва зберігаються окремо (`ria_year`, `year`).
+
+Схема, запис і читання — `lib/resale-db.js` (`attach(db)`), арифметика —
+`lib/resale.js`; тим самим кодом користуються і `/api/resales`, і
+`scripts/resale.mjs`, тож CLI та API пишуть однакові рядки. UPSERT тут
+свідомо перезаписує все, а не `COALESCE`'ить, як `lots`: рядок збирається в JS
+(`mergeResale`) поверх уже збереженого, тож бідніша повторна відповідь нічого
+не затирає, а похідні рахуються вже від злитих значень, а не лишаються від
+старої ціни. Деталі, зріз і таблиця спостережень — `docs/resale-markup-baseline.md`.
+
 ### Persistence (server.js + SQLite at `data/searches.db`)
 
 Two tables: `searches` (one row per market lookup, with heavy `*_json` columns for prices /
@@ -289,8 +359,9 @@ because `data/searches.db` ships in the repo. `DB_PATH` overrides the database f
 `__tests__/server.test.js` drives the real server against a throwaway copy. `GET /api/lots` also
 LEFT JOINs the most recent search per lot (`market_price` / `total_cost` / `diff` / `category`),
 which is what the deal pill on each card shows. Companion pages read these:
-`lots.html`, `searches.html`, and `stats.html` (draws distribution charts from the stored
-`prices_json` / `percentiles_json` — never re-calls the rate-limited API just to render a chart).
+`lots.html`, `searches.html`, `stats.html` (draws distribution charts from the stored
+`prices_json` / `percentiles_json` — never re-calls the rate-limited API just to render a chart)
+and `resales.html`.
 
 **Never delete `data/searches.db`, and persist every field the RIA API returns** (these are
 standing project rules — see memory). The same goes for the lot JSON: `raw_json` holds the whole

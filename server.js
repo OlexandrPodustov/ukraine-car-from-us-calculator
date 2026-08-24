@@ -347,6 +347,11 @@ const insertLotStmt = db.prepare(`
     image_captions=COALESCE(excluded.image_captions, image_captions)
 `);
 
+// Схема, запис і читання перепродажів — у lib/resale-db.js: тим самим кодом
+// користується scripts/resale.mjs, тож CLI і API пишуть однакові рядки.
+const resaleLib = require("./lib/resale.js");
+const resaleDb = require("./lib/resale-db.js").attach(db);
+
 // У колонку url має потрапляти лише http(s)-посилання: одного разу туди
 // прилетів скопійований зі сторінки текст, і lots.html відрендерив битий лінк.
 function lotUrl(raw, auction, lotNumber) {
@@ -364,6 +369,75 @@ function num(v) {
   if (v === null || v === undefined || v === "") return null;
   var n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+// ── Перепродажі: запис і читання ─────────────────────────────────────
+function readJson(req, cb) {
+  var chunks = [];
+  req.on("data", function (c) {
+    chunks.push(c);
+  });
+  req.on("end", function () {
+    try {
+      cb(null, JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+    } catch (e) {
+      cb(e);
+    }
+  });
+}
+
+// URL/VIN/id → оголошення + аукціонна історія + landed. Мережа лише тут.
+async function resaleLookup(p) {
+  const ria = require("./lib/ria.js");
+  const vinHistory = require("./lib/vin-history.js");
+  const landedLib = require("./lib/landed.js");
+
+  const input = String(p.url || p.autoId || p.vin || "").trim();
+  let advert = null;
+  let advertRaw = null;
+  let vin = "";
+
+  if (/^[A-HJ-NPR-Z0-9]{17}$/i.test(input)) {
+    // Голий VIN — аукціонний бік є, українського нема. Такий рядок теж має
+    // право на життя: ставку ми знаємо, ціну можна дописати руками.
+    vin = input.toUpperCase();
+  } else {
+    const autoId = ria.parseAdvertId(input);
+    if (!autoId) throw new Error("не розпізнав ні URL оголошення, ні VIN");
+    advertRaw = await ria.fetchAdvert(autoId);
+    advert = ria.normalizeAdvert(advertRaw);
+    vin = advert.vin || "";
+    if (!vin) {
+      throw new Error(
+        "в оголошенні " + autoId + " немає VIN (продавець його не вказав)",
+      );
+    }
+  }
+
+  const history = await vinHistory.fetchVinHistory(vin);
+  let landed = null;
+  if (history.found && history.soldPrice > 0) {
+    landed = await landedLib.computeLanded(history, history.soldPrice, {
+      vehicleType: p.vehicleType,
+      destinationPort: p.destinationPort,
+      // Ручний штат: без нього лоти без коду штату в Location рахувались би
+      // від першої локації довідника, тобто від чужого штату.
+      state: p.state,
+      riskCoefficient: p.riskCoefficient,
+      marketPrice: advert ? advert.priceUsd : p.marketPrice,
+    });
+  }
+  const row = resaleLib.buildResaleRow({
+    advert: advert,
+    advertRaw: advertRaw,
+    history: history,
+    landed: landed,
+    vin: vin,
+    uaRepairCost: p.uaRepairCost,
+    overheadCost: p.overheadCost,
+    notes: p.notes,
+  });
+  return { row: row, advert: advert, history: history, landed: landed };
 }
 
 // ── Static serving ──────────────────────────────────────────────────
@@ -738,6 +812,107 @@ const server = http.createServer(function (req, res) {
     res.end("Method Not Allowed");
     return;
   }
+  // ── Перепродажі ────────────────────────────────────────────────────
+  // POST /api/resales/lookup — {url|vin|autoId} → обидва боки + landed,
+  // БЕЗ запису. Ходить у мережу (AUTO.RIA + saleshistory), тому окремо від
+  // запису: людина спершу дивиться, що знайшлося, і лише тоді зберігає.
+  if (route === "/api/resales/lookup" && req.method === "POST") {
+    readJson(req, function (err, p) {
+      if (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+        return;
+      }
+      resaleLookup(p || {})
+        .then(function (out) {
+          sendJson(res, 200, Object.assign({ ok: true }, out));
+        })
+        .catch(function (e) {
+          sendJson(res, e.status === 429 || e.rateLimited ? 429 : 400, {
+            ok: false,
+            error: e.message,
+          });
+        });
+    });
+    return;
+  }
+
+  // GET /api/resales/:id — повний рядок + історія ціни оголошення
+  var resaleIdMatch = route.match(/^\/api\/resales\/(\d+)$/);
+  if (resaleIdMatch && req.method === "GET") {
+    var rRow = resaleDb.byId(Number(resaleIdMatch[1]));
+    if (!rRow) {
+      sendJson(res, 404, { ok: false, error: "not found" });
+      return;
+    }
+    sendJson(res, 200, resaleDb.expand(rRow));
+    return;
+  }
+
+  // PUT /api/resales/:id — ручні цифри: ремонт в Україні, накладні, нотатка.
+  // Саме тут рядок стає придатним для зведеної статистики: без ua_repair_cost
+  // «чистий» дорівнює валовому і брехав би назвою.
+  if (resaleIdMatch && (req.method === "PUT" || req.method === "POST")) {
+    readJson(req, function (err, p) {
+      if (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+        return;
+      }
+      var current = resaleDb.byId(Number(resaleIdMatch[1]));
+      if (!current) {
+        sendJson(res, 404, { ok: false, error: "not found" });
+        return;
+      }
+      var patch = {};
+      if (p.uaRepairCost !== undefined) {
+        patch.ua_repair_cost = num(p.uaRepairCost);
+        patch.ua_repair_source = num(p.uaRepairCost) ? "manual" : "none";
+      }
+      if (p.overheadCost !== undefined) patch.overhead_cost = num(p.overheadCost);
+      if (p.notes !== undefined) patch.notes = p.notes;
+      var merged = resaleLib.mergeResale(current, patch);
+      resaleDb.write(merged);
+      sendJson(res, 200, resaleDb.expand(resaleDb.byId(current.id)));
+    });
+    return;
+  }
+
+  if (route === "/api/resales") {
+    if (req.method === "POST") {
+      readJson(req, function (err, p) {
+        if (err) {
+          sendJson(res, 400, { ok: false, error: err.message });
+          return;
+        }
+        try {
+          var vinKey = String(p.vin || "").toUpperCase();
+          if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vinKey)) {
+            sendJson(res, 400, {
+              ok: false,
+              error: "VIN має бути 17 символів без I, O, Q",
+            });
+            return;
+          }
+          var existing = resaleDb.byKey(vinKey, num(p.ria_auto_id));
+          var merged = resaleLib.mergeResale(existing, p);
+          merged.vin = vinKey;
+          var id = resaleDb.write(merged);
+          sendJson(res, 201, { ok: true, id: id });
+        } catch (e) {
+          sendJson(res, 400, { ok: false, error: e.message });
+        }
+      });
+      return;
+    }
+    if (req.method === "GET") {
+      var resaleRows = resaleDb.list();
+      sendJson(res, 200, resaleRows);
+      return;
+    }
+    res.writeHead(405);
+    res.end("Method Not Allowed");
+    return;
+  }
+
   serveStatic(req, res);
 });
 

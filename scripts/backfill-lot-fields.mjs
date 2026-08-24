@@ -14,60 +14,12 @@
  * Логіка розбору береться з assets/js/methods/market.methods.js — того самого
  * файлу, що працює в браузері, а не з копії.
  */
-import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { createContext, runInContext } from "node:vm";
 import path from "node:path";
-import { createRequire } from "node:module";
-import { fileURLToPath } from "node:url";
+import { loadCalculator, lotVm, LOT_SOURCES, ROOT } from "./lib/app-vm.mjs";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DB_PATH = path.join(ROOT, "data", "searches.db");
+const DB_PATH = process.env.DB_PATH || path.join(ROOT, "data", "searches.db");
 const DRY = process.argv.includes("--dry");
-const stripEsm = createRequire(import.meta.url)(
-  path.join(ROOT, "test", "esm-to-cjs-transform.cjs"),
-);
-
-// Ті самі файли й той самий порядок, що в index.html. ESM-синтаксис знімає
-// той самий трансформер, що й у тестах: справжній контракт між файлами —
-// window.*, а не експорти.
-const SOURCES = [
-  "constants/auctions.js",
-  "constants/locations.js",
-  "constants/ports.js",
-  "constants/vehicle.js",
-  "constants/engine.js",
-  "methods/market.methods.js",
-];
-
-function loadCalculator() {
-  const sandbox = { console, Date, JSON, Math, parseInt, parseFloat, isNaN };
-  sandbox.window = sandbox;
-  sandbox.globalThis = sandbox;
-  sandbox.localStorage = {
-    getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {},
-  };
-  const ctx = createContext(sandbox);
-  SOURCES.forEach((rel) => {
-    const file = path.join(ROOT, "assets", "js", rel);
-    const code = stripEsm.process(readFileSync(file, "utf8"), file).code;
-    runInContext(code, ctx, { filename: file });
-  });
-  return sandbox;
-}
-
-// Мінімальний «vm»: collectLotData спирається лише на кілька методів і на
-// вибраний аукціон.
-function lotVm(win, auction) {
-  const methods = win.__createAllMethods();
-  const vm = { autoPricing: { auctions: { selected: auction || "iaai" } } };
-  Object.keys(methods).forEach((k) => {
-    vm[k] = methods[k].bind(vm);
-  });
-  return vm;
-}
 
 // колонка в БД → поле з collectLotData
 const FIELD_MAP = {
@@ -116,7 +68,7 @@ function isEmpty(v) {
   return v === null || v === undefined || String(v).trim() === "";
 }
 
-const win = loadCalculator();
+const win = loadCalculator(LOT_SOURCES);
 const db = new DatabaseSync(DB_PATH);
 const rows = db
   .prepare("SELECT * FROM lots WHERE raw_json IS NOT NULL ORDER BY id")
