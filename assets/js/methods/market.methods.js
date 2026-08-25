@@ -468,6 +468,14 @@ window.__createAllMethods = function () {
         // після, а не до.
         vm.currentLot.lotId = row.id || Number(id) || null;
         vm.currentLot.vinFull = row.vin_full || "";
+        // Те саме стосується кошторису ремонту в Україні: applyLotJson його
+        // щойно обнулив у resetLotData(), а в raw_json його немає — він живе
+        // лише в колонках, які парсинг не заповнює.
+        vm.applyDamageReport({
+          damage: row.damage || null,
+          uaRepairCost: row.ua_repair_cost,
+          uaRepairSource: row.ua_repair_source,
+        });
         vm.saveToLocalStorage();
         vm.maybeLookupUkrainianPrice();
         return true;
@@ -512,6 +520,15 @@ window.__createAllMethods = function () {
         vm.currentLot.lotId = row.id;
         if (row.vin_full) vm.currentLot.vinFull = row.vin_full;
         if (!vm.currentLot.vin && row.vin) vm.currentLot.vin = row.vin;
+        // Кошторис ремонту — теж колонка, а не localStorage: інакше сума,
+        // порахована в іншій вкладці, сюди б не доїхала.
+        if (row.ua_repair_cost != null) {
+          vm.applyDamageReport({
+            damage: row.damage || vm.damageReport,
+            uaRepairCost: row.ua_repair_cost,
+            uaRepairSource: row.ua_repair_source,
+          });
+        }
         vm.saveToLocalStorage();
         return true;
       } catch (e) {
@@ -971,6 +988,13 @@ window.__createAllMethods = function () {
       };
       this.acv = 0;
       this.repairCost = 0;
+      // Кошторис ремонту прив'язаний до конкретного авто — без скидання він
+      // переїхав би на наступний лот і тихо зіпсував його стелю ставки.
+      this.uaRepairCost = 0;
+      this.uaRepairSource = "none";
+      this.damageReport = null;
+      this.damageStatus = "";
+      this.damageMsg = "";
       this.buyNowPrice = 0;
       this.autoPricing.autoPrice = 0;
       this.customs.manufactureYear = window.currentYear;
@@ -2266,6 +2290,135 @@ window.__createAllMethods = function () {
       var market = this.customs.ukrainianMarketPrice || 0;
       if (!(market > 0)) return 0;
       return this.solveMaxBid(market * this.riskCoefficient, 0);
+    },
+
+    // ── Ремонт в Україні і оптимальна ставка ──────────────────────────
+    //
+    // Оце — та сама стеля, але чесна: у ліміт входить не лише те, скільки
+    // коштує ПРИВЕЗТИ авто, а й те, скільки коштує його ПОЛАГОДИТИ тут.
+    //
+    // maxBidForMarket() рахує «щоб landed вклався в ринок × коефіцієнт» і
+    // ремонт не бачить зовсім — на битому лоті це стеля, за якою угода вже
+    // збиткова. Тут ліміт — ринок × (1 − цільова знижка), а український
+    // кошторис іде третім доданком через `extraCost`, під який solveMaxBid()
+    // і тримали цей параметр.
+    //
+    // Американський кошторис (`repairCost`) сюди НЕ входить і входити не може:
+    // це ціни США й лише нове оригінальне — див. CLAUDE.md.
+    optimalBid: function () {
+      var market = this.customs.ukrainianMarketPrice || 0;
+      if (!(market > 0)) return 0;
+      var pct = Number(this.targetDiscountPct);
+      if (!(pct >= 0) || pct >= 100) pct = 0;
+      return this.solveMaxBid(
+        market * (1 - pct / 100),
+        Number(this.uaRepairCost) || 0,
+      );
+    },
+
+    // Скільки лишиться після продажу на українському ринку, якщо взяти лот за
+    // поточну ціну: ринок − landed − ремонт тут.
+    netAfterUaRepair: function () {
+      return Math.round(
+        this.marketPriceDifference() - (Number(this.uaRepairCost) || 0),
+      );
+    },
+
+    // Повні витрати за оптимальної ставки — landed + ремонт. Саме цю суму
+    // порівнюють із ринком, коли перевіряють, чи вийшла обіцяна знижка.
+    optimalBidTotal: function () {
+      var bid = this.optimalBid();
+      if (!(bid > 0)) return 0;
+      return Math.round(
+        this.totalForPrice(bid) + (Number(this.uaRepairCost) || 0),
+      );
+    },
+
+    // Фактична знижка від ринку за оптимальної ставки, %. Через сходинки в
+    // тарифних сітках вона трохи більша за цільову, і показати треба саме її.
+    optimalBidDiscountPct: function () {
+      var market = this.customs.ukrainianMarketPrice || 0;
+      var spend = this.optimalBidTotal();
+      if (!(market > 0) || !(spend > 0)) return 0;
+      return Math.round((1 - spend / market) * 1000) / 10;
+    },
+
+    // Підпис під сумою ремонту: цифра без походження — це та сама цифра, що
+    // й вигадана, тож джерело показуємо завжди.
+    uaRepairSourceLabel: function () {
+      if (!(Number(this.uaRepairCost) > 0)) return "не введено";
+      if (this.uaRepairSource === "vision") return "з фото лота";
+      if (this.uaRepairSource === "manual") return "введено вручну";
+      return "джерело невідоме";
+    },
+
+    // Позиції кошторису — найдорожчі згори.
+    damageItems: function () {
+      var rep = this.damageReport;
+      if (!rep || !Array.isArray(rep.items)) return [];
+      return rep.items.slice().sort(function (a, b) {
+        return (Number(b.totalUsd) || 0) - (Number(a.totalUsd) || 0);
+      });
+    },
+
+    // Розбір фото лота на сервері. Потрібен збережений лот: фото беруться з
+    // `lots.images_json`, а не зі сторінки аукціону, яка може вже й не існувати.
+    estimateDamageFromPhotos: async function (force) {
+      var vm = this;
+      if (vm.damageStatus === "loading") return;
+      var id = (vm.currentLot || {}).lotId;
+      if (!id) {
+        vm.damageStatus = "error";
+        vm.damageMsg = "Лот ще не збережений у базі — спершу розберіть лот.";
+        return;
+      }
+      vm.damageStatus = "loading";
+      vm.damageMsg = "Розбираю фото лота…";
+      try {
+        var res = await vm.apiFetch("/api/lots/" + id + "/damage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: !!force }),
+        });
+        var body = await res.json();
+        if (!res.ok || !body.ok)
+          throw new Error(body.error || "HTTP " + res.status);
+        vm.applyDamageReport(body);
+      } catch (e) {
+        vm.damageStatus = "error";
+        vm.damageMsg = "Не вдалось оцінити ремонт: " + e.message;
+      }
+    },
+
+    // Спільна точка для відповіді сервера і для рядка, прочитаного з БД.
+    applyDamageReport: function (body) {
+      this.damageReport = body.damage || null;
+      this.uaRepairCost = Math.round(Number(body.uaRepairCost) || 0);
+      this.uaRepairSource = body.uaRepairSource || "none";
+      this.damageStatus = "ok";
+      this.damageMsg = this.damageReport ? this.damageReport.summary || "" : "";
+      // Відповідь приходить уже після saveToLocalStorage() у місці виклику —
+      // та сама пастка, що з vin_full. Зберігаємо явно.
+      this.saveToLocalStorage();
+    },
+
+    // Ручна правка суми ремонту. Пишеться в БД окремим ендпойнтом, бо в
+    // UPSERT лота цієї колонки немає — щоб повторний парсинг її не затер.
+    saveUaRepair: async function () {
+      var vm = this;
+      var id = (vm.currentLot || {}).lotId;
+      vm.uaRepairSource = Number(vm.uaRepairCost) > 0 ? "manual" : "none";
+      vm.saveToLocalStorage();
+      if (!id) return;
+      try {
+        await vm.apiFetch("/api/lots/" + id + "/ua-repair", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uaRepairCost: Number(vm.uaRepairCost) || 0 }),
+        });
+      } catch (e) {
+        vm.damageMsg = "Сума не збереглась у базі: " + e.message;
+      }
     },
 
     // Найбільша ціна з молотка, за якої totalForPrice(ціна) + extraCost ще

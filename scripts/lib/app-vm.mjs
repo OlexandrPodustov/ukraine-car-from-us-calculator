@@ -16,7 +16,11 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+);
 const stripEsm = createRequire(import.meta.url)(
   path.join(ROOT, "test", "esm-to-cjs-transform.cjs"),
 );
@@ -123,8 +127,24 @@ export function lotVm(win, auction) {
  */
 export function createVm(win, overrides) {
   const state = win.createInitialState();
-  const vm = Object.assign({}, state);
+  const vm = {};
   Object.defineProperty(vm, "_data", { value: state, enumerable: false });
+  // Vue 2 проксіює кожен ключ data на інстанс і на ЧИТАННЯ, і на ЗАПИС.
+  // Без сетера присвоєння вже готовому vm (`vm.eurUsd = 1.1667`) лишалось би
+  // тільки на vm, а `totalForPrice()`, який будує пробу з `vm._data`, і далі
+  // рахував би за старим значенням — мовчки, з правдоподібним результатом.
+  // Саме так `lib/landed.js` рахував landed за дефолтним курсом, хоч і
+  // записував у рядок переданий (перевірено 2026-08-25).
+  Object.keys(state).forEach((key) => {
+    Object.defineProperty(vm, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => state[key],
+      set: (v) => {
+        state[key] = v;
+      },
+    });
+  });
 
   const methods = Object.assign(
     {},
@@ -147,9 +167,6 @@ export function createVm(win, overrides) {
   });
 
   deepAssign(vm, overrides || {});
-  Object.keys(state).forEach((key) => {
-    state[key] = vm[key];
-  });
   return vm;
 }
 

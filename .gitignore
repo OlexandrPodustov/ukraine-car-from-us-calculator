@@ -2,3 +2,6 @@ config.js
 node_modules
 # data
 graphify-out/
+
+# Фото лотів: качаються з CDN аукціону за потреби, у git їм робити нічого
+data/lot-photos/

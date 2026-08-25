@@ -66,6 +66,18 @@ window.createInitialState = function () {
     },
     acv: 0,
     repairCost: 0,
+    // Кошторис ремонту в ЦІНАХ УКРАЇНИ. На відміну від repairCost (оцінка
+    // американського страховика) ця цифра ВХОДИТЬ у вердикт: вона про те,
+    // скільки коштує полагодити авто тут, а не там.
+    uaRepairCost: 0,
+    uaRepairSource: "none", // none | manual | vision
+    damageReport: null,
+    damageStatus: "",
+    damageMsg: "",
+    // Наскільки авто має вийти дешевшим за український ринок, у відсотках.
+    // Окреме поле від riskCoefficient: той — запас на ризик у гілці ACV,
+    // а це бажана маржа перепродажу.
+    targetDiscountPct: 30,
     buyNowPrice: 0,
     riskCoefficient: 0.5,
     locationSearch: "",

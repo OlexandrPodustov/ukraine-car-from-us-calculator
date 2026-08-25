@@ -1,0 +1,99 @@
+{
+  "asof": "2026-08-25",
+  "currency": "USD",
+  "usdUah": 44.7064,
+  "usdUahSource": "НБУ, курс на 25.08.2026",
+  "note": "Ціни в UAH зі щойно зміряних джерел, у USD — перерахунок за курсом вище. `source: estimate` означає, що опублікованої ціни знайти не вдалось: цифра є, але вона НЕ зміряна. Не подавай estimate як measured.",
+  "howUkrainianShopsPrice": "Українські СТО публікують ціни ЗА ОПЕРАЦІЮ, а не нормо-годину (перевірено 2026-08-25 на rsa.kiev.ua, tda.org.ua, gepard.org.ua — жоден не друкує ставку за годину). Тому довідник теж за операцію.",
+  "partsGradeRule": "Для преміум-марок ремонтна норма в Україні — вживана (розборка/контракт) кузовщина й оптика, новий аналог для розхідників. Нове OEM лише там, де інакше не буває.",
+
+  "paint": {
+    "source": "rsa.kiev.ua (кузовний цех, Київ), зміряно 2026-08-25",
+    "bumperUah": 3000,
+    "hoodUah": 4500,
+    "doorUah": 5000,
+    "roofUah": 4500,
+    "trunkLidUah": 3000,
+    "fenderUah": 3500,
+    "fenderSource": "estimate — опублікованої ціни на крило немає; узято між бампером 3000 і дверима 5000",
+    "blendAdjacentPanelUah": 2500,
+    "blendSource": "estimate — перехід по сусідній деталі, обов'язковий для металіка",
+    "lkpCheckUah": 300,
+    "notes": "Ціни «від». Металік/перламутр і чорний глибокий — верхня межа. Ціна включає підготовку й матеріали."
+  },
+
+  "labour": {
+    "source": "estimate — жодне СТО не друкує ставку за нормо-годину; цифри зведені з ринкової практики кузовних цехів Києва/Львова",
+    "rAndIFrontEndUah": 6000,
+    "frontEndAssemblyAndGapsUah": 4000,
+    "panelReplaceBoltOnUah": 2500,
+    "plasticWeldBracketUah": 1500,
+    "wheelAlignmentUah": 1500,
+    "diagnosticScanUah": 1500,
+    "adasRadarCalibrationUah": 3000,
+    "acRechargeUah": 2500,
+    "bodyJigMeasureUah": 4000,
+    "bodyJigPullPerHourUah": 2000
+  },
+
+  "parts": {
+    "source": "zapchasti.ria.com (AUTO.RIA), зміряно 2026-08-25 — фактичні оголошення в Україні",
+    "measured": {
+      "audiA5B9FrontBumperSlineUsed": {
+        "uahLow": 7210,
+        "uahHigh": 28259,
+        "uahTypical": 16000,
+        "note": "3 оголошення: 7 210 / 9 867 / 28 259 грн, S-line, 2020-2024"
+      },
+      "audiA5B9FrontBumperRsStyleNew": {
+        "uahLow": 20295,
+        "uahHigh": 21648,
+        "note": "новий неоригінал у стилі RS5"
+      },
+      "audiA5F5HeadlightUsed": {
+        "uahLow": 22500,
+        "uahHigh": 23535,
+        "note": "дорестайл 2016-2020; рестайлінгова (2020+) рідкісніша й дорожча"
+      },
+      "audiA5F5HeadlightNewAftermarket": {
+        "uah": 41392,
+        "note": "Тайвань, права"
+      },
+      "audiA5F5HeadlightNewLedOem": {
+        "uah": 66780,
+        "note": "ліва LED з коректором"
+      },
+      "audiA5B98W6HoodUsedOem": { "uahLow": 20192, "uahHigh": 30049 },
+      "audiA5B9HoodNewAftermarket": {
+        "uah": 14432,
+        "note": "сталь+герметик, Тайвань; оригінал B9 — алюміній"
+      },
+      "audiA5F5HoodNewOem": { "uahLow": 44892, "uahHigh": 47133 }
+    },
+    "estimated": {
+      "premiumFrontFenderAluminiumUsed": {
+        "uah": 11000,
+        "note": "estimate — оголошень на крило B9 у видачі не було"
+      },
+      "bumperReinforcementOrCrashBoxUsed": { "uah": 6000, "note": "estimate" },
+      "frontPanelCarrierUsed": { "uah": 4500, "note": "estimate" },
+      "fenderLinerAirDuctsClipsNew": { "uah": 2500, "note": "estimate" },
+      "sensorsBracketsFastenersNew": { "uah": 2000, "note": "estimate" },
+      "radiatorUsed": { "uah": 6000, "note": "estimate" },
+      "acCondenserUsed": { "uah": 4500, "note": "estimate" },
+      "intercoolerUsed": { "uah": 5500, "note": "estimate" },
+      "frontAirbagModuleOem": {
+        "uah": 18000,
+        "note": "estimate; ставити ЛИШЕ якщо подушки спрацювали"
+      },
+      "seatBeltPretensionerOem": { "uah": 6000, "note": "estimate" },
+      "windscreenWithSensorsNew": { "uah": 14000, "note": "estimate" }
+    }
+  },
+
+  "contingency": {
+    "localImpactPct": 10,
+    "frontalOrStructuralPct": 20,
+    "note": "Запас на приховане — окремим рядком, не розмазаний по позиціях."
+  }
+}

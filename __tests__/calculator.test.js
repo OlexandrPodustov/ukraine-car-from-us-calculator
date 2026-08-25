@@ -685,3 +685,100 @@ describe("Збір до Пенсійного фонду", () => {
     expect(vm.mreo()).toBeGreaterThan(0);
   });
 });
+
+describe("Оптимальна ставка — з ремонтом в Україні", () => {
+  // Дві стелі, що вже були, ремонту не бачать зовсім. Ця бачить: у ліміт
+  // входить і те, скільки коштує привезти авто, і те, скільки коштує його
+  // полагодити тут.
+  const base = {
+    customs: { ukrainianMarketPrice: 43900 },
+    targetDiscountPct: 30,
+  };
+
+  test("без ринкової ціни ставки немає", () => {
+    const vm = createVm({
+      customs: { ukrainianMarketPrice: 0 },
+      targetDiscountPct: 30,
+    });
+    expect(vm.optimalBid()).toBe(0);
+  });
+
+  test("витрати разом із ремонтом вкладаються в цільову знижку", () => {
+    const vm = createVm({ ...base, uaRepairCost: 6000 });
+    const bid = vm.optimalBid();
+    expect(bid).toBeGreaterThan(0);
+    expect(vm.totalForPrice(bid) + 6000).toBeLessThanOrEqual(43900 * 0.7);
+  });
+
+  test("ремонт знижує ставку рівно тому, що з'їдає ліміт", () => {
+    const withRepair = createVm({ ...base, uaRepairCost: 6000 }).optimalBid();
+    const without = createVm({ ...base, uaRepairCost: 0 }).optimalBid();
+    expect(withRepair).toBeLessThan(without);
+  });
+
+  test("американський кошторис на ставку не впливає", () => {
+    // repairCost — оцінка страховика США; вона у вердикт не входить, і
+    // підстановка її сюди перетворила б робочий лот на збитковий.
+    const a = createVm({
+      ...base,
+      uaRepairCost: 6000,
+      repairCost: 0,
+    }).optimalBid();
+    const b = createVm({
+      ...base,
+      uaRepairCost: 6000,
+      repairCost: 32804,
+    }).optimalBid();
+    expect(a).toBe(b);
+  });
+
+  test("більша цільова знижка — менша ставка", () => {
+    const at30 = createVm({ ...base, targetDiscountPct: 30 }).optimalBid();
+    const at50 = createVm({ ...base, targetDiscountPct: 50 }).optimalBid();
+    expect(at50).toBeLessThan(at30);
+  });
+
+  test("ремонт, більший за ліміт, дає нуль, а не від'ємну ставку", () => {
+    const vm = createVm({ ...base, uaRepairCost: 99000 });
+    expect(vm.optimalBid()).toBe(0);
+  });
+
+  test("фактична знижка не менша за цільову", () => {
+    // Сходинки тарифних сіток роблять її трохи більшою — але ніколи меншою,
+    // інакше обіцянка в підписі не виконується.
+    const vm = createVm({ ...base, uaRepairCost: 6000 });
+    expect(vm.optimalBidDiscountPct()).toBeGreaterThanOrEqual(30);
+  });
+
+  test("чиста вигода = різниця з ринком мінус ремонт тут", () => {
+    const vm = createVm({ ...base, uaRepairCost: 6000 });
+    expect(vm.netAfterUaRepair()).toBe(vm.marketPriceDifference() - 6000);
+  });
+});
+
+describe("Харнес поводиться як Vue 2", () => {
+  test("присвоєння готовому vm доїжджає до _data, звідки читає totalForPrice", () => {
+    // Vue 2 проксіює data на інстанс і на читання, і на запис. Поки харнес
+    // синхронізував _data лише один раз при створенні, `vm.eurUsd = …` після
+    // createVm лишався тільки на vm — і totalForPrice(), що будує пробу з
+    // _data, мовчки рахував за старим курсом. Саме так lib/landed.js рахував
+    // landed за дефолтним курсом, записуючи в рядок переданий.
+    const vm = createVm({});
+    vm.eurUsd = 1.1667;
+    vm.usdUah = 44.7064;
+    expect(vm._data.eurUsd).toBe(1.1667);
+    expect(vm._data.usdUah).toBe(44.7064);
+
+    vm.autoPricing.autoPrice = 13336;
+    expect(Math.round(vm.totalForPrice(13336))).toBe(Math.round(vm.total()));
+  });
+
+  test("зміна курсу після createVm справді рухає підсумок", () => {
+    // Якби сетер мовчав, обидві гілки дали б однакову цифру — і тест на
+    // рівність вище пройшов би теж.
+    const a = createVm({});
+    const b = createVm({});
+    b.eurUsd = 1.1667;
+    expect(b.totalForPrice(13336)).not.toBe(a.totalForPrice(13336));
+  });
+});

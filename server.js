@@ -193,6 +193,18 @@ db.exec(`
   // Підписи до фото в порядку їх видачі — саме вони кажуть, який зі знімків
   // є табличкою з VIN. Лежать не в JSON лота, а в HTML сторінки.
   "image_captions TEXT",
+  // Кошторис ремонту в ЦІНАХ УКРАЇНИ — єдина ремонтна цифра, що входить у
+  // вердикт. Сусідній `repair_cost` — це оцінка американського страховика
+  // (ціни США, праця США, лише нове оригінальне), і у вердикт вона свідомо
+  // не входить; те саме правило, що для `us_repair_cost` у `resales`.
+  // Іменування навмисно збігається з `lib/resale-db.js`.
+  "ua_repair_cost INTEGER",
+  "ua_repair_source TEXT",
+  // Повний кошторис із фото: перелік позицій, підсумки, припущення.
+  "damage_json TEXT",
+  "damage_model TEXT",
+  "damage_ts TEXT",
+  "damage_photo_count INTEGER",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE lots ADD COLUMN " + col);
@@ -239,7 +251,10 @@ const LOT_LIST_COLS =
   "image360_url, run_and_drive, has_keys, airbags, vehicle_grade, " +
   "vehicle_city, vehicle_state, offsite, title_code, title_type, loss_type, " +
   "starts, catalytic_converter, cat_indicator, key_fob, title_notes, hybrid, " +
-  "title_sale_doc, wheels, manufactured_in, who_can_buy";
+  "title_sale_doc, wheels, manufactured_in, who_can_buy, " +
+  // Кошторис ремонту в Україні — картці лота він потрібен, повний
+  // damage_json там ні (важкий, читається окремим GET /api/lots/:id).
+  "ua_repair_cost, ua_repair_source, damage_ts";
 
 // Той самий список колонок, але з префіксом l. — для запиту з JOIN на пошуки.
 const LOT_LIST_SQL =
@@ -570,6 +585,12 @@ const server = http.createServer(function (req, res) {
     } catch (e) {
       lot.image_captions = [];
     }
+    try {
+      lot.damage = lot.damage_json ? JSON.parse(lot.damage_json) : null;
+    } catch (e) {
+      lot.damage = null;
+    }
+    delete lot.damage_json;
     sendJson(res, 200, lot);
     return;
   }
@@ -628,11 +649,119 @@ const server = http.createServer(function (req, res) {
             }
           }
         }
-        db.prepare("UPDATE lots SET vin_full = ? WHERE id = ?").run(full, vinId);
+        db.prepare("UPDATE lots SET vin_full = ? WHERE id = ?").run(
+          full,
+          vinId,
+        );
         sendJson(res, 200, { ok: true, vinFull: full });
       } catch (e) {
         sendJson(res, 400, { ok: false, error: e.message });
       }
+    });
+    return;
+  }
+
+  // PUT /api/lots/:id/ua-repair — кошторис ремонту в Україні, введений руками.
+  // Окремо від UPSERT лота з тієї ж причини, що й vin_full: парсинг цю цифру
+  // породити не може, тож повторний парсинг не має шансу її затерти.
+  var uaRepairMatch = route.match(/^\/api\/lots\/(\d+)\/ua-repair$/);
+  if (uaRepairMatch && (req.method === "PUT" || req.method === "POST")) {
+    readJson(req, function (err, p) {
+      if (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+        return;
+      }
+      var rid = Number(uaRepairMatch[1]);
+      if (!db.prepare("SELECT id FROM lots WHERE id = ?").get(rid)) {
+        sendJson(res, 404, { ok: false, error: "not found" });
+        return;
+      }
+      var cost = Math.round(Number(p.uaRepairCost) || 0);
+      if (!(cost >= 0)) {
+        sendJson(res, 400, { ok: false, error: "сума має бути невід'ємною" });
+        return;
+      }
+      db.prepare(
+        "UPDATE lots SET ua_repair_cost = ?, ua_repair_source = ? WHERE id = ?",
+      ).run(cost, cost > 0 ? "manual" : "none", rid);
+      sendJson(res, 200, {
+        ok: true,
+        uaRepairCost: cost,
+        uaRepairSource: cost > 0 ? "manual" : "none",
+      });
+    });
+    return;
+  }
+
+  // POST /api/lots/:id/damage — розібрати фото лота і скласти кошторис у цінах
+  // України. Фото качаються один раз і лишаються на диску: сторінка лота через
+  // кілька тижнів зникає, а CDN віддає знімки далі.
+  var damageMatch = route.match(/^\/api\/lots\/(\d+)\/damage$/);
+  if (damageMatch && req.method === "POST") {
+    readJson(req, function (err, p) {
+      var did = Number(damageMatch[1]);
+      var lot = db.prepare("SELECT * FROM lots WHERE id = ?").get(did);
+      if (!lot) {
+        sendJson(res, 404, { ok: false, error: "not found" });
+        return;
+      }
+      var force = /(^|[?&])force=1/.test(req.url) || (p && p.force);
+      if (!force && lot.damage_json) {
+        try {
+          sendJson(res, 200, {
+            ok: true,
+            cached: true,
+            uaRepairCost: lot.ua_repair_cost,
+            uaRepairSource: lot.ua_repair_source,
+            damage: JSON.parse(lot.damage_json),
+          });
+          return;
+        } catch (e) {
+          /* збережений JSON битий — рахуємо наново */
+        }
+      }
+      var vision;
+      try {
+        vision = require("./lib/damage-vision.js");
+      } catch (e) {
+        sendJson(res, 500, { ok: false, error: e.message });
+        return;
+      }
+      vision
+        .assessDamage(lot, p || {})
+        .then(function (out) {
+          var cost = Math.round(out.assessment.totalUsd || 0);
+          db.prepare(
+            "UPDATE lots SET ua_repair_cost = ?, ua_repair_source = 'vision', " +
+              "damage_json = ?, damage_model = ?, damage_ts = ?, " +
+              "damage_photo_count = ? WHERE id = ?",
+          ).run(
+            cost,
+            JSON.stringify(out.assessment),
+            out.model,
+            new Date().toISOString(),
+            out.photoCount,
+            did,
+          );
+          sendJson(res, 200, {
+            ok: true,
+            cached: false,
+            uaRepairCost: cost,
+            uaRepairSource: "vision",
+            damage: out.assessment,
+            model: out.model,
+            photoCount: out.photoCount,
+            priceBookAsof: out.priceBookAsof,
+          });
+        })
+        .catch(function (e) {
+          // Без ключа модуль падає ще на конструкторі SDK — кажемо прямо, як
+          // із config.js, а не «щось пішло не так».
+          var msg = /api.?key|ANTHROPIC/i.test(e.message)
+            ? "Немає ключа Anthropic: виставте ANTHROPIC_API_KEY або зробіть `ant auth login`"
+            : e.message;
+          sendJson(res, 503, { ok: false, error: msg });
+        });
     });
     return;
   }
@@ -867,7 +996,8 @@ const server = http.createServer(function (req, res) {
         patch.ua_repair_cost = num(p.uaRepairCost);
         patch.ua_repair_source = num(p.uaRepairCost) ? "manual" : "none";
       }
-      if (p.overheadCost !== undefined) patch.overhead_cost = num(p.overheadCost);
+      if (p.overheadCost !== undefined)
+        patch.overhead_cost = num(p.overheadCost);
       if (p.notes !== undefined) patch.notes = p.notes;
       var merged = resaleLib.mergeResale(current, patch);
       resaleDb.write(merged);

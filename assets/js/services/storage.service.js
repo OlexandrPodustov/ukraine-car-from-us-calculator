@@ -64,6 +64,10 @@ window.pickPersistedState = function (vm) {
     lotCondition: vm.lotCondition,
     acv: vm.acv,
     repairCost: vm.repairCost,
+    uaRepairCost: vm.uaRepairCost,
+    uaRepairSource: vm.uaRepairSource,
+    damageReport: vm.damageReport,
+    targetDiscountPct: vm.targetDiscountPct,
     buyNowPrice: vm.buyNowPrice,
     riskCoefficient: vm.riskCoefficient,
     oceanFreightOverride: vm.oceanFreightOverride,
@@ -111,6 +115,10 @@ function migrateLegacy(saved) {
     lotCondition: saved.lotCondition,
     acv: saved.acv,
     repairCost: saved.repairCost,
+    uaRepairCost: saved.uaRepairCost,
+    uaRepairSource: saved.uaRepairSource,
+    damageReport: saved.damageReport,
+    targetDiscountPct: saved.targetDiscountPct,
     buyNowPrice: saved.buyNowPrice,
     riskCoefficient: saved.riskCoefficient,
     oceanFreightOverride: saved.oceanFreightOverride,
@@ -202,12 +210,22 @@ window.applyPersistedState = function (vm, rawSaved) {
   [
     "acv",
     "repairCost",
+    "uaRepairCost",
+    "targetDiscountPct",
     "buyNowPrice",
     "riskCoefficient",
     "oceanFreightOverride",
   ].forEach(function (key) {
     if (isNum(saved[key])) vm[key] = saved[key];
   });
+  // Джерело кошторису — рядок із замкненого набору: чуже значення означало б,
+  // що підпис під сумою бреше про її походження.
+  if (["none", "manual", "vision"].indexOf(saved.uaRepairSource) >= 0) {
+    vm.uaRepairSource = saved.uaRepairSource;
+  }
+  if (saved.damageReport && typeof saved.damageReport === "object") {
+    vm.damageReport = saved.damageReport;
+  }
   if (saved.currentLot) Object.assign(vm.currentLot, saved.currentLot);
   if (saved.lotCondition) Object.assign(vm.lotCondition, saved.lotCondition);
 

@@ -50,8 +50,26 @@ function createVm(overrides) {
   // Vue тримає дані в `vm._data` і проксіює ключі на сам інстанс. Харнес
   // повторює обидва рівні, бо код (totalForPrice) на це спирається.
   const state = window.createInitialState();
-  const vm = Object.assign({}, state);
+  const vm = {};
   Object.defineProperty(vm, "_data", { value: state, enumerable: false });
+  // Vue 2 проксіює кожен ключ data на інстанс і на ЧИТАННЯ, і на ЗАПИС.
+  // Без сетера присвоєння вже готовому vm (`vm.eurUsd = 1.1667`) лишалось би
+  // тільки на vm, а `totalForPrice()`, який будує пробу з `vm._data`, і далі
+  // рахував би за старим значенням — мовчки, з правдоподібним результатом.
+  // Саме так `lib/landed.js` рахував landed за дефолтним курсом, хоч і
+  // записував у рядок переданий (перевірено 2026-08-25).
+  Object.keys(state).forEach(function (key) {
+    Object.defineProperty(vm, key, {
+      enumerable: true,
+      configurable: true,
+      get: function () {
+        return state[key];
+      },
+      set: function (v) {
+        state[key] = v;
+      },
+    });
+  });
 
   // Vue 2 прив'язує КОЖЕН метод до інстансу (`bind(vm)`). Робимо так само —
   // інакше харнес поводиться інакше за браузер: код, який підміняє `this`
@@ -81,10 +99,6 @@ function createVm(overrides) {
   });
 
   deepAssign(vm, overrides || {});
-  // Тримаємо _data синхронним із проксі-полями на інстансі.
-  Object.keys(state).forEach(function (key) {
-    state[key] = vm[key];
-  });
   return vm;
 }
 

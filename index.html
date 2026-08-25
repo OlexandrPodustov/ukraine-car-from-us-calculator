@@ -810,6 +810,119 @@
                             >
                           </div>
                           <div class="field-row">
+                            <div class="title">
+                              Оціночна сума ремонту в Україні
+                              <div
+                                style="
+                                  font-size: 12px;
+                                  font-weight: 400;
+                                  color: #666;
+                                "
+                              >
+                                ціни українських СТО — саме ця сума входить у
+                                вердикт ({{uaRepairSourceLabel()}})
+                              </div>
+                            </div>
+                            <input
+                              type="number"
+                              v-model.number="uaRepairCost"
+                              v-on:change="saveUaRepair()"
+                              style="margin-bottom: 0; flex: 1"
+                            /><span style="margin-left: 4px; line-height: 30px"
+                              >$</span
+                            >
+                          </div>
+                          <div class="field-row">
+                            <button
+                              type="button"
+                              v-on:click="estimateDamageFromPhotos(false)"
+                              v-bind:disabled="damageStatus==='loading' || !currentLot.lotId"
+                              style="
+                                height: 30px;
+                                padding: 0 13px;
+                                background: #0066cc;
+                                color: #fff;
+                                border: none;
+                                border-radius: 5px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                white-space: nowrap;
+                              "
+                            >
+                              <span v-if="damageStatus!=='loading'"
+                                >🔎 {{uaRepairSource==='vision' ? 'Переоцінити'
+                                : 'Оцінити'}} за фото</span
+                              >
+                              <span v-else>⏳…</span>
+                            </button>
+                            <span
+                              v-if="damageStatus==='ok' && damageReport"
+                              style="
+                                margin-left: 8px;
+                                font-size: 12px;
+                                color: #666;
+                                line-height: 30px;
+                              "
+                              >{{damageReport.severity}}{{damageReport.structural
+                              ? ', структура' : ''}}</span
+                            >
+                          </div>
+                          <div
+                            v-if="damageMsg"
+                            style="
+                              font-size: 13px;
+                              margin: 4px 0 8px 0;
+                              line-height: 1.4;
+                            "
+                            v-bind:style="damageStatus==='error'?{color:'#c00000'}:{color:'#555'}"
+                          >
+                            {{damageMsg}}
+                          </div>
+                          <div
+                            v-if="damageItems().length"
+                            style="
+                              margin: 0 0 10px 0;
+                              padding: 8px 10px;
+                              background: #f7f8fa;
+                              border: 1px solid #e5e7eb;
+                              border-radius: 6px;
+                              font-size: 12px;
+                              line-height: 1.5;
+                            "
+                          >
+                            <div style="font-weight: 600; margin-bottom: 4px">
+                              Кошторис за фото
+                            </div>
+                            <div
+                              v-for="it in damageItems()"
+                              style="display: flex; gap: 8px"
+                            >
+                              <span style="flex: 1">{{it.part}}</span>
+                              <span style="color: #6b7280"
+                                >{{it.action}}{{it.confidence==='low' ? ' ⚠' :
+                                ''}}</span
+                              >
+                              <span style="min-width: 54px; text-align: right"
+                                >${{it.totalUsd}}</span
+                              >
+                            </div>
+                            <div
+                              style="
+                                display: flex;
+                                gap: 8px;
+                                margin-top: 4px;
+                                padding-top: 4px;
+                                border-top: 1px solid #e5e7eb;
+                                font-weight: 600;
+                              "
+                            >
+                              <span style="flex: 1">Запас на приховане</span>
+                              <span style="min-width: 54px; text-align: right"
+                                >${{damageReport.contingencyUsd}}</span
+                              >
+                            </div>
+                          </div>
+                          <div class="field-row">
                             <div class="title">Коефіцієнт ризику</div>
                             <input
                               type="number"
@@ -945,6 +1058,81 @@
                             </button>
                           </div>
                         </div>
+                        <!-- Оптимальна ставка. На відміну від двох стель
+                             вище, у ліміт входить і ремонт В УКРАЇНІ: стеля,
+                             що його не бачить, на битому лоті вже збиткова.
+                             Американський кошторис сюди не входить — це ціни
+                             США (див. коментар у optimalBid()). -->
+                        <div
+                          class="valuess total"
+                          v-if="customs.ukrainianMarketPrice > 0"
+                          style="
+                            background: #e8f5e9;
+                            padding: 10px 6px;
+                            border-radius: 6px;
+                            margin-top: 10px;
+                            border: 1px solid #b7dfbb;
+                          "
+                        >
+                          <div class="values_title">
+                            Оптимальна ставка
+                            <div style="font-size: 12px; font-weight: 400">
+                              щоб авто в Україні вийшло на
+                              <input
+                                type="number"
+                                min="0"
+                                max="90"
+                                step="5"
+                                v-model.number="targetDiscountPct"
+                                style="
+                                  width: 52px;
+                                  height: 22px;
+                                  margin: 0 2px;
+                                  padding: 0 4px;
+                                  display: inline-block;
+                                "
+                              />
+                              % дешевше за ринок
+                            </div>
+                            <div
+                              style="font-size: 12px; font-weight: 400"
+                              v-bind:style="uaRepairCost > 0 ? {} : {color:'#a06000'}"
+                            >
+                              <span v-if="uaRepairCost > 0"
+                                >ринок ${{customs.ukrainianMarketPrice}} →
+                                витрати ${{optimalBidTotal()}} (доставка +
+                                розмитнення + ремонт ${{uaRepairCost}}),
+                                фактично −{{optimalBidDiscountPct()}} %</span
+                              >
+                              <span v-else
+                                >⚠ ремонт в Україні не введений — ставка
+                                порахована так, ніби ремонту немає</span
+                              >
+                            </div>
+                          </div>
+                          <div class="price">
+                            <div>$</div>
+                            <div>{{optimalBid()}}</div>
+                            <button
+                              type="button"
+                              v-on:click="autoPricing.autoPrice = optimalBid()"
+                              title="Підставити цю ставку в поле «Ціна авто»"
+                              style="
+                                margin-left: 8px;
+                                height: 24px;
+                                padding: 0 8px;
+                                border: 1px solid #8cc78f;
+                                background: #fff;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 12px;
+                                white-space: nowrap;
+                              "
+                            >
+                              ⤒ у ціну
+                            </button>
+                          </div>
+                        </div>
                         <!-- Ukrainian Market Price Section -->
                         <div
                           id="section-market"
@@ -1063,6 +1251,31 @@
                                   {{marketPriceDifference()&gt;=0?'+':''}}$
                                 </div>
                                 <div>{{marketPriceDifference()}}</div>
+                              </div>
+                            </div>
+                            <!-- Те саме, але за вирахуванням ремонту ТУТ.
+                                 Це і є чиста вигода — рядок вище її лише
+                                 валова, бо авто ще не на ходу. -->
+                            <div
+                              class="valuess total"
+                              v-if="uaRepairCost > 0"
+                              v-bind:style="netAfterUaRepair()>=0?{color:'#1a7a1a',background:'#e8f5e9'}:{color:'#c00000',background:'#ffebee'}"
+                              style="
+                                padding: 8px 4px;
+                                border-radius: 6px;
+                                margin-top: 6px;
+                              "
+                            >
+                              <div class="values_title" style="font-size: 13px">
+                                Чиста вигода (мінус ремонт в Україні)
+                                <div style="font-size: 12px; font-weight: 400">
+                                  різниця ${{marketPriceDifference()}} − ремонт
+                                  ${{uaRepairCost}} ({{uaRepairSourceLabel()}})
+                                </div>
+                              </div>
+                              <div class="price">
+                                <div>{{netAfterUaRepair()&gt;=0?'+':''}}$</div>
+                                <div>{{netAfterUaRepair()}}</div>
                               </div>
                             </div>
                           </div>
