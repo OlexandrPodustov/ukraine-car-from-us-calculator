@@ -782,3 +782,20 @@ describe("Харнес поводиться як Vue 2", () => {
     expect(b.totalForPrice(13336)).not.toBe(a.totalForPrice(13336));
   });
 });
+
+describe("feeScheduleNote", () => {
+  // docs/auction-fees-baseline.md каже прямо: сітка Copart успадкована з
+  // коміту 2021 року, первинного джерела немає, а вторинні дають дорожчу
+  // схему — тобто підсумок може бути занижений. Досі це знав лише читач
+  // docs/, а не той, хто ставить ставку.
+  it("Copart — сітка не звірена, і про це сказано", () => {
+    const vm = createVm({ autoPricing: { auctions: { selected: "copart" } } });
+    expect(vm.feeScheduleNote()).toMatch(/не звірена/);
+    expect(vm.feeScheduleNote()).toMatch(/занижений/);
+  });
+
+  it("IAAI — звірено з офіційним PDF, підпис порожній", () => {
+    const vm = createVm({ autoPricing: { auctions: { selected: "iaai" } } });
+    expect(vm.feeScheduleNote()).toBe("");
+  });
+});

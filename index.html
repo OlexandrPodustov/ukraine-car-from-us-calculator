@@ -551,6 +551,17 @@
                             <div>{{auctionFee()}}</div>
                           </div>
                         </div>
+                        <div
+                          v-if="feeScheduleNote()"
+                          style="
+                            color: #a06000;
+                            font-size: 12px;
+                            line-height: 1.35;
+                            margin: -4px 0 6px;
+                          "
+                        >
+                          {{feeScheduleNote()}}
+                        </div>
                         <div class="valuess">
                           <div class="values_title">
                             Комісія за SWIFT платіж

@@ -524,6 +524,14 @@ and what is still unverified. **Read the relevant baseline before touching a num
 re-measuring add a new column rather than overwriting the old one. Constants that turned out to
 be undated 2021 leftovers are called out as such; do not present them as current.
 
+Це стосується і **самої сторінки**, а не лише docs/. Провенанс сітки збору живе
+поруч із сіткою: `auctions[].feeNote` (`constants/auctions.js`), який
+`feeScheduleNote()` малює під рядком «Аукціонний збір». У Copart він
+непорожній — сітка успадкована з коміту 2021-07-28, кабінет Member Fees
+закритий логіном (дві спроби, 2026-08-19 і 2026-08-23), а вторинні джерела
+дають дорожчу схему, тобто помилка йде в бік **заниження** підсумку. IAAI
+звірено з офіційним PDF, тож підпис порожній.
+
 Це стосується і **курсу**, який тягнеться в рантаймі. `rates.service.js` віддає
 `ratesSource`: `nbu` (свіжа відповідь або кеш молодший за добу), `stale`
 (протухлий кеш — НБУ не відповів) або `default` (захардкоджені `eurUsd: 1.1` /

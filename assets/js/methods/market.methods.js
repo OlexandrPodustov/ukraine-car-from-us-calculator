@@ -1905,6 +1905,14 @@ window.__createAllMethods = function () {
         .buyerFee(this.autoPricing.autoPrice);
     },
 
+    // Наскільки сітці збору можна вірити. Порожньо — звірено з первинним
+    // джерелом. Те саме, що ratesNote() робить із курсом: цифра є, і вона
+    // не обов'язково правильна.
+    feeScheduleNote: function () {
+      var a = window.getAuctionById(this.autoPricing.auctions.selected);
+      return (a && a.feeNote) || "";
+    },
+
     // Комісія банку: 0.5% від оплати аукціону + $30 + 0.5% від доставки.
     // ⚠️ Джерело формули не встановлене, число успадковане з коміту
     // 2021-07-28 — див. docs/shipping-rates-baseline.md, «Догляд провенансу».
