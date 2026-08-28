@@ -219,10 +219,29 @@
                 r.total_cost === null || r.total_cost === undefined
                   ? null
                   : r.total_cost;
-              var spentTitle = r.repair_cost
-                ? "ремонт за кошторисом аукціону (США, не враховано) " +
-                  fmt(r.repair_cost)
-                : "";
+              // Провенанс цієї суми. NULL — рядок старіший за колонки:
+              // невідомо ≠ погано, тож такі не мітимо взагалі.
+              var caveats = [];
+              if (r.location_match === "none")
+                caveats.push(
+                  "локацію не зматчено — плече до порту й фрахт від дефолтної філії",
+                );
+              else if (r.location_match === "weak")
+                caveats.push("локація підібрана лише за штатом");
+              if (r.rates_source === "stale")
+                caveats.push("курс із кешу, не з НБУ");
+              else if (r.rates_source === "default")
+                caveats.push("курс за замовчуванням, не з НБУ");
+              var spentTitle = [
+                r.repair_cost
+                  ? "ремонт за кошторисом аукціону (США, не враховано) " +
+                    fmt(r.repair_cost)
+                  : "",
+                r.usd_uah ? "курс $/₴ " + r.usd_uah : "",
+              ]
+                .concat(caveats)
+                .filter(Boolean)
+                .join(" · ");
               // Різницю перераховуємо, а не читаємо збережений diff: до
               // 2026-08-23 у ньому стояв ринок − (кошт + ремонт).
               var diff =
@@ -261,6 +280,7 @@
                 esc(spentTitle) +
                 "'>" +
                 fmt(spent) +
+                (caveats.length ? " <span class='muted'>⚠</span>" : "") +
                 "</td><td class='" +
                 diffCls +
                 "'>" +

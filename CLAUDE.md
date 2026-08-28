@@ -257,6 +257,14 @@ Both ceilings go through `solveMaxBid(target, extraCost)`; `extraCost` is now al
 because a *Ukrainian* repair estimate is exactly what would go there if one is ever added — and
 that, not the auction's figure, is the honest way to net out the repair.
 
+`total_cost` тепер записується разом із провенансом: `usd_uah`, `eur_usd`,
+`rates_source` (`nbu`/`stale`/`default`) і `location_match`
+(`ok`/`weak`/`none`/`manual`). Курс рухається, і landed, порахований півроку
+тому, порахований не за сьогоднішнім — те саме правило, що вже діяло для
+`resales.rates_asof`. `location_match` каже, чи наземне плече й узбережжя взяті
+з реальної філії, чи з дефолтної. У рядках, старіших за ці колонки, там NULL —
+`searches.html` мітить ⚠ лише те, що **відоме** як ненадійне: невідомо ≠ погано.
+
 In the DB the two halves stay separate: `searches.total_cost` is the landed cost,
 `searches.repair_cost` is the auction's repair estimate at search time (stored, not used in the
 verdict), and `diff` is market − `total_cost`. In `GET /api/lots` the joined column is aliased

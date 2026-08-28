@@ -58,6 +58,16 @@ db.exec(`
   // Кошт ремонту зберігається окремо від total_cost: total_cost — це
   // розмитнене авто на майданчику, а порівнюється з ринком уже сума обох.
   "repair_cost INTEGER",
+  // За яким курсом порахований total_cost. Те саме правило, що в resales
+  // («ставки історичні, тарифи сьогоднішні»): без цих трьох колонок набір
+  // пошуків через рік стає несумісним сам із собою — рядки з різних місяців
+  // порівнюються так, ніби курс не рухався.
+  "usd_uah REAL",
+  "eur_usd REAL",
+  "rates_source TEXT", // nbu | stale | default — чи курс справді сьогоднішній
+  // Чи зматчилась локація лота. Якщо ні, наземне плече й узбережжя (тобто
+  // фрахт) у total_cost узяті з дефолтної філії — цифра виглядає такою ж.
+  "location_match TEXT",
 ].forEach(function (col) {
   try {
     db.exec("ALTER TABLE searches ADD COLUMN " + col);
@@ -73,7 +83,8 @@ const LIST_COLS =
   "s.id, s.ts, s.make, s.model, s.year, s.engine_type, s.engine_volume, " +
   "s.marka_id, s.model_id, s.model_matched, s.market_price, s.sample_count, " +
   "s.arithmetic_mean, s.iq_mean, s.median, s.total_cost, s.repair_cost, " +
-  "s.diff, s.category, " +
+  "s.diff, s.category, s.usd_uah, s.eur_usd, s.rates_source, " +
+  "s.location_match, " +
   "s.lot_id, l.vin, l.vin_full, l.lot_number, l.auction";
 
 // VIN зберігається лише в lots, тож у пошуки він приходить через lot_id.
@@ -85,9 +96,11 @@ const insertStmt = db.prepare(`
     (ts, make, model, year, engine_type, engine_volume, marka_id, model_id,
      model_matched, market_price, sample_count, arithmetic_mean, iq_mean,
      median, total_cost, repair_cost, diff, category, prices_json,
-     percentiles_json, classifieds_json, filters_json, lot_id)
+     percentiles_json, classifieds_json, filters_json, lot_id,
+     usd_uah, eur_usd, rates_source, location_match)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+     ?, ?, ?, ?)
 `);
 
 // ── Таблиця лотів (повна інформація + HD-фото/відео + сирий JSON) ─────
@@ -920,6 +933,10 @@ const server = http.createServer(function (req, res) {
               ? JSON.stringify(p.filtersApplied)
               : null,
             lotId,
+            num(p.usdUah) || null,
+            num(p.eurUsd) || null,
+            p.ratesSource || null,
+            p.locationMatch || null,
           );
           sendJson(res, 201, { ok: true, lotId: lotId });
         } catch (e) {

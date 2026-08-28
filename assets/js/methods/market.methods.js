@@ -1119,6 +1119,14 @@ window.__createAllMethods = function () {
         totalCost: this.total(),
         repairCost: Number(this.repairCost) || 0,
         diff: this.marketPriceDifference(),
+        // Провенанс total_cost. Курс рухається, і рядок, записаний півроку
+        // тому, порахований не за сьогоднішнім; locationMatch каже, чи
+        // наземне плече й узбережжя взяті з реальної філії, чи з дефолтної.
+        // Без цих чотирьох полів набір пошуків несумісний сам із собою.
+        usdUah: this.usdUah,
+        eurUsd: this.eurUsd,
+        ratesSource: this.ratesSource,
+        locationMatch: this.locationMatch,
         category: r.category,
         prices: r.prices || [],
         percentiles: r.percentiles || null,

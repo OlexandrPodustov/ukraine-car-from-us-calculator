@@ -196,9 +196,43 @@ describe("POST /api/searches", () => {
     expect(row.total_cost).toBe(26000);
   });
 
+  it("зберігає, за яким курсом і з якою локацією порахований total_cost", async () => {
+    // Без цього набір пошуків через рік несумісний сам із собою: рядки з
+    // різних місяців порівнюються так, ніби курс не рухався, а total_cost
+    // від дефолтної філії виглядає так само, як від зматченої.
+    await postJson("/api/searches", {
+      auction: "iaai",
+      lotNumber: "11112222",
+      make: "BMW",
+      model: "M340I",
+      marketPrice: 40000,
+      totalCost: 26000,
+      usdUah: 41.5,
+      eurUsd: 1.1663,
+      ratesSource: "stale",
+      locationMatch: "none",
+    });
+    const rows = await (await fetch(BASE + "/api/searches")).json();
+    const row = rows[0];
+    expect(row.usd_uah).toBe(41.5);
+    expect(row.eur_usd).toBe(1.1663);
+    expect(row.rates_source).toBe("stale");
+    expect(row.location_match).toBe("none");
+  });
+
+  it("старий payload без провенансу лишає колонки NULL, а не нулями", async () => {
+    // Невідомо ≠ погано: 0 читався б як «курс нуль», а searches.html мітить
+    // ⚠ лише те, що справді відоме як ненадійне.
+    const rows = await (await fetch(BASE + "/api/searches")).json();
+    const row = rows.find((r) => r.total_cost === 26000 && !r.rates_source);
+    expect(row.usd_uah).toBeNull();
+    expect(row.location_match).toBeNull();
+  });
+
   it("повний запис віддає масиви для графіків", async () => {
     const rows = await (await fetch(BASE + "/api/searches")).json();
-    const id = rows.find((r) => r.lot_number === "11112222").id;
+    // Рядків з цим лотом уже кілька — беремо той, що з масивами (найстаріший).
+    const id = rows.filter((r) => r.lot_number === "11112222").pop().id;
     const full = await (await fetch(BASE + "/api/searches/" + id)).json();
     expect(full.prices).toEqual([39000, 41000]);
     expect(full.percentiles).toEqual({ "50.0": 40000 });

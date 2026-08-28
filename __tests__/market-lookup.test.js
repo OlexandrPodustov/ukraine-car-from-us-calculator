@@ -201,3 +201,27 @@ describe("автоматичний пошук (maybeLookupUkrainianPrice)", () =
     expect(calls).toBe(1);
   });
 });
+
+describe("buildSearchPayload", () => {
+  // Рядок у searches — це запис про landed cost, а він залежить від курсу і
+  // від того, чи зматчилась локація. Без провенансу набір через рік стає
+  // несумісним сам із собою (те саме правило, що для resales.rates_asof).
+  it("несе курс і статус локації разом із коштом", () => {
+    const vm = createVm({
+      usdUah: 41.5,
+      eurUsd: 1.1663,
+      ratesSource: "stale",
+      locationMatch: "none",
+    });
+    const p = vm.buildSearchPayload(
+      { make: "Audi", model: "S5", year: 2023 },
+      { price: 43900, total: 12 },
+    );
+
+    expect(p.usdUah).toBe(41.5);
+    expect(p.eurUsd).toBe(1.1663);
+    expect(p.ratesSource).toBe("stale");
+    expect(p.locationMatch).toBe("none");
+    expect(p.totalCost).toBe(vm.total());
+  });
+});
