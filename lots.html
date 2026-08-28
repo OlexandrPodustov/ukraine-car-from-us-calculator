@@ -524,7 +524,21 @@
         var cat = dealCategory(r, diff);
         var cls =
           cat === "underpriced" ? "good" : cat === "overpriced" ? "bad" : "";
-        var few = r.sample_count && r.sample_count < 5 ? " ⚠" : "";
+        // Те саме ⚠, що раніше стояло тільки на малій вибірці: цифра відома,
+        // але спирається на щось непевне. NULL у колонках провенансу означає
+        // «рядок старіший за них» — невідомо ≠ погано, такі не мітимо.
+        var caveats = [];
+        if (r.sample_count && r.sample_count < 5)
+          caveats.push("вибірка n=" + r.sample_count + " (<5)");
+        if (r.location_match === "none")
+          caveats.push(
+            "локацію не зматчено — плече до порту й фрахт від дефолтної філії",
+          );
+        else if (r.location_match === "weak")
+          caveats.push("локація підібрана лише за штатом");
+        if (r.rates_source === "stale") caveats.push("курс із кешу, не з НБУ");
+        else if (r.rates_source === "default")
+          caveats.push("курс за замовчуванням, не з НБУ");
         return (
           '<span class="pill ' +
           cls +
@@ -536,10 +550,12 @@
             ? " · ремонт (США, не враховано) " + esc(fmt(r.search_repair_cost))
             : "") +
           (r.sample_count ? " · n=" + r.sample_count : "") +
+          (r.usd_uah ? " · курс $/₴ " + esc(String(r.usd_uah)) : "") +
+          (caveats.length ? " · ⚠ " + esc(caveats.join("; ")) : "") +
           '">' +
           (diff > 0 ? "+" : "−") +
           esc(fmt(Math.abs(diff))) +
-          few +
+          (caveats.length ? " ⚠" : "") +
           "</span>"
         );
       }

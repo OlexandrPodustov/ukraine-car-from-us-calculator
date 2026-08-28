@@ -264,6 +264,8 @@ that, not the auction's figure, is the honest way to net out the repair.
 `resales.rates_asof`. `location_match` каже, чи наземне плече й узбережжя взяті
 з реальної філії, чи з дефолтної. У рядках, старіших за ці колонки, там NULL —
 `searches.html` мітить ⚠ лише те, що **відоме** як ненадійне: невідомо ≠ погано.
+`GET /api/lots` тягне ці колонки з останнього пошуку по лоту, тож `dealPill` на
+`lots.html` мітить тим самим ⚠, що й малу вибірку, а деталі кладе в `title`.
 
 In the DB the two halves stay separate: `searches.total_cost` is the landed cost,
 `searches.repair_cost` is the auction's repair estimate at search time (stored, not used in the

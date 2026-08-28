@@ -280,7 +280,10 @@ const LOT_LIST_SQL =
   // s.repair_cost під псевдонімом: у lots теж є repair_cost (оцінка
   // аукціону), і без нього одна колонка затирала б іншу в рядку відповіді.
   ", s.market_price, s.total_cost, s.repair_cost AS search_repair_cost, " +
-  "s.diff, s.category, s.sample_count " +
+  "s.diff, s.category, s.sample_count, " +
+  // Провенанс total_cost їде разом із ним: інакше на картці лота стоїть
+  // цифра, про надійність якої відомо лише в searches.html.
+  "s.rates_source, s.usd_uah, s.location_match " +
   "FROM lots l " +
   "LEFT JOIN (SELECT lot_id, MAX(id) AS sid FROM searches " +
   "           WHERE lot_id IS NOT NULL GROUP BY lot_id) last " +

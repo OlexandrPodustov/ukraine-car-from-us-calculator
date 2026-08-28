@@ -229,6 +229,15 @@ describe("POST /api/searches", () => {
     expect(row.location_match).toBeNull();
   });
 
+  it("картка лота дістає провенанс останнього пошуку", async () => {
+    // dealPill на lots.html мітить ⚠ саме за цими колонками. Береться
+    // ОСТАННІЙ пошук по лоту — тут це рядок зі stale-курсом вище.
+    const row = await lotByNumber("11112222");
+    expect(row.rates_source).toBe("stale");
+    expect(row.usd_uah).toBe(41.5);
+    expect(row.location_match).toBe("none");
+  });
+
   it("повний запис віддає масиви для графіків", async () => {
     const rows = await (await fetch(BASE + "/api/searches")).json();
     // Рядків з цим лотом уже кілька — беремо той, що з масивами (найстаріший).
