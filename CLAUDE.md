@@ -514,6 +514,17 @@ and what is still unverified. **Read the relevant baseline before touching a num
 re-measuring add a new column rather than overwriting the old one. Constants that turned out to
 be undated 2021 leftovers are called out as such; do not present them as current.
 
+Це стосується і **курсу**, який тягнеться в рантаймі. `rates.service.js` віддає
+`ratesSource`: `nbu` (свіжа відповідь або кеш молодший за добу), `stale`
+(протухлий кеш — НБУ не відповів) або `default` (захардкоджені `eurUsd: 1.1` /
+`usdUah: 44.7` зі зрізу `ratesAsOf`). За курсом рахується акциз (у ПКУ він у
+євро) і пороги пенсійного збору (вони в гривнях), тож `ratesNote()` пише під
+митною вартістю, коли курс не сьогоднішній.
+
+Порядок відкоту навмисний: протухлий, але справжній кеш кращий за дефолт, який
+завжди старіший. До 2026-08-28 кеш віком 25 годин просто викидався, і при
+недоступному НБУ калькулятор мовчки повертався на курси з коміту.
+
 ## Linting nuance
 
 ESLint treats `assets/js/constants/*.js` and `server.js` as `sourceType: script`; everything else

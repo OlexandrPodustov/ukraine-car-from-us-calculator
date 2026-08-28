@@ -686,7 +686,13 @@
                           >
                             Митна вартість (база):
                             ${{Math.round(customsBase())}} · курс НБУ €/$
-                            {{eurUsd}}
+                            {{eurUsd}} · $/₴ {{usdUah}}
+                            <div
+                              v-if="ratesNote()"
+                              style="color: #a06000; margin-top: 3px"
+                            >
+                              {{ratesNote()}}
+                            </div>
                           </div>
                         </div>
                         <!-- Фіксовані збори — з core/state.js (fixedFees).

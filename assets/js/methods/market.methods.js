@@ -1986,6 +1986,18 @@ window.__createAllMethods = function () {
       this.locationMatch = "manual";
       this.onLocationChange();
     },
+    // Підпис під курсом. Порожній, коли курс справді з НБУ: тоді про нього
+    // нема чого казати. У решті випадків підсумок порахований за курсом, який
+    // не є сьогоднішнім, — те саме, що локація без збігу: число виглядає
+    // впевненим і ним не є.
+    ratesNote: function () {
+      if (this.ratesSource === "nbu") return "";
+      var when = this.ratesAsOf ? " (зріз " + this.ratesAsOf + ")" : "";
+      return this.ratesSource === "stale"
+        ? "⚠ НБУ не відповів — курс із кешу" + when
+        : "⚠ НБУ не відповів — курс за замовчуванням" + when;
+    },
+
     // Збір на обов'язкове державне пенсійне страхування при ПЕРШІЙ реєстрації
     // легкового авто. Ставки й пороги — docs/pension-fee-baseline.md.
     //
