@@ -10,6 +10,11 @@
  *   node scripts/backfill-lot-fields.mjs --dry   # показати, що зміниться
  *   node scripts/backfill-lot-fields.mjs         # записати
  *
+ * Третім проходом добиває `searches.location_match` — він так само цілком
+ * виводиться з raw_json. Курс (usd_uah / rates_source) НЕ добивається: його
+ * ніде не збережено, а підставити сьогоднішній у рядок піврічної давнини —
+ * це видати вигадку за вимір.
+ *
  * Порожнє не затирає заповнене: оновлюються лише колонки, де зараз NULL/''.
  * Логіка розбору береться з assets/js/methods/market.methods.js — того самого
  * файлу, що працює в браузері, а не з копії.
@@ -165,10 +170,73 @@ rows.forEach((row) => {
   }
 });
 
+// ── Провенанс локації для вже записаних пошуків ─────────────────────
+// searches.location_match з'явився 2026-08-28, тож у старих рядках там NULL.
+// Він цілком виводиться з raw_json лота — тим самим matchAuctionLocation, що
+// працює в браузері, — тож відновлюється локально, без повторного скрейпу.
+//
+// Курс (usd_uah / eur_usd / rates_source) відновити НЕ можна: його ніде не
+// збережено, а підставити сьогоднішній у рядок піврічної давнини — це видати
+// вигадку за вимір. Такі колонки лишаються NULL, і сторінки їх не мітять.
+let located = 0;
+const searchLocCounts = {};
+if (
+  db
+    .prepare("PRAGMA table_info(searches)")
+    .all()
+    .some((c) => c.name === "location_match")
+) {
+  const searchRows = db
+    .prepare(
+      "SELECT s.id, l.raw_json, l.auction FROM searches s " +
+        "JOIN lots l ON l.id = s.lot_id " +
+        "WHERE s.location_match IS NULL AND l.raw_json IS NOT NULL " +
+        "ORDER BY s.id",
+    )
+    .all();
+  searchRows.forEach((row) => {
+    let nd;
+    try {
+      nd = JSON.parse(row.raw_json);
+    } catch {
+      return;
+    }
+    const attrs = (nd.inventoryView || {}).attributes || {};
+    const vm = lotVm(win, row.auction);
+    const loc = vm.matchAuctionLocation(attrs);
+    const value = !loc
+      ? "none"
+      : vm.locationMatchIsWeak(attrs, loc)
+        ? "weak"
+        : "ok";
+    located++;
+    searchLocCounts[value] = (searchLocCounts[value] || 0) + 1;
+    console.log(
+      `пошук ${row.id}: location_match=${value}` +
+        (loc ? ` (${loc.name})` : " — штату в лоті немає"),
+    );
+    if (!DRY) {
+      db.prepare("UPDATE searches SET location_match = ? WHERE id = ?").run(
+        value,
+        row.id,
+      );
+    }
+  });
+} else {
+  console.warn(
+    "у searches немає колонки location_match — запусти `npm start` один раз, " +
+      "міграції живуть у server.js",
+  );
+}
+
 console.log(
   `\n${DRY ? "[dry-run] " : ""}оновлено лотів: ${touched} з ${rows.length}` +
-    (renamed ? `, переномеровано: ${renamed}` : ""),
+    (renamed ? `, переномеровано: ${renamed}` : "") +
+    (located ? `, пошуків із локацією: ${located}` : ""),
 );
+Object.keys(searchLocCounts)
+  .sort()
+  .forEach((k) => console.log(`  location_match ${k}: ${searchLocCounts[k]}`));
 Object.keys(perColumn)
   .sort()
   .forEach((c) => console.log(`  ${c}: ${perColumn[c]}`));

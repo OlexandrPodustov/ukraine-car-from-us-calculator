@@ -267,6 +267,13 @@ that, not the auction's figure, is the honest way to net out the repair.
 `GET /api/lots` тягне ці колонки з останнього пошуку по лоту, тож `dealPill` на
 `lots.html` мітить тим самим ⚠, що й малу вибірку, а деталі кладе в `title`.
 
+`location_match` для вже записаних пошуків добиває
+`scripts/backfill-lot-fields.mjs` — він виводиться з `raw_json` тим самим
+`matchAuctionLocation`, тож відновлюється локально. Зріз 2026-08-28 на робочій
+БД: 35 пошуків — 30 `ok`, 4 `weak`, 1 `none`. Курс так відновити **не можна**
+(його ніде не збережено), і скрипт цього не робить: підставити сьогоднішній
+курс у рядок піврічної давнини означало б видати вигадку за вимір.
+
 In the DB the two halves stay separate: `searches.total_cost` is the landed cost,
 `searches.repair_cost` is the auction's repair estimate at search time (stored, not used in the
 verdict), and `diff` is market − `total_cost`. In `GET /api/lots` the joined column is aliased
