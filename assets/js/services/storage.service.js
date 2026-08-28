@@ -55,6 +55,10 @@ window.pickPersistedState = function (vm) {
       carrierInfo: vm.customs.carrierInfo,
     },
     locationSearch: vm.locationSearch,
+    // Разом із locationSearch: попередження «локацію не визначено» має
+    // пережити F5, інакше після перезавантаження хибний підсумок знову
+    // виглядає зматченим.
+    locationMatch: vm.locationMatch,
     auctionUrl: vm.auctionUrl,
     auctionStatus: vm.auctionStatus,
     auctionMsg: vm.auctionMsg,
@@ -108,6 +112,7 @@ function migrateLegacy(saved) {
       carrierInfo: customs.carrierInfo,
     },
     locationSearch: saved.locationSearch,
+    locationMatch: saved.locationMatch,
     auctionUrl: saved.auctionUrl,
     auctionStatus: saved.auctionStatus,
     auctionMsg: saved.auctionMsg,
@@ -189,6 +194,7 @@ window.applyPersistedState = function (vm, rawSaved) {
 
   [
     "locationSearch",
+    "locationMatch",
     "auctionUrl",
     "auctionStatus",
     "auctionMsg",

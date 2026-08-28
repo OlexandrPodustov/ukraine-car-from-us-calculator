@@ -14,6 +14,9 @@
     "stylelint:fix": "stylelint assets/css/**/*.css --fix",
     "htmlhint": "htmlhint index.html lots.html searches.html stats.html resales.html"
   },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0"
+  },
   "devDependencies": {
     "eslint": "^8.57.0",
     "prettier": "^3.2.5",

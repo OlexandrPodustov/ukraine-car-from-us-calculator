@@ -43,6 +43,15 @@ describe("pickPersistedState", () => {
 });
 
 describe("applyPersistedState", () => {
+  test("попередження про незматчену локацію переживає перезавантаження", () => {
+    // Інакше після F5 підсумок, порахований від дефолтної філії в Алабамі,
+    // знову виглядає так само впевнено, як зматчений.
+    const source = createVm({ locationMatch: "none" });
+    const restored = createVm();
+    window.applyPersistedState(restored, window.pickPersistedState(source));
+    expect(restored.locationMatch).toBe("none");
+  });
+
   test("round-trip повертає той самий розрахунок", () => {
     const source = createVm({
       autoPricing: { autoPrice: 18000, auctions: { selected: "iaai" } },
@@ -74,7 +83,9 @@ describe("applyPersistedState", () => {
       autoShipping: {
         location: {
           selected: window.autoLocation[0].id,
-          options: [{ id: window.autoLocation[0].id, name: "stale", toPort: {} }],
+          options: [
+            { id: window.autoLocation[0].id, name: "stale", toPort: {} },
+          ],
         },
       },
     });

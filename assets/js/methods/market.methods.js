@@ -185,6 +185,8 @@ window.__createAllMethods = function () {
         var minBid = parseInt(attrs.MinimumBidAmount || 0);
 
         var filled = [];
+        // Окремо від filled: те, що вимагає перевірки, а не те, що вдалось.
+        var warnings = [];
 
         if (acvVal >= 500) {
           vm.acv = acvVal;
@@ -304,15 +306,34 @@ window.__createAllMethods = function () {
         if (locFound) {
           vm.autoShipping.location.selected = locFound.id;
           vm.locationSearch = locFound.name;
+          vm.locationMatch = vm.locationMatchIsWeak(attrs, locFound)
+            ? "weak"
+            : "ok";
           vm.$nextTick(function () {
             vm.onLocationChange();
           });
           filled.push(
             "локація " +
               locFound.name +
-              (vm.locationMatchIsWeak(attrs, locFound)
+              (vm.locationMatch === "weak"
                 ? " ⚠ (підібрано лише за штатом — звірте філію)"
                 : ""),
+          );
+        } else {
+          // Штату в лоті немає («Dream Rides Westchester»), тож локація
+          // лишається тією, що була — на свіжому інстансі це перший рядок
+          // довідника (Алабама). Мовчати про це не можна: звідти беруться і
+          // наземне плече, і узбережжя, тобто ставка фрахту, а підсумок
+          // виглядає так само впевнено, як зматчений.
+          vm.locationMatch = "none";
+          var fallback = vm.getCurrentLocation();
+          // У warnings, а не в filled: попередження — це не заповнене поле,
+          // і нерозпізнана структура, де не заповнилось нічого, від нього не
+          // має ставати «успішним розбором».
+          warnings.push(
+            "⚠ локацію не визначено — рахуємо від «" +
+              ((fallback && fallback.name) || "(не обрано)") +
+              "»; оберіть штат вручну",
           );
         }
         // Offsite: філія і місце зберігання різні — попереджаємо, бо саме
@@ -355,6 +376,10 @@ window.__createAllMethods = function () {
 
         vm.auctionStatus = filled.length ? "ok" : "warn";
         if (!filled.length) {
+          // Структуру не впізнали взагалі — попереджати про локацію нема про
+          // що: жодне поле не заповнене, користувач вводить усе руками.
+          vm.locationMatch = "";
+          warnings.length = 0;
           // Розбір заточений під структуру IAAI (inventoryView.attributes).
           // Copart віддає __NEXT_DATA__ з іншим деревом — ключі в консоль,
           // щоб було з чого починати, якщо доведеться його підтримати.
@@ -364,7 +389,7 @@ window.__createAllMethods = function () {
           );
         }
         vm.auctionMsg = filled.length
-          ? "✅ " + filled.join(" · ")
+          ? "✅ " + filled.concat(warnings).join(" · ")
           : "⚠ Структура сторінки (" +
             (vm.autoPricing.auctions.selected || "?").toUpperCase() +
             ") не розпізнана — заповніть поля вручну.";
@@ -1003,6 +1028,7 @@ window.__createAllMethods = function () {
       this.customs.engineVolume = "2.0";
       this.autoShipping.vehicleType = window.vehicleType[0].id;
       this.autoShipping.location.selected = window.autoLocation[0].id;
+      this.locationMatch = "";
       this.locationSearch = "";
       this.customs.carrierInfo.make = "";
       this.customs.carrierInfo.model = "";
@@ -1956,6 +1982,8 @@ window.__createAllMethods = function () {
       this.autoShipping.location.selected = opt.id;
       this.locationSearch = opt.name;
       this.locationDropOpen = false;
+      // Обрано руками — попередження про незматчену локацію більше не про це.
+      this.locationMatch = "manual";
       this.onLocationChange();
     },
     // Збір на обов'язкове державне пенсійне страхування при ПЕРШІЙ реєстрації

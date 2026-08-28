@@ -193,6 +193,31 @@ the baseline doc. Both remaining routes currently total the same to the border (
 moment either rate is re-measured. A stored `destinationPort: "odessa"` fails `hasId` in
 `applyPersistedState` and silently falls back to the default.
 
+### Локація може не зматчитись — і це видно, а не мовчить
+
+`matchAuctionLocation(attrs)` повертає `null`, якщо в лоті немає дволітерного
+штату (`"Dream Rides Westchester"`). `applyLotJson` тоді просто не чіпає
+`autoShipping.location.selected`, тож на свіжому інстансі лишається **перший
+рядок довідника** — `AL ADESA BIRMINGHAM - AL (IAAI)`. Звідти беруться і
+наземне плече ($1 475), і — через `portByState` — узбережжя, тобто ставка
+фрахту. Підсумок виходить нормальним числом, невідрізнимим від зматченого.
+
+`locationMatch` (`core/state.js`) називає стан вголос: `ok` — збіг по назві
+філії, `weak` — лише по штату (`locationMatchIsWeak`, до $375 різниці в межах
+штату), `none` — штату не було взагалі, `manual` — обрано руками
+(`selectLocation`), `""` — лота ще не розбирали. `index.html` малює під полем
+локації червоне попередження на `none` і жовте на `weak`; поле персиститься
+(`storage.service.js`), бо після F5 хибний підсумок інакше знову виглядав би
+зматченим, а `resetLotData()` його скидає.
+
+Текст попередження йде в окремий масив `warnings`, а не в `filled`: `filled.length`
+вирішує `auctionStatus` (`ok` / `warn`), тож попередження в ньому перетворювало б
+нерозпізнану структуру на «успішний розбір». Коли не розпізнано нічого,
+`locationMatch` скидається в `""` — попереджати нема про що, користувач вводить усе руками.
+
+Серверний контур це вже вмів: `lib/landed.js` пише `location_matched` /
+`locationWeak` у `resales`. Тепер те саме бачить і калькулятор.
+
 ### Re-pricing a saved lot without scraping
 
 `parseAuctionLot` only fetches the page and digs out the embedded JSON; everything that fills the
@@ -390,6 +415,14 @@ $37 018, Луцьк $43 300) підстановка американського
 
 CLI — `scripts/damage-estimate.mjs` (`--lot`, `--all`, `--dry`, `--force`,
 `--photos`), той самий `lib/damage-vision.js`, тож CLI і API пишуть однакові рядки.
+
+Виклик моделі потребує `@anthropic-ai/sdk` (єдина `dependency` проєкту —
+`npm install`) і `ANTHROPIC_API_KEY`. Без них раніше падало сирим
+`Cannot find module` / помилкою авторизації, що читалось як зламаний скрипт;
+тепер `anthropic()` каже, чого саме бракує, і нагадує два робочі шляхи:
+`--photos <id>` качає фото й без SDK, а кошторис можна ввести руками через
+`PUT /api/lots/:id/ua-repair` (`ua_repair_source = 'manual'` — чесно, це не
+vision-гілка).
 
 ### Оптимальна ставка: −N % від ринку разом із ремонтом
 

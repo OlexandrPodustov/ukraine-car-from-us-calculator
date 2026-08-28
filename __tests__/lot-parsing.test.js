@@ -305,6 +305,67 @@ describe("matchAuctionLocation", () => {
   });
 });
 
+describe("locationMatch — чи можна вірити наземному плечу", () => {
+  // Лот без штату («Dream Rides Westchester») лишає локацію дефолтною —
+  // перший рядок довідника, філія в Алабамі. Звідти беруться і наземне
+  // плече, і узбережжя (ставка фрахту), тож підсумок мусить це показувати.
+  function lotWithoutState() {
+    const lot = JSON.parse(JSON.stringify(LOT));
+    const a = lot.inventoryView.attributes;
+    a.State = " ";
+    a.BranchState = " ";
+    a.City = " ";
+    a.BranchName = "Dream Rides Westchester";
+    a.Name = "Dream Rides Westchester";
+    return lot;
+  }
+
+  function applied(lot) {
+    const vm = iaaiVm();
+    vm.logLot = () => Promise.resolve(true);
+    vm.applyLotJson(lot, "https://x.iaai.com/1", { save: false });
+    return vm;
+  }
+
+  it("справжній збіг за філією — ok", () => {
+    // Сам фікстурний лот — offsite (авто в Yonkers NY, філія «Dream Rides»
+    // в IL), тобто збіг по штату без збігу по філії. Ставимо справжню філію
+    // з довідника, щоб перевірити саме сильний збіг.
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes.BranchName = "Long Island (NY)";
+    expect(applied(lot).locationMatch).toBe("ok");
+  });
+
+  it("збіг лише за штатом — weak", () => {
+    const lot = JSON.parse(JSON.stringify(LOT));
+    lot.inventoryView.attributes.BranchName = "Нема такої філії";
+    lot.inventoryView.attributes.Name = "Нема такої філії";
+    lot.inventoryView.attributes.City = "Нема такої філії";
+    expect(applied(lot).locationMatch).toBe("weak");
+  });
+
+  it("без штату — none, і про дефолтну локацію сказано вголос", () => {
+    const vm = applied(lotWithoutState());
+    expect(vm.locationMatch).toBe("none");
+    // локація лишилась першою в довіднику — саме те, про що попереджаємо
+    expect(vm.autoShipping.location.selected).toBe(window.autoLocation[0].id);
+    expect(vm.auctionMsg).toContain("локацію не визначено");
+    expect(vm.auctionMsg).toContain(window.autoLocation[0].name);
+  });
+
+  it("ручний вибір локації знімає попередження", () => {
+    const vm = applied(lotWithoutState());
+    vm.selectLocation(window.autoLocation[1]);
+    expect(vm.locationMatch).toBe("manual");
+  });
+
+  it("resetLotData скидає ознаку разом з рештою лота", () => {
+    const vm = applied(lotWithoutState());
+    vm.resetLotData();
+    expect(vm.locationMatch).toBe("");
+  });
+});
+
 describe("порт відправлення", () => {
   it("західні штати відправляються із західного узбережжя", () => {
     expect(window.portForState("CA")).toBe("los_angeles");
