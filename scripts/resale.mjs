@@ -3,9 +3,16 @@
  * Перепродажі з консолі: те саме, що робить resales.html, але без сервера.
  *
  *   node scripts/resale.mjs --add <URL оголошення AUTO.RIA | VIN>
+ *   node scripts/resale.mjs --from-classifieds [--limit N] [--dry]
  *   node scripts/resale.mjs --refresh [--limit N] [--dry]
  *   node scripts/resale.mjs --recompute [--dry]
  *   node scripts/resale.mjs                       # TSV усіх спостережень
+ *
+ * --from-classifieds бере `auto_id` з `searches.classifieds_json` — сотні
+ * оголошень, які AUTO.RIA вже віддала при пошуках ціни і за які вже
+ * заплачено лімітом. Нових пошуків не робить, лише резолвить наявні id.
+ * Кожна спроба лягає в `resale_candidates` НЕЗАЛЕЖНО від результату, тож
+ * наступний прохід не витрачає ліміт на ті самі мертві id.
  *
  * --refresh переопитує AUTO.RIA по збережених оголошеннях і ДОПИСУЄ зріз
  * ціни в resale_price_history (ніколи не перезаписує: цінність у дельті між
@@ -58,7 +65,8 @@ async function lookupRow(input, extra) {
     vin = value.toUpperCase();
   } else {
     const autoId = ria.parseAdvertId(value);
-    if (!autoId) throw new Error("не розпізнав ні URL оголошення, ні VIN: " + value);
+    if (!autoId)
+      throw new Error("не розпізнав ні URL оголошення, ні VIN: " + value);
     advertRaw = await ria.fetchAdvert(autoId);
     advert = ria.normalizeAdvert(advertRaw);
     vin = advert.vin || "";
@@ -107,6 +115,120 @@ async function cmdAdd(input) {
   );
 }
 
+/**
+ * Збирає всі `auto_id` зі збережених пошуків, у порядку від найсвіжішого
+ * пошуку: там оголошення з більшою ймовірністю ще живі.
+ */
+function classifiedIds() {
+  const rows = db
+    .prepare(
+      "SELECT classifieds_json FROM searches " +
+        "WHERE classifieds_json IS NOT NULL ORDER BY id DESC",
+    )
+    .all();
+  const seen = new Set();
+  const ids = [];
+  rows.forEach((row) => {
+    let list;
+    try {
+      list = JSON.parse(row.classifieds_json);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(list)) return;
+    list.forEach((raw) => {
+      const id = ria.parseAdvertId(raw);
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      ids.push(id);
+    });
+  });
+  return ids;
+}
+
+async function cmdFromClassifieds() {
+  // `--limit 0` — це перепис черги без жодного виклику до RIA: скільки id
+  // взагалі є і скільки з них ще не пробували. Тому явний нуль поважаємо, а
+  // не підміняємо дефолтом.
+  const rawLimit = valueOf("--limit");
+  const limit = rawLimit === null ? 20 : Math.max(Number(rawLimit) || 0, 0);
+  const all = classifiedIds();
+  const known = new Set(
+    store
+      .all()
+      .map((r) => r.ria_auto_id)
+      .filter(Boolean),
+  );
+  // Пропускаємо і вже збережені спостереження, і вже випробувані id: обидва
+  // коштували б повторного /auto/info, а він на годинному ліміті.
+  const fresh = all.filter((id) => !known.has(id) && !store.candidate(id));
+  const batch = fresh.slice(0, limit);
+  note(
+    `id у пошуках: ${all.length} · вже опрацьовано: ${all.length - fresh.length}` +
+      ` · беру: ${batch.length} (ліміт ${limit})`,
+  );
+
+  const counts = {};
+  for (const autoId of batch) {
+    let status = "error";
+    let vin = "";
+    let noteText = "";
+    try {
+      const row = await lookupRow(String(autoId));
+      vin = row.vin;
+      // Рядок пишеться навіть без аукціонної історії: український бік — це
+      // теж спостереження, а history_source каже, чого саме бракує.
+      status = row.history_source === "none" ? "no_history" : "added";
+      if (!DRY) {
+        const merged = resaleLib.mergeResale(
+          store.byKey(row.vin, row.ria_auto_id),
+          row,
+        );
+        store.write(merged);
+      }
+      out(
+        autoId,
+        vin,
+        status,
+        row.sold_price || "—",
+        row.landed_cost || "—",
+        row.ria_price_usd || "—",
+      );
+    } catch (e) {
+      noteText = e.message;
+      // «немає VIN» — це не збій, а властивість оголошення: воно назавжди
+      // непридатне, і другий виклик по ньому був би витраченим лімітом.
+      status = /немає VIN/.test(e.message) ? "no_vin" : "error";
+      note(`оголошення ${autoId}: ${e.message}`);
+      if (e.rateLimited) {
+        note("⛔ ліміт AUTO.RIA — зупиняюсь; решта лишається в черзі");
+        break;
+      }
+    }
+    counts[status] = (counts[status] || 0) + 1;
+    // Мережеву помилку не фіксуємо як вирок: наступного разу спробуємо ще.
+    if (!DRY && status !== "error")
+      store.markCandidate(autoId, status, vin, noteText);
+  }
+  note(
+    (DRY ? "[dry-run] " : "") +
+      "результат: " +
+      (Object.keys(counts).length
+        ? Object.keys(counts)
+            .sort()
+            .map((k) => `${k}=${counts[k]}`)
+            .join(" · ")
+        : "нічого не опрацьовано"),
+  );
+  const stats = store.candidateStats();
+  if (stats.length)
+    note(
+      "усього в черзі: " +
+        stats.map((r) => `${r.status}=${r.n}`).join(" · ") +
+        ` · лишилось нових: ${Math.max(fresh.length - batch.length, 0)}`,
+    );
+}
+
 async function cmdRefresh() {
   const limit = Number(valueOf("--limit")) || 25;
   const rows = store
@@ -150,7 +272,9 @@ async function cmdRefresh() {
     } catch (e) {
       note(`лот ${row.id} (${row.vin}): ${e.message}`);
       if (e.rateLimited) {
-        note("⛔ впертись у ліміт AUTO.RIA — зупиняюсь, добери решту за годину");
+        note(
+          "⛔ впертись у ліміт AUTO.RIA — зупиняюсь, добери решту за годину",
+        );
         break;
       }
     }
@@ -205,8 +329,17 @@ async function cmdRecompute() {
 
 function cmdList() {
   out(
-    "id", "vin", "auction", "sold", "landed", "ua_price",
-    "gross", "repair_ua", "net", "margin", "days",
+    "id",
+    "vin",
+    "auction",
+    "sold",
+    "landed",
+    "ua_price",
+    "gross",
+    "repair_ua",
+    "net",
+    "margin",
+    "days",
   );
   store.all().forEach((r) => {
     out(
@@ -228,6 +361,7 @@ function cmdList() {
 const target = valueOf("--add");
 try {
   if (has("--add")) await cmdAdd(target);
+  else if (has("--from-classifieds")) await cmdFromClassifieds();
   else if (has("--refresh")) await cmdRefresh();
   else if (has("--recompute")) await cmdRecompute();
   else cmdList();

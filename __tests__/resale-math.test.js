@@ -203,7 +203,9 @@ describe("локація без коду штату", () => {
 
   it("без штату справжній matchAuctionLocation нічого не знаходить", () => {
     const vm = createVm({ autoPricing: { auctions: { selected: "iaai" } } });
-    expect(vm.matchAuctionLocation(landed.toLotJson(BARE).inventoryView.attributes)).toBeNull();
+    expect(
+      vm.matchAuctionLocation(landed.toLotJson(BARE).inventoryView.attributes),
+    ).toBeNull();
   });
 
   it("ручний штат дає збіг і змінює порт відправлення", () => {
@@ -234,5 +236,51 @@ describe("локація без коду штату", () => {
     // Спостереження не викидається: ставка й ціна в Україні реальні.
     expect(row.landed_cost).toBe(41086);
     expect(row.gross_profit).toBe(43300 - 41086);
+  });
+});
+
+describe("черга кандидатів на спостереження", () => {
+  // `/auto/info` ділить годинний ліміт вільного тарифу з усім іншим, тож
+  // спроба мусить лишати слід навіть коли з неї нічого не вийшло — інакше
+  // наступний прохід витратить ліміт на ті самі мертві id.
+  const { DatabaseSync } = require("node:sqlite");
+  const resaleDb = require("../lib/resale-db.js");
+
+  function store() {
+    return resaleDb.attach(new DatabaseSync(":memory:"));
+  }
+
+  it("невідомий id не вважається опрацьованим", () => {
+    expect(store().candidate(123456)).toBeUndefined();
+  });
+
+  it("фіксує і невдалу спробу — саме заради неї таблиця й існує", () => {
+    const s = store();
+    s.markCandidate(111111, "no_vin", null, "в оголошенні немає VIN");
+    const row = s.candidate(111111);
+    expect(row.status).toBe("no_vin");
+    expect(row.note).toMatch(/немає VIN/);
+    expect(row.ts).toBeTruthy();
+  });
+
+  it("повторна спроба оновлює рядок, а не плодить дублі", () => {
+    const s = store();
+    s.markCandidate(222222, "no_history", "WAUC4CF56RA030212");
+    s.markCandidate(222222, "added", "WAUC4CF56RA030212");
+    expect(s.candidate(222222).status).toBe("added");
+    expect(s.candidateStats()).toEqual([{ status: "added", n: 1 }]);
+  });
+
+  it("рахує чергу за статусами", () => {
+    const s = store();
+    s.markCandidate(1000001, "added", "X");
+    s.markCandidate(1000002, "added", "Y");
+    s.markCandidate(1000003, "no_vin");
+    expect(
+      s.candidateStats().sort((a, b) => a.status.localeCompare(b.status)),
+    ).toEqual([
+      { status: "added", n: 2 },
+      { status: "no_vin", n: 1 },
+    ]);
   });
 });
