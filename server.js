@@ -383,6 +383,41 @@ const insertLotStmt = db.prepare(`
 const resaleLib = require("./lib/resale.js");
 const resaleDb = require("./lib/resale-db.js").attach(db);
 
+// Порівняння способів вкласти ті самі гроші (пригін / ОВДП / депозит /
+// квартира / полагодити своє авто). Параметри пригону беруться з таблиці
+// `resales` — див. lib/decision-evidence.js.
+const decision = require("./lib/decision.js");
+const decisionOptions = require("./lib/decision-options.js");
+const decisionEvidence = require("./lib/decision-evidence.js");
+const decisionDbLib = require("./lib/decision-db.js");
+const decisionDb = decisionDbLib.attach(db);
+
+/**
+ * Зібрати повний набір опцій під переданий контекст. `body.options` може
+ * перекрити будь-яку опцію за id — саме так з калькулятора приїжджає
+ * конкретний лот замість медіани набору.
+ */
+function buildDecisionOptions(ctx, body) {
+  var overrides = (body && body.options) || {};
+  var summary = decisionEvidence.summarize(db);
+  var list = [decisionEvidence.flipOption(summary, overrides.flip || {})]
+    .concat(decisionOptions.baseOptions(ctx))
+    .concat([decisionOptions.keepCarOption(overrides["keep-car"] || {})]);
+  // Точкові перекриття полів: {"ovdp-uah": {"ratePct": 17.2}}
+  list = list.map(function (o) {
+    var ov = overrides[o.id];
+    return ov ? Object.assign({}, o, ov) : o;
+  });
+  // Опції, які користувач прибрав із порівняння.
+  var exclude = (body && body.exclude) || [];
+  if (exclude.length) {
+    list = list.filter(function (o) {
+      return exclude.indexOf(o.id) === -1;
+    });
+  }
+  return { options: list, summary: summary };
+}
+
 // У колонку url має потрапляти лише http(s)-посилання: одного разу туди
 // прилетів скопійований зі сторінки текст, і lots.html відрендерив битий лінк.
 function lotUrl(raw, auction, lotNumber) {
@@ -1060,6 +1095,165 @@ const server = http.createServer(function (req, res) {
     }
     res.writeHead(405);
     res.end("Method Not Allowed");
+    return;
+  }
+
+  // ── Порівняння способів вкласти гроші ──────────────────────────────
+  // GET /api/decision/context — дефолти, ставки з провенансом і зведення по
+  // спостереженнях. Сторінка малює форму з цього, нічого не хардкодячи.
+  if (route === "/api/decision/context" && req.method === "GET") {
+    try {
+      var dctx = decisionOptions.defaultContext();
+      var dsum = decisionEvidence.summarize(db);
+      sendJson(res, 200, {
+        ok: true,
+        context: dctx,
+        weights: decisionOptions.defaultWeights(),
+        criteria: decision.CRITERIA,
+        rates: decisionOptions.RATES,
+        devaluation: decisionOptions.DEVALUATION,
+        incomeTax: decisionOptions.PERSONAL_INCOME_TAX,
+        evidence: dsum,
+        options: buildDecisionOptions(dctx, {}).options,
+      });
+    } catch (e) {
+      sendJson(res, 500, { ok: false, error: e.message });
+    }
+    return;
+  }
+
+  // POST /api/decision/compare — прогін. `save: true` дописує датований
+  // рядок у `decisions` (ніколи не перезаписує — див. lib/decision-db.js).
+  if (route === "/api/decision/compare" && req.method === "POST") {
+    readJson(req, function (err, body) {
+      if (err) {
+        sendJson(res, 400, { ok: false, error: err.message });
+        return;
+      }
+      try {
+        var p = body || {};
+        var ctx = decisionOptions.defaultContext(p.context || {});
+        if (p.weights) ctx.weights = p.weights;
+        var built = buildDecisionOptions(ctx, p);
+        var result = decision.compare(built.options, ctx, {
+          trials: p.trials,
+          seed: p.seed,
+          weights: ctx.weights,
+        });
+
+        // Поріг відсіву — те, заради чого це все стикується з калькулятором:
+        // за якої «ціна ÷ landed» пригін лише зрівнюється з облігаціями.
+        var flipRow = result.options.filter(function (o) {
+          return o.id === "flip";
+        })[0];
+        var threshold = flipRow
+          ? decision.screeningThreshold(flipRow.option, ctx, result.baseline)
+          : null;
+        var sens = flipRow
+          ? decision.sensitivity(
+              flipRow.option,
+              ctx,
+              [
+                "exitPrice",
+                "landed",
+                "uaRepairCost",
+                "priceHaircutPct",
+                "hours",
+                "daysOnMarket",
+                "daysToListing",
+                "overheadCost",
+              ],
+              25,
+            )
+          : null;
+
+        var savedId = null;
+        if (p.save) {
+          savedId = decisionDb.write(
+            decisionDbLib.toRow(result, {
+              scenarioKey: p.scenarioKey,
+              title: p.title,
+              notes: p.notes,
+              evidence: built.summary,
+              evidenceN: built.summary.n,
+              ovdpUahPct: decisionOptions.RATES.ovdpUah.value,
+              ratesAsOf: decisionOptions.ASOF,
+            }),
+          );
+        }
+
+        sendJson(res, 200, {
+          ok: true,
+          id: savedId,
+          baseline: result.baseline,
+          ctx: ctx,
+          ranked: result.ranked.map(function (o) {
+            return {
+              id: o.id,
+              label: o.label,
+              kind: o.kind,
+              irr: o.irr,
+              irrIsBorrowingRate: o.irrIsBorrowingRate,
+              terminalWealth: o.terminalWealth,
+              vsBaseline: o.vsBaseline,
+              score: o.score,
+              scoreParts: o.scoreParts,
+              sim: o.sim,
+              feasible: o.feasible,
+              lumpy: o.lumpy,
+              requiredCapital: o.requiredCapital,
+              cycles: o.cycles,
+              cycleDays: o.cycleDays,
+              hours: o.hours,
+              provenance: o.option.provenance || null,
+            };
+          }),
+          wealthOrder: result.byWealth.map(function (o) {
+            return o.id;
+          }),
+          weightsFlippedOrder: result.weightsFlippedOrder,
+          threshold: threshold,
+          sensitivity: sens,
+          evidence: built.summary,
+        });
+      } catch (e) {
+        sendJson(res, 400, { ok: false, error: e.message });
+      }
+    });
+    return;
+  }
+
+  // GET /api/decisions — збережені прогони; ?key= — уся серія хронологічно.
+  if (route === "/api/decisions" && req.method === "GET") {
+    var keyMatch = req.url.match(/[?&]key=([^&]+)/);
+    if (keyMatch) {
+      sendJson(res, 200, decisionDb.series(decodeURIComponent(keyMatch[1])));
+      return;
+    }
+    var limMatch = req.url.match(/[?&]limit=(\d+)/);
+    sendJson(res, 200, decisionDb.list(limMatch ? Number(limMatch[1]) : 100));
+    return;
+  }
+
+  var decIdMatch = route.match(/^\/api\/decisions\/(\d+)$/);
+  if (decIdMatch && req.method === "GET") {
+    var decRow = decisionDb.byId(Number(decIdMatch[1]));
+    if (!decRow) {
+      sendJson(res, 404, { ok: false, error: "not found" });
+      return;
+    }
+    ["evidence_json", "weights_json", "options_json", "results_json"].forEach(
+      function (col) {
+        if (decRow[col]) {
+          try {
+            decRow[col.replace(/_json$/, "")] = JSON.parse(decRow[col]);
+          } catch (e) {
+            /* лишаємо сирий рядок */
+          }
+        }
+      },
+    );
+    sendJson(res, 200, decRow);
     return;
   }
 

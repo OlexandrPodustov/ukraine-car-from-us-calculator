@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Куди вкласти — Авто із США</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&subset=latin,cyrillic"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/css/app.css" />
+    <style>
+      .page {
+        font-family: Roboto, system-ui, sans-serif;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 16px;
+        color: #1f2937;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 8px 0 6px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 28px 0 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        align-items: flex-end;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .field label {
+        font-size: 12px;
+        color: #6b7280;
+        font-weight: 500;
+      }
+      .field input[type="number"] {
+        width: 116px;
+        padding: 7px 9px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+      }
+      button {
+        padding: 8px 16px;
+        border: 0;
+        border-radius: 6px;
+        background: #2563eb;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      button:hover {
+        background: #1d4ed8;
+      }
+      button.ghost {
+        background: #f3f4f6;
+        color: #374151;
+      }
+      button.ghost:hover {
+        background: #e5e7eb;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: right;
+        white-space: nowrap;
+      }
+      th {
+        color: #6b7280;
+        font-weight: 600;
+        border-bottom: 2px solid #d1d5db;
+        font-size: 12px;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+        white-space: normal;
+      }
+      /* Колонка джерела — текст, а не число: і заголовок, і вміст ліворуч. */
+      table.prov-table th:last-child,
+      table.prov-table td:last-child {
+        text-align: left;
+        white-space: normal;
+      }
+      tr:hover td {
+        background: #f9fafb;
+      }
+      tr.winner td {
+        background: #f0fdf4;
+      }
+      tr.infeasible td {
+        opacity: 0.55;
+      }
+      .pos {
+        color: #166534;
+        font-weight: 600;
+      }
+      .neg {
+        color: #991b1b;
+        font-weight: 600;
+      }
+      /* Провенанс: вимір / цитата / здогад. Колір тут несе зміст —
+         жовтий означає «на це спиратись не можна», а не «увага». */
+      .prov {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .prov.measured {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .prov.quoted {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .prov.assumed {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .prov.none {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+      .verdict {
+        border-left: 4px solid #2563eb;
+        background: #eff6ff;
+        padding: 12px 16px;
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 14px;
+      }
+      .verdict.warn {
+        border-left-color: #d97706;
+        background: #fffbeb;
+      }
+      .verdict b {
+        font-size: 15px;
+      }
+      .weights {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .weight {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 168px;
+      }
+      .weight label {
+        font-size: 12px;
+        color: #374151;
+        display: flex;
+        justify-content: space-between;
+      }
+      .weight .subj {
+        color: #92400e;
+        font-size: 10px;
+      }
+      .weight input {
+        width: 100%;
+      }
+      .chart-wrap {
+        overflow-x: auto;
+      }
+      svg {
+        display: block;
+      }
+      code {
+        background: #f3f4f6;
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      .err {
+        background: #fee2e2;
+        color: #991b1b;
+        padding: 12px 16px;
+        border-radius: 8px;
+      }
+      details summary {
+        cursor: pointer;
+        font-size: 13px;
+        color: #2563eb;
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body style="margin: 0">
+    <nav class="app-nav">
+      <a href="/index.html">🧮 Калькулятор</a>
+      <a href="/lots.html">🚗 Лоти</a>
+      <a href="/searches.html">🔎 Пошуки</a>
+      <a href="/stats.html">📊 Статистика</a>
+      <a href="/resales.html">💰 Перепродажі</a>
+      <a href="/decision.html" class="active">⚖️ Куди вкласти</a>
+    </nav>
+    <div class="app-nav-spacer"></div>
+
+    <div class="page">
+      <h1>Куди вкласти ті самі гроші</h1>
+      <p class="muted">
+        Решта сторінок рахує <b>угоду</b>: скільки коштує пригнати лот і за
+        скільки він піде тут. Ця рахує <b>рішення</b> — чи варто взагалі, проти
+        ОВДП, депозиту, квартири під оренду і «полагодити своє авто». Три речі,
+        яких немає в цифрі маржі: <b>час</b> (капітал стоїть 112…926 днів),
+        <b>альтернатива</b> (ОВДП дають 16 % без податку і без ремонту) і
+        <b>валюта</b> (гривнева ставка при девальвації — не та сама ставка).
+        Параметри пригону не захардкоджені: вони зміряні на власній таблиці
+        <code>resales</code>.
+      </p>
+
+      <div class="card">
+        <div class="controls">
+          <div class="field">
+            <label for="capital">Капітал, $</label>
+            <input
+              id="capital"
+              type="number"
+              value="35000"
+              step="1000"
+              min="1000"
+            />
+          </div>
+          <div class="field">
+            <label for="years">Горизонт, років</label>
+            <input id="years" type="number" value="3" step="0.5" min="0.5" />
+          </div>
+          <div class="field">
+            <label for="hourly">Година свого часу, $</label>
+            <input id="hourly" type="number" value="40" step="5" min="0" />
+          </div>
+          <button id="run">Порахувати</button>
+          <button id="save" class="ghost">Зберегти зріз</button>
+        </div>
+        <p class="muted" style="margin: 12px 0 0">
+          Година часу — не косметика: 60 годин навколо одного пригону при $40 це
+          $2 400, тобто третина медіанної валової наварки в наборі. Час
+          переводиться в гроші й віднімається з потоку, а не виноситься в
+          повзунок «зусилля» — інакше ним можна підкрутити будь-який висновок.
+        </p>
+      </div>
+
+      <div class="card">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px">
+          Ваги критеріїв
+          <span class="muted" style="font-weight: 400">
+            — накладаються поверх уже порахованих грошей</span
+          >
+        </div>
+        <div class="weights" id="weights"></div>
+      </div>
+
+      <div id="content"><p class="muted">Завантаження…</p></div>
+    </div>
+
+    <script>
+      // Той самий пошук API, що на решті сторінок: спершу свій origin, потім
+      // :5500. Захардкоджене «не 5500 → localhost:5500» ламалось на іншому PORT.
+      var API_BASES = (location.protocol === "file:" ? [] : [""]).concat(
+        "http://localhost:5500",
+      );
+      var API_RESOLVED = null;
+      function apiFetch(route, init) {
+        var bases = API_RESOLVED === null ? API_BASES : [API_RESOLVED];
+        var i = 0;
+        function attempt() {
+          return fetch(bases[i] + route, init)
+            .then(function (r) {
+              if (!r.ok && r.status >= 500) throw new Error("HTTP " + r.status);
+              API_RESOLVED = bases[i];
+              return r;
+            })
+            .catch(function (e) {
+              i += 1;
+              if (i < bases.length) return attempt();
+              throw e;
+            });
+        }
+        return attempt();
+      }
+
+      function money(n) {
+        if (n === null || n === undefined || !isFinite(n)) return "—";
+        return "$" + Math.round(n).toLocaleString("en-US");
+      }
+      function pct(n, dp) {
+        if (n === null || n === undefined || !isFinite(n)) return "—";
+        return (n * 100).toFixed(dp === undefined ? 1 : dp) + "%";
+      }
+      function esc(s) {
+        return (s == null ? "" : String(s)).replace(/[<>&"'`]/g, function (c) {
+          return {
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            '"': "&quot;",
+            "'": "&#39;",
+            "`": "&#96;",
+          }[c];
+        });
+      }
+      function provBadge(basis) {
+        var label = {
+          measured: "зміряно",
+          quoted: "цитата",
+          assumed: "здогад",
+          none: "немає",
+        };
+        var b = basis || "assumed";
+        return '<span class="prov ' + b + '">' + (label[b] || b) + "</span>";
+      }
+
+      var STATE = { ctx: null, weights: null, criteria: [], last: null };
+
+      // ── Ваги ────────────────────────────────────────────────────────
+      // Критерії, що йдуть із грошей, і суб'єктивні позначені по-різному:
+      // класична біда зваженої матриці в тому, що всі критерії виглядають
+      // однаково об'єктивно.
+      function renderWeights() {
+        var el = document.getElementById("weights");
+        el.innerHTML = STATE.criteria
+          .map(function (c) {
+            var v = STATE.weights[c.id] || 0;
+            return (
+              '<div class="weight"><label for="w-' +
+              c.id +
+              '"><span>' +
+              esc(c.label) +
+              (c.money ? "" : ' <span class="subj">суб.</span>') +
+              '</span><span id="wv-' +
+              c.id +
+              '">' +
+              v +
+              "</span></label>" +
+              '<input id="w-' +
+              c.id +
+              '" type="range" min="0" max="50" step="5" value="' +
+              v +
+              '" /></div>'
+            );
+          })
+          .join("");
+        STATE.criteria.forEach(function (c) {
+          var input = document.getElementById("w-" + c.id);
+          input.addEventListener("input", function () {
+            STATE.weights[c.id] = Number(input.value);
+            document.getElementById("wv-" + c.id).textContent = input.value;
+          });
+          input.addEventListener("change", run);
+        });
+      }
+
+      // ── Смуга розкиду P10–P50–P90 ───────────────────────────────────
+      // Точкова оцінка ховає головне: у ОВДП розкид майже нульовий, у
+      // пригоні — вчетверо ширший за сам капітал. Дві опції з однаковою
+      // медіаною — це різні рішення.
+      function spreadBar(row, lo, hi, baseline) {
+        var W = 240;
+        var H = 22;
+        var x = function (v) {
+          return ((v - lo) / (hi - lo)) * W;
+        };
+        var bx = x(baseline);
+        return (
+          '<svg width="' +
+          W +
+          '" height="' +
+          H +
+          '" role="img" aria-label="розкид від ' +
+          money(row.sim.p10) +
+          " до " +
+          money(row.sim.p90) +
+          '">' +
+          '<rect x="' +
+          x(row.sim.p10).toFixed(1) +
+          '" y="7" width="' +
+          Math.max(1, x(row.sim.p90) - x(row.sim.p10)).toFixed(1) +
+          '" height="8" rx="4" fill="#bfdbfe" />' +
+          '<circle cx="' +
+          x(row.sim.p50).toFixed(1) +
+          '" cy="11" r="4.5" fill="#2563eb" />' +
+          '<line x1="' +
+          bx.toFixed(1) +
+          '" y1="2" x2="' +
+          bx.toFixed(1) +
+          '" y2="20" stroke="#111827" stroke-width="1.5" stroke-dasharray="2,2" />' +
+          "</svg>"
+        );
+      }
+
+      // ── Торнадо чутливості ──────────────────────────────────────────
+      function tornado(sens) {
+        if (!sens || !sens.rows.length) return "";
+        var rows = sens.rows.slice(0, 8);
+        var max = Math.max.apply(
+          null,
+          rows.map(function (r) {
+            return r.swing;
+          }),
+        );
+        var LW = 150;
+        var BW = 320;
+        var RH = 26;
+        var bars = rows
+          .map(function (r, i) {
+            var w = max > 0 ? (r.swing / max) * BW : 0;
+            var y = i * RH;
+            return (
+              '<text x="' +
+              (LW - 8) +
+              '" y="' +
+              (y + 16) +
+              '" text-anchor="end" font-size="12" fill="#374151">' +
+              esc(r.field) +
+              "</text>" +
+              '<rect x="' +
+              LW +
+              '" y="' +
+              (y + 5) +
+              '" width="' +
+              w.toFixed(1) +
+              '" height="14" rx="3" fill="#93c5fd" />' +
+              '<text x="' +
+              (LW + w + 8) +
+              '" y="' +
+              (y + 16) +
+              '" font-size="11" fill="#6b7280">' +
+              money(r.swing) +
+              (r.basis === "range" ? "" : " (±25 %)") +
+              "</text>"
+            );
+          })
+          .join("");
+        return (
+          '<div class="chart-wrap"><svg width="' +
+          (LW + BW + 90) +
+          '" height="' +
+          rows.length * RH +
+          '" role="img" aria-label="чутливість результату до кожного припущення">' +
+          bars +
+          "</svg></div>"
+        );
+      }
+
+      // ── Головний рендер ─────────────────────────────────────────────
+      function render(res) {
+        var el = document.getElementById("content");
+        var lo = Infinity;
+        var hi = -Infinity;
+        res.ranked.forEach(function (r) {
+          lo = Math.min(lo, r.sim.p10);
+          hi = Math.max(hi, r.sim.p90);
+        });
+        lo = Math.min(lo, res.baseline);
+        hi = Math.max(hi, res.baseline);
+        var pad = (hi - lo) * 0.05;
+        lo -= pad;
+        hi += pad;
+
+        var top = res.ranked[0];
+        var html = "";
+
+        // Вердикт
+        html +=
+          '<div class="verdict"><b>' +
+          esc(top.label) +
+          "</b> — найкраще за поточних ваг і припущень. " +
+          "Базова планка: " +
+          money(res.baseline) +
+          " через " +
+          (res.ctx.horizonDays / 365).toFixed(1) +
+          " р. (ОВДП у гривні, переведені в долар). " +
+          (top.vsBaseline >= 0
+            ? '<span class="pos">' +
+              money(top.vsBaseline) +
+              " понад планку</span>"
+            : '<span class="neg">' +
+              money(top.vsBaseline) +
+              " проти планки</span>") +
+          // Планка — це ОВДП БЕЗ комісії брокера й без витраченого часу, тобто
+          // інструмент, якого не можна купити. Тому переможець, що САМ є цими
+          // ОВДП, стоїть трохи нижче планки, і це не «нічого не робити
+          // вигідніше», а рівно вартість того, щоб їх насправді купити.
+          (top.vsBaseline < 0 && top.id === "ovdp-uah"
+            ? '<br /><span class="muted">Планка — це ті самі ОВДП <b>без</b> ' +
+              "комісії брокера й без витраченого часу, тобто інструмент, якого " +
+              "не існує. Різниця " +
+              money(-top.vsBaseline) +
+              " — це рівно те, скільки коштує їх насправді купити.</span>"
+            : top.vsBaseline < 0
+              ? '<br /><span class="muted">Тобто найкраща з розглянутих опцій ' +
+                "усе одно програє тому, щоб просто купити облігації.</span>"
+              : "") +
+          "</div>";
+
+        if (res.weightsFlippedOrder) {
+          html +=
+            '<div class="verdict warn">⚠ <b>Порядок перевернули ваги, не арифметика.</b> ' +
+            "За чистими грошима перший — <code>" +
+            esc(res.wealthOrder[0]) +
+            "</code>, за балами — <code>" +
+            esc(top.id) +
+            "</code>. Це нормально (гроші не все), але знати про це треба.</div>";
+        }
+
+        // Таблиця
+        html += "<h2>Порівняння</h2>";
+        html +=
+          "<table><tr><th>Опція</th><th>Бал</th><th>Річних</th>" +
+          "<th>P10</th><th>Медіана</th><th>P90</th><th>Розкид</th>" +
+          "<th>&gt; планки</th><th>Годин</th></tr>";
+        html += res.ranked
+          .map(function (r) {
+            var cls = [];
+            if (r.id === top.id) cls.push("winner");
+            if (!r.feasible) cls.push("infeasible");
+            return (
+              '<tr class="' +
+              cls.join(" ") +
+              '"><td>' +
+              esc(r.label) +
+              (r.feasible
+                ? ""
+                : '<br /><span class="prov none">треба ' +
+                  money(r.requiredCapital) +
+                  ", неділиме</span>") +
+              (r.cycles > 1
+                ? '<br /><span class="muted">' +
+                  r.cycles +
+                  " цикли по " +
+                  Math.round(r.cycleDays) +
+                  " дн.</span>"
+                : "") +
+              "</td><td>" +
+              r.score.toFixed(3) +
+              "</td><td>" +
+              pct(r.irr) +
+              (r.irrIsBorrowingRate
+                ? "<br /><span class='muted'>ставка позики</span>"
+                : "") +
+              "</td><td>" +
+              money(r.sim.p10) +
+              "</td><td><b>" +
+              money(r.sim.p50) +
+              "</b></td><td>" +
+              money(r.sim.p90) +
+              "</td><td>" +
+              spreadBar(r, lo, hi, res.baseline) +
+              "</td><td>" +
+              pct(r.sim.probBeatBaseline, 0) +
+              "</td><td>" +
+              Math.round(r.hours) +
+              "</td></tr>"
+            );
+          })
+          .join("");
+        html += "</table>";
+        html +=
+          '<p class="muted">Пунктир на смузі — базова планка. Смуга — від P10 до ' +
+          "P90 за " +
+          (res.ranked[0].sim.trials || 0) +
+          " прогонів Монте-Карло; крапка — медіана. «Ставка позики» у рядку " +
+          "ремонту свого авто читається навпаки: це відсоток, під який ти " +
+          "фактично позичаєш, лагодячи замість міняти. Дешевше за базову — лагодь.</p>";
+
+        // Поріг відсіву — стик із калькулятором
+        if (res.threshold) {
+          var med = res.evidence.exitMultiple.median;
+          var clears = med >= res.threshold.exitMultiple;
+          html +=
+            "<h2>Поріг відсіву для пригону</h2>" +
+            '<div class="verdict' +
+            (clears ? "" : " warn") +
+            '">Щоб пригін лише <b>зрівнявся</b> з облігаціями, авто має піти за ' +
+            "<b>" +
+            money(res.threshold.exitPrice) +
+            "</b> = " +
+            res.threshold.exitMultiple.toFixed(3) +
+            " × landed, тобто цільова знижка від ринку <b>" +
+            res.threshold.discountPct.toFixed(1) +
+            " %</b>.<br />Медіана нашого набору — " +
+            med.toFixed(3) +
+            " × (знижка " +
+            ((1 - 1 / med) * 100).toFixed(1) +
+            " %), тобто " +
+            (clears
+              ? "медіанна угода поріг проходить."
+              : "<b>медіанна угода поріг НЕ проходить</b>.") +
+            "<br /><span class='muted'>Це те саме поле «цільова знижка» на " +
+            "калькуляторі, яке живить <code>optimalBid()</code>. Тобто вихід " +
+            "цієї сторінки — не абстрактний бал, а число, яке вводиться " +
+            "в наявне поле.</span></div>";
+        }
+
+        // Чутливість
+        if (res.sensitivity) {
+          html +=
+            "<h2>Що справді вирішує</h2>" +
+            '<p class="muted">Вплив кожного поля на капітал через горизонт. ' +
+            "Зверху те, що вирішує, а не те, що найлегше налаштувати. Без позначки — " +
+            "<b>заявлений діапазон невизначеності</b>; з «±25 %» — просто збурення, " +
+            "бо діапазон не заявлений. Порівнювати їх у лоб не можна: поле, чиє " +
+            "<b>саме існування</b> припущене, при ±25 % виглядає дрібним, хоча " +
+            "вирішує все. <b>Якщо вгорі стоїть здогад, а не вимір — висновок " +
+            "тримається на здогаді.</b></p>" +
+            tornado(res.sensitivity);
+        }
+
+        // Провенанс
+        html += "<h2>Звідки числа</h2>";
+        html +=
+          '<table class="prov-table"><tr><th>Величина</th><th>Статус</th>' +
+          "<th>Значення</th><th>Дата</th><th>Джерело</th></tr>";
+        html += provRows(res);
+        html += "</table>";
+        html +=
+          '<p class="muted"><span class="prov measured">зміряно</span> — на власних ' +
+          'спостереженнях; <span class="prov quoted">цитата</span> — з чужої ' +
+          'публікації на дату; <span class="prov assumed">здогад</span> — виміряти ' +
+          "нема на чому. Здогади не ховаються: якщо вердикт тримається на них, це " +
+          "видно в торнадо вище.</p>";
+
+        // Спостереження
+        html +=
+          "<h2>Спостереження, на яких зміряний пригін</h2>" +
+          "<details><summary>Показати " +
+          res.evidence.n +
+          " рядків із таблиці resales</summary>" +
+          "<table><tr><th>VIN</th><th>Авто</th><th>Ставка</th><th>landed</th>" +
+          "<th>В Україні</th><th>×</th><th>Днів</th><th></th></tr>" +
+          res.evidence.rows
+            .map(function (r) {
+              return (
+                "<tr><td><code>" +
+                esc(r.vin) +
+                "</code></td><td>" +
+                esc(r.car) +
+                "</td><td>" +
+                money(r.soldPrice) +
+                "</td><td>" +
+                money(r.landed) +
+                "</td><td>" +
+                money(r.askingUa) +
+                "</td><td>" +
+                r.exitMultiple.toFixed(2) +
+                "</td><td>" +
+                Math.round(r.daysToListing) +
+                "</td><td>" +
+                (r.stillListed
+                  ? '<span class="prov assumed">ще висить</span>'
+                  : "") +
+                (r.locationWeak
+                  ? ' <span class="prov assumed">локація</span>'
+                  : "") +
+                "</td></tr>"
+              );
+            })
+            .join("") +
+          "</table>" +
+          '<p class="muted"><b>Два зміщення, обидва вгору.</b> (1) «В Україні» — ' +
+          "<b>запитана</b> ціна: рядки з міткою «ще висить» означають, що за ці " +
+          "гроші ще ніхто не дав. (2) «Днів» — від молотка до <b>виставлення</b>, " +
+          "а не до продажу; капітал вивільняється, коли авто продане. Без обох " +
+          "поправок пригін дає ~44 % річних — число красиве й неправдиве.</p>" +
+          "</details>";
+
+        el.innerHTML = html;
+      }
+
+      function provRows(res) {
+        var out = [];
+        function row(name, p, value) {
+          if (!p) return;
+          out.push(
+            "<tr><td>" +
+              esc(name) +
+              "</td><td>" +
+              provBadge(p.basis) +
+              "</td><td>" +
+              esc(value == null ? "" : String(value)) +
+              "</td><td>" +
+              esc(p.asof || "—") +
+              '</td><td style="text-align:left;white-space:normal;font-size:12px">' +
+              esc(p.source || p.note || "") +
+              "</td></tr>",
+          );
+        }
+        var e = res.evidence;
+        row(
+          "Ціна в Україні ÷ landed",
+          {
+            basis: e.exitMultiple.basis,
+            asof: e.asof,
+            source: "власна таблиця resales, n=" + e.exitMultiple.n,
+          },
+          "медіана " + e.exitMultiple.median.toFixed(3),
+        );
+        row(
+          "Днів від молотка до оголошення",
+          {
+            basis: e.daysToListing.basis,
+            asof: e.asof,
+            source: "власна таблиця resales, n=" + e.daysToListing.n,
+          },
+          "медіана " + Math.round(e.daysToListing.median),
+        );
+        row(
+          "Днів у продажу до зняття",
+          {
+            basis: e.daysOnMarket.n >= 3 ? "measured" : "assumed",
+            asof: e.asof,
+            source:
+              e.daysOnMarket.n >= 3
+                ? "resales.ria_sold_date, n=" + e.daysOnMarket.n
+                : "Знятих оголошень лише " +
+                  e.daysOnMarket.n +
+                  " — для медіани мало, взято припущення 60 днів.",
+          },
+          e.daysOnMarket.n >= 3
+            ? "медіана " + Math.round(e.daysOnMarket.median)
+            : "60 (здогад)",
+        );
+        row(
+          "Знижка на торг від запитаної ціни",
+          {
+            basis: "assumed",
+            asof: e.asof,
+            source:
+              "Не виміряно ЖОДНОГО разу: реальної ціни продажу в Україні ми не бачимо. " +
+              "Без цієї поправки дохідність пригону завищена.",
+          },
+          "7 %",
+        );
+        row(
+          "Ремонт в Україні",
+          {
+            basis: e.uaRepairCoverage.basis,
+            asof: e.asof,
+            source:
+              e.uaRepairCoverage.note ||
+              "рядків з ремонтом: " + e.uaRepairCoverage.n,
+          },
+          "12 % від landed (здогад)",
+        );
+        if (STATE.rates) {
+          row(
+            "ОВДП, гривня",
+            STATE.rates.ovdpUah,
+            STATE.rates.ovdpUah.value + " %",
+          );
+          row(
+            "ОВДП, долар",
+            STATE.rates.ovdpUsd,
+            STATE.rates.ovdpUsd.value + " %",
+          );
+          row(
+            "Депозит, гривня",
+            STATE.rates.depositUah,
+            STATE.rates.depositUah.value + " %",
+          );
+          row(
+            "Депозит, долар",
+            STATE.rates.depositUsd,
+            STATE.rates.depositUsd.value + " %",
+          );
+          row(
+            "Оренда, валова дохідність",
+            STATE.rates.rentalGrossYield,
+            STATE.rates.rentalGrossYield.value + " %",
+          );
+          row(
+            "Ціна квартири",
+            STATE.rates.apartmentPrice,
+            money(STATE.rates.apartmentPrice.value),
+          );
+        }
+        if (STATE.devaluation) {
+          row(
+            "Девальвація гривні",
+            STATE.devaluation,
+            STATE.devaluation.value.toFixed(2) +
+              " % річних (спостережено " +
+              STATE.devaluation.observed
+                .map(function (o) {
+                  return o.pct.toFixed(1) + " %";
+                })
+                .join(", ") +
+              ")",
+          );
+        }
+        if (STATE.incomeTax) {
+          row(
+            "Податок на пасивний дохід",
+            STATE.incomeTax,
+            STATE.incomeTax.value + " %",
+          );
+        }
+        return out.join("");
+      }
+
+      // ── Прогін ──────────────────────────────────────────────────────
+      function body(save) {
+        return {
+          context: {
+            capital: Number(document.getElementById("capital").value) || 35000,
+            horizonDays: Math.round(
+              (Number(document.getElementById("years").value) || 3) * 365,
+            ),
+            hourlyRate: Number(document.getElementById("hourly").value) || 0,
+          },
+          weights: STATE.weights,
+          trials: 3000,
+          seed: 7,
+          save: !!save,
+          scenarioKey: save ? "page" : undefined,
+        };
+      }
+
+      function run(save) {
+        var el = document.getElementById("content");
+        el.innerHTML = '<p class="muted">Рахую…</p>';
+        return apiFetch("/api/decision/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body(save === true)),
+        })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (res) {
+            if (!res.ok) throw new Error(res.error || "невідома помилка");
+            STATE.last = res;
+            render(res);
+            if (res.id) {
+              el.insertAdjacentHTML(
+                "afterbegin",
+                '<div class="verdict">Зріз #' +
+                  res.id +
+                  " збережено. Зрізи ніколи не перезаписуються: ставка ОВДП, " +
+                  "курс і кількість спостережень на кожну дату були свої.</div>",
+              );
+            }
+          })
+          .catch(function (e) {
+            el.innerHTML =
+              '<div class="err"><b>Не вдалось порахувати.</b> ' +
+              esc(e.message) +
+              "<br />Сторінці потрібен node-сервер (<code>npm start</code>) — " +
+              "python-сервер віддає статику без <code>/api</code>.</div>";
+          });
+      }
+
+      document.getElementById("run").addEventListener("click", function () {
+        run(false);
+      });
+      document.getElementById("save").addEventListener("click", function () {
+        run(true);
+      });
+
+      apiFetch("/api/decision/context")
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (j) {
+          if (!j.ok) throw new Error(j.error || "немає контексту");
+          STATE.ctx = j.context;
+          STATE.weights = j.weights;
+          STATE.criteria = j.criteria;
+          STATE.rates = j.rates;
+          STATE.devaluation = j.devaluation;
+          STATE.incomeTax = j.incomeTax;
+          document.getElementById("capital").value = j.context.capital;
+          document.getElementById("years").value = (
+            j.context.horizonDays / 365
+          ).toFixed(1);
+          document.getElementById("hourly").value = j.context.hourlyRate;
+          renderWeights();
+          return run(false);
+        })
+        .catch(function (e) {
+          document.getElementById("content").innerHTML =
+            '<div class="err"><b>Сервер не відповідає.</b> ' +
+            esc(e.message) +
+            "<br />Запусти <code>npm start</code> — ця сторінка рахує на сервері, " +
+            "бо параметри пригону беруться з таблиці <code>resales</code>.</div>";
+        });
+    </script>
+  </body>
+</html>

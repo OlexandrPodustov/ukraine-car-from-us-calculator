@@ -19,6 +19,7 @@ npm start            # Node server on 127.0.0.1:5500 — static files + /api SQL
 npm run start:py     # python3 static server on :5500 — NO API/DB logging (parsing/lookup still work, just not persisted)
 npm test             # jest (jsdom)
 npx jest -t "name"   # run a single test by name
+node scripts/decide.mjs  # пригін проти ОВДП/депозиту/квартири — див. docs/decision-baseline.md
 npm run lint         # eslint assets/js (lint:fix to autofix)
 npm run stylelint    # css     | npm run htmlhint = html | npm run format = prettier
 make lint            # runs lint-js + lint-css + lint-html together
@@ -479,6 +480,91 @@ optimalBid() = solveMaxBid(ринок × (1 − targetDiscountPct/100), uaRepair
 Без ремонту та сама ціль дала б $15 750 — тобто $3 650 ремонту з'їдають $2 438
 ставки, а не $3 650: решту гасять збори, фрахт і ПДВ, які на меншій ціні теж менші.
 
+### Куди вкласти: пригін проти ОВДП, квартири й власного авто
+
+Решта репозиторію рахує **угоду**. `lib/decision.js` рахує **рішення** —
+чи варто взагалі, проти ОВДП, депозиту, квартири під оренду і «полагодити
+своє авто». Сторінка `decision.html`, CLI `scripts/decide.mjs`, ставки й
+вердикт — `docs/decision-baseline.md`.
+
+Причина існування — рядок, який `docs/resale-markup-baseline.md` уже казав, але
+ні на що не впливав: «Днів до ринку 112…926 — половина капіталу стоїть довше
+за пів року, і в жодну маржу цей час не закладений». +21.4 % за 386 днів і
++23.0 % за 112 днів — це 20 % і 96 % річних; у таблиці вони сусідні рядки.
+
+**Ранжування — за термінальним капіталом, не за IRR.** IRR мовчки припускає,
+що гроші, які повернулись через 112 днів, до кінця горизонту крутяться під ту
+саму ставку — для пригону це припущення і є вся суперечка (воно означає, що ти
+щоразу знаходиш такий самий лот). `terminalWealth()` робить його явним: увесь
+капітал лежить під `baselineRate`, а потоки опції — дельти до нього, тож
+опція, гірша за базову, дає менше за базову без окремої гілки. `repeat`
+вирішує, чи цикл котиться далі; **обрізати останній цикл посередині не можна**
+— авто, куплене за два місяці до горизонту, ще не продане.
+
+**Параметри пригону не захардкоджені** — `lib/decision-evidence.js` виводить їх
+із таблиці `resales` (медіана, P10/P90, n). Ставки ОВДП/депозиту/оренди, навпаки,
+**цитуються** з публікацій на дату. Кожне число несе `basis`: `measured` /
+`quoted` / `assumed`, і здогади не ховаються.
+
+**Два зміщення набору, обидва вгору, обидва враховані.** (1) `ria_price_usd` —
+**запитана** ціна: 8 із 10 оголошень досі активні, за ці гроші ще ніхто не дав,
+а наскільки торгуються — не виміряно жодного разу і виміряти нема на чому.
+(2) «Днів до ринку» — це до **виставлення**, не до продажу; капітал
+вивільняється, коли авто продане, а знятих оголошень поки два. Без обох
+поправок виходить **~44 % річних медіанних** — число красиве й неправдиве.
+
+**Девальвація — вимір, і вона діапазон, а не точка.** Курс НБУ на 29.08:
+36.5686 → 36.5686 → 41.2508 → 41.2602 → 44.5505, тобто 0 %, +12.8 %, +0.02 %,
++7.97 %; CAGR 5.06 %. Важливіша **форма**: девальвація йде сходинками, тож
+однорічна гривнева ОВДП — це ставка на те, чи випаде сходинка цього року.
+Це єдина невизначеність **рівня контексту** (`ctx.uncertain`), бо вона рухає і
+гривневі опції, і планку, з якою їх порівнюють, **одночасно**; `drawContext()`
+перераховує `baselineRate` під курс кожної спроби. Гривнева ставка при цьому
+**ділиться** на девальвацію, а не віднімається: 16.47 % при 8 % — це 7.84 %.
+
+**Час оператора — гроші, а не «зусилля».** 60 годин при $40 це $2 400, третина
+медіанної валової наварки. Виносити таке у ваги означало б дозволити собі
+підкрутити висновок повзунком; ваги лишаються тільки для ліквідності,
+захищеності й оборотності — і на сторінці вони помічені як суб'єктивні.
+
+**Масштаб — за піковою потребою, і неділиме не масштабується.** Пік для
+пригону це `landed + ремонт` (ремонт платиться, коли авто вже куплене), а не
+перший платіж. Квартира має `lumpy: true`: $100 тис. при капіталі $35 тис. —
+це **недоступна** опція, а не «доступна на 35 %». Уникнута витрата
+(`kind: "avoided-cost"`) не масштабується взагалі: її потік — різниця двох
+сценаріїв, і масштабування під випадкову «пікову потребу» роздувало ремонт на
+$3 000 у п'ятнадцятикратний.
+
+**Ремонт свого авто — профіль позики, і IRR там читається навпаки.** Лагодячи
+замість міняти, ти вивільняєш капітал зараз і платиш потім (гірша залишкова,
+дорожче обслуговування). Тому «6.2 % річних» у цьому рядку означає «лагодити =
+позичити під 6.2 %», і дешевше за базову ставку — лагодь. Дефолти в
+`keepCarOption()` — **заглушки, а не вимір**: усі числа про конкретне авто.
+
+**Головний вихід — не бал, а поріг.** `screeningThreshold()` каже, за якої
+«ціна ÷ landed» пригін лише зрівнюється з облігаціями. На зрізі 2026-08-29 це
+**1.454 ×, тобто цільова знижка 31.2 %** — те саме поле, яке живить
+`optimalBid()`, де дефолт 30 %. Тобто дефолт калькулятора виявився майже точно
+на межі «краще за облігації», хоч ніхто цього не проєктував. Медіана набору —
+1.331 × (24.8 %), тобто **медіанна угода поріг не проходить**.
+
+**Чутливість бере діапазон із `option.uncertain`, а не ±25 %** — і це
+виправлення реальної помилки, зловленої 2026-08-29. За ±25 % ремонт давав
+розмах $5 395 і виглядав третім, з чого напрошувався хибний висновок «вердикт
+не тримається на здогадах». Ремонт не «відомий з точністю 25 %» — він
+**невідомий узагалі** (0 з 10 рядків), його правдивий діапазон «від половини до
+подвійного», і в ньому він дає **найбільший розмах, $14 906**. Пропорційне
+збурення систематично занижує вплив полів, чиє **саме існування** припущене.
+Кожен рядок торнадо тепер каже `basis` (`range` / `relative`), і рядки на
+різній основі в лоб не порівнюються. Сторож — `__tests__/decision.test.js`,
+блок «чутливість».
+
+**`decisions` дописується, ніколи не перезаписується.** Порівняння спиралось на
+сьогоднішню ставку ОВДП, сьогоднішній курс і те, скільки спостережень було в
+`resales` на той момент; перезапис стер би те, **чому** рішення тоді виглядало
+правильним. Те саме правило, що в `resale_price_history` і в `docs/*-baseline.md`.
+`scenario_key` лише групує серію — `decide.mjs --series <key>` показує дрейф.
+
 ### `_data` у харнесах мусить проксіюватись і на ЗАПИС
 
 `createVm()` — і в `scripts/lib/app-vm.mjs`, і в `__tests__/helpers/load-calculator.js`
@@ -493,9 +579,10 @@ landed за дефолтним курсом (44.7 / 1.1), хоч і запису
 
 ### Persistence (server.js + SQLite at `data/searches.db`)
 
-Two tables: `searches` (one row per market lookup, with heavy `*_json` columns for prices /
-percentiles / classifieds) and `lots` (full parsed lot incl. HD photo URLs, 360°, videos, and
-`raw_json`). `lots` is deduped by a unique `(auction, lot_number)` index and UPSERTed, so
+Tables: `searches` (one row per market lookup, with heavy `*_json` columns for prices /
+percentiles / classifieds), `lots` (full parsed lot incl. HD photo URLs, 360°, videos, and
+`raw_json`), the resale set (`resales` / `resale_price_history` / `resale_candidates`, see
+lib/resale-db.js) and `decisions` (датовані зрізи порівняння — lib/decision-db.js). `lots` is deduped by a unique `(auction, lot_number)` index and UPSERTed, so
 re-parsing the same lot updates rather than duplicates — with `COALESCE(excluded.col, col)`, so a
 re-parse that comes back thinner than the first one does not blank the columns it could not fill
 (`ts` and `offsite` are always sent, so they overwrite outright). A search links to its lot via `lot_id`.
@@ -507,8 +594,8 @@ because `data/searches.db` ships in the repo. `DB_PATH` overrides the database f
 LEFT JOINs the most recent search per lot (`market_price` / `total_cost` / `diff` / `category`),
 which is what the deal pill on each card shows. Companion pages read these:
 `lots.html`, `searches.html`, `stats.html` (draws distribution charts from the stored
-`prices_json` / `percentiles_json` — never re-calls the rate-limited API just to render a chart)
-and `resales.html`.
+`prices_json` / `percentiles_json` — never re-calls the rate-limited API just to render a chart),
+`resales.html` and `decision.html`.
 
 **Never delete `data/searches.db`, and persist every field the RIA API returns** (these are
 standing project rules — see memory). The same goes for the lot JSON: `raw_json` holds the whole

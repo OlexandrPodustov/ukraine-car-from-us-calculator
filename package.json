@@ -12,7 +12,7 @@
     "format": "prettier --write **/*.{js,css,html}",
     "stylelint": "stylelint assets/css/**/*.css",
     "stylelint:fix": "stylelint assets/css/**/*.css --fix",
-    "htmlhint": "htmlhint index.html lots.html searches.html stats.html resales.html"
+    "htmlhint": "htmlhint index.html lots.html searches.html stats.html resales.html decision.html"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0"
